@@ -4,12 +4,12 @@ import argparse
 import json
 import random
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import ClassVar, Dict, List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
-import pandas as pd  # pylint: disable=import-error
-from datasets import load_dataset  # pylint: disable=import-error
-from transformers import AutoTokenizer  # pylint: disable=import-error
+import pandas as pd
+from datasets import load_dataset
+from transformers import AutoTokenizer
 
 from mlc_llm.bench.request_record import GroupedRequestRecord, Metrics, RequestRecord
 from mlc_llm.protocol.openai_api_protocol import (
@@ -19,7 +19,7 @@ from mlc_llm.protocol.openai_api_protocol import (
 )
 
 
-class Dataset:  # pylint: disable=too-few-public-methods
+class Dataset:
     """The dataset base class."""
 
     # We set a truncation limit of 100k.
@@ -38,15 +38,15 @@ class Dataset:  # pylint: disable=too-few-public-methods
         output_len: Optional[int],
         input_len_std: float = 0.0,
         output_len_std: float = 0.0,
-    ) -> List[RequestRecord]:
+    ) -> List[RequestRecord]:  # noqa: UP006
         """Get the raw unprocessed request records of the dataset."""
         raise NotImplementedError()
 
 
-class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
+class ShareGPTDataset(Dataset):
     """The dataset class for ShareGPT dataset."""
 
-    _tokenized_dataset: List[Tuple[str, List[int], int]]
+    _tokenized_dataset: List[Tuple[str, List[int], int]]  # noqa: UP006
     apply_chat_template: bool
 
     def __init__(
@@ -65,9 +65,9 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         self.tokenizer = tokenizer
         prompts = [prompt for prompt, _ in _dataset]
         if apply_chat_template:
-            assert (
-                getattr(tokenizer, "chat_template", None) is not None
-            ), '"--apply-chat-template" is set but the tokenizer does not have chat template.'
+            assert getattr(tokenizer, "chat_template", None) is not None, (
+                '"--apply-chat-template" is set but the tokenizer does not have chat template.'
+            )
             prompts = [
                 tokenizer.apply_chat_template(
                     [{"role": "user", "content": prompt}],
@@ -92,7 +92,7 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
             max_length=min(tokenizer.model_max_length, self.truncate_length),
             add_special_tokens=False,
         ).input_ids
-        self._tokenized_dataset: List[Tuple[str, List[int], int]] = []
+        self._tokenized_dataset: List[Tuple[str, List[int], int]] = []  # noqa: UP006
         for i in range(len(_dataset)):
             if (
                 len(prompt_token_ids[i]) < 4
@@ -112,11 +112,11 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         output_len: Optional[int],
         input_len_std: float = 0.0,
         output_len_std: float = 0.0,
-    ) -> List[RequestRecord]:
+    ) -> List[RequestRecord]:  # noqa: UP006
         if self.apply_chat_template:
-            assert (
-                input_len is None
-            ), '"--apply-chat-template" is not supported when "--input-len" is specified.'
+            assert input_len is None, (
+                '"--apply-chat-template" is not supported when "--input-len" is specified.'
+            )
 
         request_records = []
         for prompt, input_token_ids, output_length in self._tokenized_dataset:
@@ -167,17 +167,15 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         return request_records
 
 
-class LoogleDataset(Dataset):  # pylint: disable=too-few-public-methods
+class LoogleDataset(Dataset):
     """The dataset class for Loogle dataset."""
 
-    # pylint: disable=line-too-long
-    task2prompt = {
-        "shortdep_qa": "Please answer the question based on the long texts below. \n{input}\nQuestion: {Q}\nAnswer: ",
-        "longdep_qa": "Please answer the question based on the long texts below. \n{input}\nQuestion: {Q}\nAnswer: ",
-        "longdep_summarization": "Please generate a summary of the below paper. \n{input}\n Summarization: ",
-        "shortdep_cloze": "Please fill in the clozes based on the given long texts below. Each of the placeholder '<mask-n>' in the question could be an entity of Person, Location or Organiocation. The same masks represent the same entity. Output a json format answer, for example: {{'<mask-0>': 'Bob', '<mask-1>': 'Gorrosion Magazine','<mask-2>': 'Bethel Horizon'}}\n{input}\n Question: {Q} What are the masked entities? \nAnswer:",
+    task2prompt: ClassVar[Dict[str, str]] = {  # noqa: UP006
+        "shortdep_qa": "Please answer the question based on the long texts below. \n{input}\nQuestion: {Q}\nAnswer: ",  # noqa: E501
+        "longdep_qa": "Please answer the question based on the long texts below. \n{input}\nQuestion: {Q}\nAnswer: ",  # noqa: E501
+        "longdep_summarization": "Please generate a summary of the below paper. \n{input}\n Summarization: ",  # noqa: E501
+        "shortdep_cloze": "Please fill in the clozes based on the given long texts below. Each of the placeholder '<mask-n>' in the question could be an entity of Person, Location or Organiocation. The same masks represent the same entity. Output a json format answer, for example: {{'<mask-0>': 'Bob', '<mask-1>': 'Gorrosion Magazine','<mask-2>': 'Bethel Horizon'}}\n{input}\n Question: {Q} What are the masked entities? \nAnswer:",  # noqa: E501
     }
-    # pylint: enable=line-too-long
     require_fake_warmup: bool = True
 
     def __init__(self, tokenizer: AutoTokenizer, testset_name: str) -> None:
@@ -191,7 +189,7 @@ class LoogleDataset(Dataset):  # pylint: disable=too-few-public-methods
         for data in raw_dataset:
             prompt = data["input"]
             prompts.append(prompt)
-            qa_pairs = eval(data["qa_pairs"])  # pylint: disable=eval-used
+            qa_pairs = eval(data["qa_pairs"])
             questions.append([j["Q"] for j in qa_pairs])
             generate_lens.append(
                 [len(tokenizer.encode(j["A"], add_special_tokens=False)) for j in qa_pairs]
@@ -207,13 +205,13 @@ class LoogleDataset(Dataset):  # pylint: disable=too-few-public-methods
         ):
             self.dataset.append((prompt, prompt_token_id, question, generate_len))
 
-    def generate_request_records(  # pylint: disable=too-many-locals
+    def generate_request_records(
         self,
         input_len: Optional[int],
         output_len: Optional[int],
         input_len_std: float = 0.0,
         output_len_std: float = 0.0,
-    ) -> List[RequestRecord]:
+    ) -> List[RequestRecord]:  # noqa: UP006
         request_records = []
         for prompt, input_token_ids, questions, generate_lens in self.dataset:
             input_length = round(float(np.random.normal(loc=input_len, scale=input_len_std)))
@@ -261,7 +259,7 @@ class LoogleDataset(Dataset):  # pylint: disable=too-few-public-methods
         return request_records
 
 
-class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
+class LLMPerfDataset(Dataset):
     """The dataset class for LLMPerf dataset."""
 
     def __init__(self, dataset_path: str, num_requests: int, tokenizer: AutoTokenizer) -> None:
@@ -278,17 +276,17 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
             add_special_tokens=False,
         ).input_ids
         tokenized_data_lengths = [len(tokens) for tokens in tokenized_data]
-        self.dataset: List[Tuple[str, List[int], int]] = list(
+        self.dataset: List[Tuple[str, List[int], int]] = list(  # noqa: UP006
             zip(untokenized_data, tokenized_data, tokenized_data_lengths)
         )
 
-    def generate_request_records(  # pylint: disable=too-many-arguments,too-many-locals
+    def generate_request_records(
         self,
         input_len: Optional[int] = None,
         output_len: Optional[int] = None,
         input_len_std: float = 250,
         output_len_std: float = 0.0,
-    ) -> List[RequestRecord]:
+    ) -> List[RequestRecord]:  # noqa: UP006
         if input_len is None or input_len < 40:
             input_len = 550
         if output_len is None:
@@ -342,7 +340,7 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
         return request_records
 
 
-class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
+class JSONModeEvalDataset(Dataset):
     """The dataset class for JSON dataset."""
 
     def __init__(self, tokenizer: AutoTokenizer) -> None:
@@ -368,7 +366,7 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
         output_len: Optional[int],
         input_len_std: float = 0.0,
         output_len_std: float = 0.0,
-    ) -> List[RequestRecord]:
+    ) -> List[RequestRecord]:  # noqa: UP006
         request_records = []
         for messages, schema, num_tokens in self.dataset:
             # If the request does not have enough length, discard it.
@@ -404,14 +402,13 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
         return request_records
 
 
-class ReActDataset(Dataset):  # pylint: disable=too-few-public-methods
+class ReActDataset(Dataset):
     """The dataset class for replaying a given ReAct trace for benchmark purpose.
     It is not an actual ReAct agent implementation.
     """
 
-    _dataset: List[List[Tuple[str, int, int]]]
+    _dataset: List[List[Tuple[str, int, int]]]  # noqa: UP006
     require_fake_warmup: bool = True
-    # pylint: disable=line-too-long
     prefix: str = """Solve a question answering task with interleaving Thought, Action, Observation steps. Thought can reason about the current situation, and Action can be three types:
 (1) Search[entity], which searches the exact entity on Wikipedia and returns the first paragraph if it exists. If not, it will return some similar entities to search.
 (2) Lookup[keyword], which returns the next sentence containing keyword in the current passage.
@@ -478,14 +475,11 @@ Action 2: Search[Leonid Levin]
 Observation 2: Leonid Anatolievich Levin is a Soviet-American mathematician and computer scientist.
 Thought 3: Leonid Levin is a mathematician and computer scientist. So Pavel Urysohn and Leonid Levin have the same type of work.
 Action 3: Finish[yes]
-"""
+"""  # noqa: E501, RUF001
 
-    # pylint: enable=line-too-long
-    def __init__(  # pylint: disable=too-many-locals
-        self, dataset_path: str, tokenizer: AutoTokenizer
-    ) -> None:
-        raw_entries: List[Dict] = []
-        with open(dataset_path) as fin:  # pylint: disable=unspecified-encoding
+    def __init__(self, dataset_path: str, tokenizer: AutoTokenizer) -> None:
+        raw_entries: List[Dict] = []  # noqa: UP006
+        with open(dataset_path) as fin:
             for line in fin:
                 line_content = json.loads(line)
                 raw_entries += list({"question": k, "triplets": v} for k, v in line_content.items())
@@ -498,7 +492,7 @@ Action 3: Finish[yes]
             triplets = raw_entry["triplets"]
             seq = self.prefix + question
             max_rounds = max(max_rounds, len(triplets) + 1)
-            output_lengths: List[int] = []
+            output_lengths: List[int] = []  # noqa: UP006
             for i, triplet in enumerate(triplets):
                 output_lengths.append(
                     len(
@@ -553,7 +547,7 @@ Action 3: Finish[yes]
         output_len: Optional[int],
         input_len_std: float = 0.0,
         output_len_std: float = 0.0,
-    ) -> List[RequestRecord]:
+    ) -> List[RequestRecord]:  # noqa: UP006
         if input_len is not None or output_len is not None:
             raise ValueError("ReAct dataset does not support specifying input/output length.")
 
@@ -587,7 +581,7 @@ Action 3: Finish[yes]
         return request_records
 
 
-class WildChatDataset(Dataset):  # pylint: disable=too-few-public-methods
+class WildChatDataset(Dataset):
     """The dataset class for WildChat dataset."""
 
     apply_chat_template: bool
@@ -612,9 +606,9 @@ class WildChatDataset(Dataset):  # pylint: disable=too-few-public-methods
             prompts.append(prompt)
             completions.append(completion)
         if apply_chat_template:
-            assert (
-                getattr(tokenizer, "chat_template", None) is not None
-            ), '"--apply-chat-template" is set but the tokenizer does not have chat template.'
+            assert getattr(tokenizer, "chat_template", None) is not None, (
+                '"--apply-chat-template" is set but the tokenizer does not have chat template.'
+            )
             prompts = [
                 tokenizer.apply_chat_template(
                     [{"role": "user", "content": prompt}],
@@ -638,7 +632,7 @@ class WildChatDataset(Dataset):  # pylint: disable=too-few-public-methods
             max_length=min(tokenizer.model_max_length, self.truncate_length),
             add_special_tokens=False,
         ).input_ids
-        self._tokenized_dataset: List[Tuple[str, List[int], int]] = []
+        self._tokenized_dataset: List[Tuple[str, List[int], int]] = []  # noqa: UP006
         for i in range(len(_dataset)):
             if len(prompt_token_ids[i]) < 4 or len(completion_token_ids[i]) < 4:
                 # Filter out sequences that are too short
@@ -647,17 +641,17 @@ class WildChatDataset(Dataset):  # pylint: disable=too-few-public-methods
                 (prompts[i], prompt_token_ids[i], len(completion_token_ids[i]))
             )
 
-    def generate_request_records(  # pylint: disable=too-many-locals
+    def generate_request_records(
         self,
         input_len: Optional[int],
         output_len: Optional[int],
         input_len_std: float = 0.0,
         output_len_std: float = 0.0,
-    ) -> List[RequestRecord]:
+    ) -> List[RequestRecord]:  # noqa: UP006
         if self.apply_chat_template:
-            assert (
-                input_len is None
-            ), '"--apply-chat-template" is not supported when "--input-len" is specified.'
+            assert input_len is None, (
+                '"--apply-chat-template" is not supported when "--input-len" is specified.'
+            )
 
         request_records = []
         for prompt, input_token_ids, output_length in self._tokenized_dataset:
@@ -708,7 +702,7 @@ class WildChatDataset(Dataset):  # pylint: disable=too-few-public-methods
         return request_records
 
 
-class AzureLLMInferenceDataset(Dataset):  # pylint: disable=too-few-public-methods
+class AzureLLMInferenceDataset(Dataset):
     """The dataset class for AzureLLMInference dataset.
     Reference: https://github.com/Azure/AzurePublicDataset
     """
@@ -738,13 +732,13 @@ class AzureLLMInferenceDataset(Dataset):  # pylint: disable=too-few-public-metho
             if entry["ContextTokens"] >= 4 and entry["GeneratedTokens"] >= 4
         ]
 
-    def generate_request_records(  # pylint: disable=too-many-locals
+    def generate_request_records(
         self,
         input_len: Optional[int],
         output_len: Optional[int],
         input_len_std: float = 0.0,
         output_len_std: float = 0.0,
-    ) -> List[RequestRecord]:
+    ) -> List[RequestRecord]:  # noqa: UP006
         time_fmt = "%Y-%m-%d %H:%M:%S.%f"
         start_time = datetime.strptime(self.dataset[0][0][:-1], time_fmt)
         request_records = []
@@ -814,9 +808,7 @@ SUPPORTED_DATASET = [
 ]
 
 
-def create_dataset(  # pylint: disable=too-many-return-statements,too-many-branches
-    args: argparse.Namespace, tokenizer: AutoTokenizer
-) -> Dataset:
+def create_dataset(args: argparse.Namespace, tokenizer: AutoTokenizer) -> Dataset:
     """Create a dataset instance with regard to the specified dataset kind and file path."""
     if args.dataset_path is not None and not isinstance(args.dataset_path, str):
         raise TypeError(f"Invalid dataset path {args.dataset_path}. Please use a string.")
@@ -840,36 +832,36 @@ def create_dataset(  # pylint: disable=too-many-return-statements,too-many-branc
             raise ValueError(
                 'LLMPerf dataset requires dataset path. Please specify it with "--dataset-path".'
             )
-        assert (
-            args.apply_chat_template is False
-        ), "LLMPerf dataset does not support applying chat template"
+        assert args.apply_chat_template is False, (
+            "LLMPerf dataset does not support applying chat template"
+        )
         return LLMPerfDataset(
             args.dataset_path,
             (args.num_requests + args.num_warmup_requests) * 4,
             tokenizer,
         )
     if args.dataset == "json-mode-eval":
-        assert (
-            args.apply_chat_template is False
-        ), "JSON mode evaluation does not support applying chat template"
+        assert args.apply_chat_template is False, (
+            "JSON mode evaluation does not support applying chat template"
+        )
         return JSONModeEvalDataset(tokenizer)
     if args.dataset == "loogle":
         if args.dataset_path is None:
             raise ValueError(
                 'Loogle dataset requires a testset name. Please specify it with "--dataset-path".'
             )
-        assert (
-            args.apply_chat_template is False
-        ), "Loogle dataset does not support applying chat template"
+        assert args.apply_chat_template is False, (
+            "Loogle dataset does not support applying chat template"
+        )
         return LoogleDataset(tokenizer, testset_name=args.dataset_path)
     if args.dataset == "react":
         if args.dataset_path is None:
             raise ValueError(
                 'ReAct dataset requires dataset path. Please specify it with "--dataset-path".'
             )
-        assert (
-            args.apply_chat_template is False
-        ), "ReAct dataset does not support applying chat template"
+        assert args.apply_chat_template is False, (
+            "ReAct dataset does not support applying chat template"
+        )
         return ReActDataset(args.dataset_path, tokenizer)
     if args.dataset == "wildchat":
         return WildChatDataset(tokenizer, args.apply_chat_template)
@@ -879,8 +871,8 @@ def create_dataset(  # pylint: disable=too-many-return-statements,too-many-branc
                 "AzureLLMInference dataset requires dataset path. "
                 'Please specify it with "--dataset-path".'
             )
-        assert (
-            args.apply_chat_template is False
-        ), "AzureLLMInference dataset does not support applying chat template"
+        assert args.apply_chat_template is False, (
+            "AzureLLMInference dataset does not support applying chat template"
+        )
         return AzureLLMInferenceDataset(args.dataset_path, tokenizer)
     raise ValueError(f"Unrecognized dataset {args.dataset}")

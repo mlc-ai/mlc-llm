@@ -1,6 +1,5 @@
 """Generator of mlc-chat-config.json and tokenizer configuration."""
 
-# pylint: disable=E1101
 import dataclasses
 import json
 import re
@@ -52,20 +51,20 @@ def txt2rwkv_tokenizer(vocab: Path, out: Path) -> None:
     with vocab.open("r", encoding="utf-8") as f:
         lines = f.readlines()
 
-    for l in lines:
-        idx = int(l[: l.index(" ")])
-        raw = l[l.index(" ") : l.rindex(" ")].strip()
+    for line in lines:
+        idx = int(line[: line.index(" ")])
+        raw = line[line.index(" ") : line.rindex(" ")].strip()
         if check_string(raw):
-            x = eval(raw)  # pylint: disable=eval-used
+            x = eval(raw)
             x = x.encode("utf-8") if isinstance(x, str) else x
             assert isinstance(x, bytes)
-            assert len(x) == int(l[l.rindex(" ") :])
+            assert len(x) == int(line[line.rindex(" ") :])
             idx2token[idx] = x
         else:
             raise ValueError("Unsupported vocab dictionary")
 
     with (out / "tokenizer_model").open("wb") as f:
-        import msgpack  # pylint: disable=import-outside-toplevel,import-error
+        import msgpack
 
         msgpack.pack(idx2token, f)
 
@@ -82,12 +81,12 @@ def json2rwkv_tokenizer(vocab: Path, out: Path) -> None:
             idx2token[int(value)] = x
 
     with (out / "tokenizer_model").open("wb") as f:
-        import msgpack  # pylint: disable=import-outside-toplevel,import-error
+        import msgpack
 
         msgpack.pack(idx2token, f)
 
 
-def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-branches,too-many-statements
+def gen_config(
     config: Path,
     model: Model,
     quantization: Quantization,
@@ -111,9 +110,9 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             red("Warning"),
             conv_template,
         )
-        conversation = conv_template  # type: ignore
+        conversation = conv_template
     else:
-        conversation = conversation_reg.to_json_dict()  # type: ignore
+        conversation = conversation_reg.to_json_dict()
 
     model_config = ModelConfigOverride(
         context_window_size=context_window_size,
@@ -138,7 +137,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         tensor_parallel_shards=model_config.tensor_parallel_shards,
         pipeline_parallel_stages=getattr(model_config, "pipeline_parallel_stages", 1),
         disaggregation=getattr(model_config, "disaggregation", False),
-        conv_template=conversation,  # type: ignore
+        conv_template=conversation,
         model_task=model.model_task,
         embedding_metadata=(
             dataclasses.asdict(model.embedding_metadata) if model.embedding_metadata else None
@@ -198,7 +197,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             "Attempting to convert using HuggingFace transformers library"
         )
         try:
-            from transformers import (  # pylint: disable=import-error,import-outside-toplevel
+            from transformers import (
                 AutoTokenizer,
             )
 
@@ -210,7 +209,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
                 "Successfully converted `tokenizer.model` to: %s",
                 tokenizer_json_save_dest,
             )
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             logger.warning(
                 "Converting to `tokenizer.json` %s with the exception below. "
                 "Skipping the conversion.",
@@ -232,7 +231,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             mlc_chat_config.tokenizer_files.append("merges.txt")
             mlc_chat_config.tokenizer_files.append("special_tokens_map.json")
             logger.info("Succesfully converted from tiktoken files to: %s", str(output))
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             logger.exception("%s with the exception below. Skipping", FAILED)
 
     # 3.4. Detect tokenizer info
@@ -243,7 +242,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     # that affects correctness of huggingface tokenizer.
     # See https://huggingface.co/NousResearch/Hermes-2-Pro-Llama-3-8B/discussions/15.
     if tokenizer_json_file.exists():
-        with open(tokenizer_json_file, "r", encoding="utf-8") as f:
+        with open(tokenizer_json_file, encoding="utf-8") as f:
             tokenizer_json = json.load(f)
             if "added_tokens" in tokenizer_json:
                 appeared_content = set()
@@ -266,7 +265,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     # Step 5. Use HF tokenizer to detect active vocab size via len(tokenizer)
     if tokenizer_json_file.exists():
         try:
-            from transformers import (  # pylint: disable=import-error,import-outside-toplevel
+            from transformers import (
                 AutoTokenizer,
             )
 
@@ -279,7 +278,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
                     active_vocab_size,
                 )
                 mlc_chat_config.active_vocab_size = active_vocab_size
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             logger.warning(
                 "Detecting active_vocab_size %s with the exception below. Skipping.",
                 FAILED,
@@ -300,7 +299,7 @@ TOKENIZER_FILES = [
     "added_tokens.json",
     "tokenizer_config.json",
 ]
-# FIXME: Copy RWKV tokenizer file # pylint: disable=fixme
+# FIXME: Copy RWKV tokenizer file
 
 CONV_TEMPLATES = {
     "llama-4",

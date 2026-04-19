@@ -3,9 +3,10 @@
 import json
 import math
 import threading
-from typing import Any, AsyncGenerator, Iterable, List, Literal, Optional, Tuple
+from collections.abc import AsyncGenerator, Iterable
+from typing import Any, List, Literal, Optional, Tuple  # noqa: UP035
 
-import aiohttp  # pylint: disable=import-error
+import aiohttp
 import tvm
 
 from mlc_llm.protocol import openai_api_protocol
@@ -14,20 +15,20 @@ from mlc_llm.serve.entrypoints import microserving_entrypoints
 from mlc_llm.tokenizers import Tokenizer
 
 
-class Router:  # pylint: disable=too-many-instance-attributes
+class Router:
     """Programmable Router Implementation"""
 
     def __init__(
         self,
         model: str,
         model_lib: Optional[str] = None,
-        hosts: Optional[List[str]] = None,
-        ports: Optional[List[int]] = None,
-        num_gpus: Optional[List[int]] = None,
+        hosts: Optional[List[str]] = None,  # noqa: UP006
+        ports: Optional[List[int]] = None,  # noqa: UP006
+        num_gpus: Optional[List[int]] = None,  # noqa: UP006
         enable_prefix_cache: bool = False,
         router_mode: Literal["disagg", "round-robin"] = "disagg",
         pd_balance_factor: float = 0.0,
-    ):  # pylint: disable=too-many-arguments,too-many-locals
+    ):
         """
         Spawn len(host_list) server endpoints with Popen.
         """
@@ -59,7 +60,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
 
         # Start underlying servers concurrently. Otherwise 1 server cannot start on its own
         # since initializing nvhsmem world requires all GPUs.
-        self.servers: List[PopenServer] = []
+        self.servers: List[PopenServer] = []  # noqa: UP006
 
         self.device_id_starts = [0]
         for num_gpus_val in num_gpus:
@@ -174,9 +175,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=3 * 3600), trust_env=True
         ) as session:
-            # pylint: disable=fixme
             # todo: replace this with start_generate
-            # pylint: enable=fixme
             async with session.post(
                 self.server_urls[cur_endpoint] + "/v1/completions",
                 json=payload,
@@ -213,12 +212,10 @@ class Router:  # pylint: disable=too-many-instance-attributes
                     yield response
             self.num_running_requests[cur_endpoint] -= 1
 
-    #
     # Below methods are for disaggregated serving
     # Note that only _handle_completion_disagg() has scheduling logics. The other three
     # helper methods only reflect our flow.
-    #
-    async def _handle_completion_disagg(  # pylint: disable=too-many-locals
+    async def _handle_completion_disagg(
         self,
         original_request: openai_api_protocol.CompletionRequest,
         request_id: str,
@@ -314,7 +311,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
         session: aiohttp.ClientSession,
         request: openai_api_protocol.CompletionRequest,
         server_url: str,
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int]:  # noqa: UP006
         """
         Performs step 1 of disaggregated serving: ask D to prepare metadata.
         Returns:
@@ -366,9 +363,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
         """
         Performs step 3 of disaggregated serving: ask D to decode and return normal response.
         """
-        # pylint: disable=fixme
         # Todo: return string directly to reduce str->json->str roundtrip overhead
-        # pylint: enable=fixme
         async with session.post(
             server_url + "/microserving/start_generate",
             json=request.model_dump(),

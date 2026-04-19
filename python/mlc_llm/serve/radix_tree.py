@@ -1,6 +1,6 @@
 """The Paged Radix Tree class."""
 
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union  # noqa: UP035
 
 import tvm_ffi
 from tvm.runtime import Object, ShapeTuple
@@ -8,17 +8,17 @@ from tvm.runtime import Object, ShapeTuple
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("mlc.serve.PagedRadixTree")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.PagedRadixTree")
 class PagedRadixTree(Object):
     """The paged radix tree to manage prefix and sequence."""
 
-    def __init__(self):  # pylint: disable=super-init-not-called
+    def __init__(self):
         """
         Constructor of paged radix tree.
         """
-        self.__init_handle_by_constructor__(_ffi_api.PagedRadixTree)  # type: ignore  # pylint: disable=no-member
+        self.__init_handle_by_constructor__(_ffi_api.PagedRadixTree)
 
-    def match(self, tokens: Union[ShapeTuple, List, Tuple]) -> Tuple[int, ShapeTuple]:
+    def match(self, tokens: Union[ShapeTuple, List, Tuple]) -> Tuple[int, ShapeTuple]:  # noqa: UP006
         """
         Get all sequences with longest common prefix with given prefix tokens.
 
@@ -36,7 +36,7 @@ class PagedRadixTree(Object):
         """
         if isinstance(tokens, (list, tuple)):
             tokens = ShapeTuple(tokens)
-        output = _ffi_api.PagedRadixTreeMatchPrefix(self, tokens)  # type: ignore  # pylint: disable=no-member
+        output = _ffi_api.PagedRadixTreeMatchPrefix(self, tokens)
         if len(output) == 1:
             return output[0], []
         return output[0], output[1:]
@@ -50,7 +50,7 @@ class PagedRadixTree(Object):
         seq_id : int
             The sequence ID for index.
         """
-        _ffi_api.PagedRadixTreeAddSequence(self, seq_id)  # type: ignore  # pylint: disable=no-member
+        _ffi_api.PagedRadixTreeAddSequence(self, seq_id)
 
     def remove(self, seq_id: int) -> None:
         """
@@ -61,9 +61,9 @@ class PagedRadixTree(Object):
         seq_id : int
             The sequence ID to remove.
         """
-        _ffi_api.PagedRadixTreeRemoveSequence(self, seq_id)  # type: ignore  # pylint: disable=no-member
+        _ffi_api.PagedRadixTreeRemoveSequence(self, seq_id)
 
-    def extend(self, seq_id: int, tokens: Union[ShapeTuple, List, Tuple]) -> None:
+    def extend(self, seq_id: int, tokens: Union[ShapeTuple, List, Tuple]) -> None:  # noqa: UP006
         """
         Extend a sequence with given tokens.
 
@@ -76,7 +76,7 @@ class PagedRadixTree(Object):
         """
         if isinstance(tokens, (list, tuple)):
             tokens = ShapeTuple(tokens)
-        _ffi_api.PagedRadixTreeExtendSequence(self, seq_id, tokens)  # type: ignore  # pylint: disable=no-member
+        _ffi_api.PagedRadixTreeExtendSequence(self, seq_id, tokens)
 
     def rollback(self, seq_id: int, num_tokens: int) -> None:
         """
@@ -89,7 +89,7 @@ class PagedRadixTree(Object):
         num_tokens : int
             The number of tokens to be rolled back.
         """
-        _ffi_api.PagedRadixTreeRollBackSequence(self, seq_id, num_tokens)  # type: ignore  # pylint: disable=no-member
+        _ffi_api.PagedRadixTreeRollBackSequence(self, seq_id, num_tokens)
 
     def fork(self, seq_id: int, parent_seq_id: int, forked_offset: int) -> None:
         """
@@ -107,7 +107,7 @@ class PagedRadixTree(Object):
             If the position equals the length of forked sequence,
             the new sequence will copy the entire forked sequence.
         """
-        _ffi_api.PagedRadixTreeForkSequence(self, seq_id, parent_seq_id, forked_offset)  # type: ignore  # pylint: disable=no-member
+        _ffi_api.PagedRadixTreeForkSequence(self, seq_id, parent_seq_id, forked_offset)
 
     def get(self, seq_id: int) -> ShapeTuple:
         """
@@ -123,7 +123,7 @@ class PagedRadixTree(Object):
         tokens : ShapeTuple
             The sequence tokens.
         """
-        return _ffi_api.PagedRadixTreeGetSequence(self, seq_id)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.PagedRadixTreeGetSequence(self, seq_id)
 
     def get_length(self, seq_id: int) -> int:
         """
@@ -139,7 +139,7 @@ class PagedRadixTree(Object):
         length : int
             The sequence length.
         """
-        return _ffi_api.PagedRadixTreeGetSequenceLength(self, seq_id)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.PagedRadixTreeGetSequenceLength(self, seq_id)
 
     def free_capacity(self) -> int:
         """
@@ -150,4 +150,4 @@ class PagedRadixTree(Object):
         capacity : int
             The remaining token capacity of the paged radix tree.
         """
-        return _ffi_api.PagedRadixTreeFreeCapacity(self)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.PagedRadixTreeFreeCapacity(self)

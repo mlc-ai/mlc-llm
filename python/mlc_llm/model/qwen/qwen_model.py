@@ -3,7 +3,7 @@ Implementation for QWEN architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class QWenConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class QWenConfig(ConfigBase):
     """Configuration of the QWen model."""
 
     vocab_size: int
@@ -38,7 +38,7 @@ class QWenConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
     head_dim: int = 0
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.context_window_size == 0:
@@ -78,10 +78,7 @@ class QWenConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = min(self.context_window_size, 8192)
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
-class QWenAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class QWenAttention(nn.Module):
     def __init__(self, config: QWenConfig):
         self.hidden_size = config.hidden_size
         if config.num_attention_heads % config.tensor_parallel_shards != 0:
@@ -96,7 +93,7 @@ class QWenAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
 
         self.c_proj = nn.Linear(self.num_heads * self.head_dim, config.hidden_size, bias=False)
 
-    def forward(  # pylint: disable=too-many-locals
+    def forward(
         self,
         hidden_states: Tensor,
         paged_kv_cache: PagedKVCache,
@@ -200,7 +197,7 @@ class QWenModel(nn.Module):
         return hidden_states
 
 
-class QWenLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attributes
+class QWenLMHeadModel(nn.Module):
     def __init__(self, config: QWenConfig):
         self.transformer = QWenModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False, dtype="float32")
@@ -271,7 +268,7 @@ class QWenLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
         logits = self.batch_forward(inputs, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

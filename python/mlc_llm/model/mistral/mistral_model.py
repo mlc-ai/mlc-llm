@@ -3,7 +3,7 @@ Implementation for Mistral architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class MistralConfig(ConfigBase):
     """Configuration of the Mistral model."""
 
     hidden_size: int
@@ -39,9 +39,9 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     attention_sink_size: int = 4
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
-    def __post_init__(self):  # pylint: disable=too-many-branches
+    def __post_init__(self):
         if self.position_embedding_base == 0:
             if "rope_theta" in self.kwargs:
                 self.position_embedding_base = self.kwargs.pop("rope_theta")
@@ -93,9 +93,6 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = min(*prefill_chunk_size_candidates, 8192)
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
 class MistralMLP(nn.Module):
     """Same as in Llama architecture (LlamaFFN)."""
 
@@ -120,7 +117,7 @@ class MistralMLP(nn.Module):
         return self.down_proj(op.silu(x1) * x2)
 
 
-class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class MistralAttention(nn.Module):
     """Same as LlamaAttention, but with sliding window attention using a rolling buffer cache."""
 
     def __init__(self, config: MistralConfig):
@@ -221,7 +218,7 @@ class MistralModel(nn.Module):
         return hidden_states
 
 
-class MistralForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class MistralForCausalLM(nn.Module):
     """Same as LlamaForCausalLM, except for the use of sliding window attention."""
 
     def __init__(self, config: MistralConfig):
@@ -302,7 +299,7 @@ class MistralForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

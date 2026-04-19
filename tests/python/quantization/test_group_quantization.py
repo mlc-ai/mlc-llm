@@ -1,5 +1,4 @@
-# pylint: disable=invalid-name,missing-docstring
-from typing import List
+from typing import List, Optional  # noqa: UP035
 
 import numpy as np
 import pytest
@@ -56,7 +55,7 @@ def dequantize_np(
     config: GroupQuantize,
     weight: np.ndarray,
     scale: np.ndarray,
-    out_shape: List[int] = None,
+    out_shape: Optional[List[int]] = None,  # noqa: UP006
 ):
     assert weight.shape[0] == scale.shape[0]
     bin_mask = (1 << DataType(config.quantize_dtype).bits) - 1
@@ -93,7 +92,7 @@ def dequantize_np(
         ("q4f32_1", [16, 128], "float32", "cpu"),
     ],
 )
-def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: str):
+def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: str):  # noqa: UP006
     config = QUANTIZATION[quant_name]
     assert isinstance(config, GroupQuantize)
     weight_np = np.random.random(shape).astype(dtype)
@@ -120,7 +119,7 @@ def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: 
         ("q4f32_1", [16, 128], "float32"),
     ],
 )
-def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
+def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):  # noqa: UP006
     class Test(nn.Module):
         def __init__(self) -> None:
             super().__init__()
@@ -142,9 +141,7 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
     mod.linear.q_weight.data = weight_np
     mod.linear.q_scale.data = scale_np
     model = mod.jit(spec={"forward": {"x": nn.spec.Tensor((shape[1], shape[1]), dtype)}})
-    out = model["forward"](
-        torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype)))  # pylint: disable=no-member
-    )
+    out = model["forward"](torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype))))
     ref = dequantize_np(config, weight_np, scale_np, shape).T
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
@@ -157,7 +154,7 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
         ("q4f32_1", [16, 128], "float32"),
     ],
 )
-def test_quantize_model(quant_name: str, shape: List[int], dtype: str):
+def test_quantize_model(quant_name: str, shape: List[int], dtype: str):  # noqa: UP006
     class Test(nn.Module):
         def __init__(self) -> None:
             super().__init__()

@@ -1,8 +1,6 @@
 """A pass that dispatch generic calls of triton kernels to specific kernel implementations."""
 
-# pylint: disable=invalid-name
-
-from typing import List
+from typing import List  # noqa: UP035
 
 import tvm
 from tvm import IRModule, relax
@@ -18,14 +16,14 @@ logger = logging.getLogger(__name__)
 
 
 @mutator
-class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
+class _Rewriter(PyExprMutator):
     def __init__(self, mod: IRModule, target: tvm.target.Target) -> None:
         super().__init__(mod)
         self.mod = mod
         self.target = target
-        self.extern_mods: List[tvm.runtime.Module] = []
+        self.extern_mods: List[tvm.runtime.Module] = []  # noqa: UP006
 
-    def transform(self) -> tvm.IRModule:  # pylint: disable=too-many-locals
+    def transform(self) -> tvm.IRModule:
         """Entry point of the transformation"""
         for g_var, func in self.mod.functions_items():
             if not isinstance(func, relax.Function):
@@ -41,7 +39,7 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
         )
         return mod
 
-    def visit_call_(self, call: relax.Call) -> relax.Expr:  # pylint: disable=arguments-renamed
+    def visit_call_(self, call: relax.Call) -> relax.Expr:
         call = super().visit_call_(call)
 
         if (
@@ -59,8 +57,10 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
             return self.w8a8_block_fp8_group_matmul(call.args[1].fields, call.struct_info)
         raise ValueError(f"Unknown mlc.triton kernel identifier: {global_symbol}")
 
-    def w8a8_block_fp8_matmul(  # pylint: disable=too-many-locals
-        self, args: List[relax.Expr], out_sinfo: relax.StructInfo
+    def w8a8_block_fp8_matmul(
+        self,
+        args: List[relax.Expr],  # noqa: UP006
+        out_sinfo: relax.StructInfo,
     ) -> relax.Expr:
         """Emit the w8a8_block_fp8_matmul triton kernel."""
         assert len(args) == 16
@@ -84,8 +84,8 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
             K,
             block_n,
             block_k,
-            in_dtype,  # type: ignore
-            out_dtype,  # type: ignore
+            in_dtype,
+            out_dtype,
             BLOCK_SIZE_M,
             BLOCK_SIZE_N,
             BLOCK_SIZE_K,
@@ -103,8 +103,10 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
 
         return relax.call_tir(gv, [x, weight, x_scale, weight_scale], out_sinfo=out_sinfo)
 
-    def w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-locals
-        self, args: List[relax.Expr], out_sinfo: relax.StructInfo
+    def w8a8_block_fp8_group_matmul(
+        self,
+        args: List[relax.Expr],  # noqa: UP006
+        out_sinfo: relax.StructInfo,
     ) -> relax.Expr:
         """Emit the w8a8_block_fp8_group_matmul triton kernel."""
         assert len(args) == 19
@@ -130,8 +132,8 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
             num_experts,
             block_n,
             block_k,
-            in_dtype,  # type: ignore
-            out_dtype,  # type: ignore
+            in_dtype,
+            out_dtype,
             BLOCK_SIZE_M,
             BLOCK_SIZE_N,
             BLOCK_SIZE_K,
@@ -155,7 +157,7 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
 
 
 @tvm.transform.module_pass(opt_level=0, name="DispatchTritonKernel")
-class DispatchTritonKernel:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
+class DispatchTritonKernel:
     """Rewrite KV cache creation functions to IRModule."""
 
     def __init__(self, target: tvm.target.Target) -> None:

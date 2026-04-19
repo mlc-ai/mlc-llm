@@ -14,8 +14,6 @@ Environment variables:
                                   (optional, defaults to dirname of model lib)
 """
 
-# pylint: disable=import-outside-toplevel,protected-access,redefined-outer-name
-
 import asyncio
 import os
 
@@ -163,9 +161,9 @@ def test_cosine_similarity_ranking(embedding_engine):
     e_ml, e_dl, e_pizza = [np.array(e) for e in embeddings]
     sim_related = float(np.dot(e_ml, e_dl))
     sim_unrelated = float(np.dot(e_ml, e_pizza))
-    assert (
-        sim_related > sim_unrelated
-    ), f"Related sim ({sim_related:.4f}) should > unrelated sim ({sim_unrelated:.4f})"
+    assert sim_related > sim_unrelated, (
+        f"Related sim ({sim_related:.4f}) should > unrelated sim ({sim_unrelated:.4f})"
+    )
 
 
 # ===================================================================
@@ -244,15 +242,15 @@ def _get_encoder_tokens(embedding_engine, text):
     if embedding_engine._cls_token_id is not None and (
         len(tokens) == 0 or tokens[0] != embedding_engine._cls_token_id
     ):
-        tokens = [embedding_engine._cls_token_id] + tokens
+        tokens = [embedding_engine._cls_token_id, *tokens]
     if embedding_engine._sep_token_id is not None and (
         len(tokens) == 0 or tokens[-1] != embedding_engine._sep_token_id
     ):
-        tokens = tokens + [embedding_engine._sep_token_id]
+        tokens = [*tokens, embedding_engine._sep_token_id]
     return tokens
 
 
-def test_long_text_encoder_truncation(embedding_engine):  # pylint: disable=too-many-locals
+def test_long_text_encoder_truncation(embedding_engine):
     """[Encoder only] Text exceeding prefill_chunk_size is truncated.
     Two texts with the same shared prefix but different suffixes beyond the
     limit should produce identical embeddings, since the suffix is truncated
@@ -290,9 +288,9 @@ def test_long_text_encoder_truncation(embedding_engine):  # pylint: disable=too-
     emb_b, tokens_b = embedding_engine.embed([text_b])
 
     # Verify truncation happened
-    assert (
-        tokens_a <= prefill_chunk
-    ), f"Encoder should truncate to {prefill_chunk}, got {tokens_a} tokens"
+    assert tokens_a <= prefill_chunk, (
+        f"Encoder should truncate to {prefill_chunk}, got {tokens_a} tokens"
+    )
     assert tokens_b <= prefill_chunk
     # Both should be valid unit-norm embeddings
     assert abs(float(np.linalg.norm(emb_a[0])) - 1.0) < 1e-3
@@ -319,9 +317,9 @@ def test_long_vs_short_semantic_quality(embedding_engine):
 
     sim_same_topic = float(np.dot(e_short, e_long))
     sim_different = float(np.dot(e_short, e_pizza))
-    assert (
-        sim_same_topic > sim_different
-    ), f"Same topic ({sim_same_topic:.4f}) should > different ({sim_different:.4f})"
+    assert sim_same_topic > sim_different, (
+        f"Same topic ({sim_same_topic:.4f}) should > different ({sim_different:.4f})"
+    )
 
 
 def test_unicode_text(embedding_engine):

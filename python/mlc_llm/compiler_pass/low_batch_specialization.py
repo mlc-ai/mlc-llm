@@ -5,11 +5,9 @@ from tvm import tirx
 from tvm.ir.module import IRModule
 from tvm.s_tir import dlight as dl
 
-# pylint: disable=too-many-locals,not-callable
-
 
 @tvm.transform.module_pass(opt_level=0, name="LowBatchGemvSpecialize")
-class LowBatchGemvSpecialize:  # pylint: disable=too-few-public-methods
+class LowBatchGemvSpecialize:
     """A compiler pass that dispatch low-batch-gemm to gemv schedule."""
 
     def transform_module(
@@ -48,7 +46,7 @@ class LowBatchGemvSpecialize:  # pylint: disable=too-few-public-methods
                     dl.gpu.Matmul(),
                 )(gemm_mod)
                 gemm_func = gemm_mod["main"]
-                sym_var = list(symbolic_vars)[0]
+                sym_var = next(iter(symbolic_vars))
                 body = gemm_func.body
                 for i, range_limit in reversed(list(enumerate(low_batch_range))):
                     body = tirx.IfThenElse(

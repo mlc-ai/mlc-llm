@@ -1,4 +1,3 @@
-# pylint: disable=missing-docstring
 from pathlib import Path
 from typing import Union
 

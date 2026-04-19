@@ -1,10 +1,10 @@
 """Python entrypoint of chat."""
 
 import dataclasses
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union  # noqa: UP035
 
-from prompt_toolkit import prompt as get_prompt  # pylint: disable=import-error
-from prompt_toolkit.key_binding import KeyBindings  # pylint: disable=import-error
+from prompt_toolkit import prompt as get_prompt
+from prompt_toolkit.key_binding import KeyBindings
 
 from mlc_llm.json_ffi import JSONFFIEngine
 from mlc_llm.protocol import openai_api_protocol
@@ -45,7 +45,7 @@ def _set_up_key_bindings():
 
 
 @dataclasses.dataclass
-class ChatCompletionOverride(ConfigOverrideBase):  # pylint: disable=too-many-instance-attributes
+class ChatCompletionOverride(ConfigOverrideBase):
     """Flags for overriding chat completions."""
 
     temperature: Optional[float] = None
@@ -54,7 +54,7 @@ class ChatCompletionOverride(ConfigOverrideBase):  # pylint: disable=too-many-in
     presence_penalty: Optional[float] = None
     max_tokens: Optional[int] = None
     seed: Optional[int] = None
-    stop: Optional[Union[str, List[str]]] = None
+    stop: Optional[Union[str, List[str]]] = None  # noqa: UP006
 
     @staticmethod
     def from_str(source: str) -> "ChatCompletionOverride":
@@ -80,7 +80,7 @@ class ChatCompletionOverride(ConfigOverrideBase):  # pylint: disable=too-many-in
 
 
 @dataclasses.dataclass
-class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-instance-attributes
+class ModelConfigOverride(ConfigOverrideBase):
     """Flags for overriding model config."""
 
     context_window_size: Optional[int] = None
@@ -145,7 +145,7 @@ class ChatState:
                 ).chat()
     """
 
-    history: List[Dict[str, Any]]
+    history: List[Dict[str, Any]]  # noqa: UP006
     history_begin: int
     # kwargs passed to completions
     overrides: ChatCompletionOverride
@@ -250,14 +250,14 @@ class ChatState:
         """Start an interactive chat session."""
         _print_help_str()
 
-        self.process_system_prompts()  # pylint: disable=protected-access
+        self.process_system_prompts()
         # Multi-line input support: set escape+enter as start a new line
         kb = _set_up_key_bindings()
 
         while True:
             try:
                 prompt = get_prompt(
-                    ">>> ",  # pylint: disable=protected-access
+                    ">>> ",
                     key_bindings=kb,
                     multiline=True,
                 )

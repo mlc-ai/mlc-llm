@@ -12,10 +12,10 @@ ConvTemplateRegistry.register_conv_template(
         system_message="",
         system_prefix_token_ids=[100000],
         roles={"user": "User", "assistant": "Assistant"},
-        seps=["\n\n", "<｜end▁of▁sentence｜>"],
+        seps=["\n\n", "<｜end▁of▁sentence｜>"],  # noqa: RUF001
         role_content_sep=": ",
         role_empty_sep=":",
-        stop_str=["<｜end▁of▁sentence｜>"],
+        stop_str=["<｜end▁of▁sentence｜>"],  # noqa: RUF001
         stop_token_ids=[100001],
     )
 )
@@ -28,10 +28,10 @@ ConvTemplateRegistry.register_conv_template(
         system_message="",
         system_prefix_token_ids=[100000],
         roles={"user": "User", "assistant": "Assistant"},
-        seps=["\n\n", "<｜end▁of▁sentence｜>"],
+        seps=["\n\n", "<｜end▁of▁sentence｜>"],  # noqa: RUF001
         role_content_sep=": ",
         role_empty_sep=":",
-        stop_str=["<｜end▁of▁sentence｜>"],
+        stop_str=["<｜end▁of▁sentence｜>"],  # noqa: RUF001
         stop_token_ids=[100001],
     )
 )
@@ -40,12 +40,12 @@ ConvTemplateRegistry.register_conv_template(
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="deepseek_v3",
-        system_template=f"<｜begin▁of▁sentence｜>{MessagePlaceholders.SYSTEM.value}",
+        system_template=f"<｜begin▁of▁sentence｜>{MessagePlaceholders.SYSTEM.value}",  # noqa: RUF001
         system_message="You are Deepseek-V3, an AI assistant created exclusively by the Chinese "
         "Company DeepSeek. You'll provide helpful, harmless, and detailed responses to all "
         "user inquiries.",
-        roles={"user": "<｜User｜>", "assistant": "<｜Assistant｜>"},
-        seps=["", "<｜end▁of▁sentence｜>"],
+        roles={"user": "<｜User｜>", "assistant": "<｜Assistant｜>"},  # noqa: RUF001
+        seps=["", "<｜end▁of▁sentence｜>"],  # noqa: RUF001
         role_content_sep="",
         role_empty_sep="",
         stop_token_ids=[1],
@@ -56,12 +56,12 @@ ConvTemplateRegistry.register_conv_template(
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="deepseek_r1_qwen",
-        system_template=f"<｜begin▁of▁sentence｜>{MessagePlaceholders.SYSTEM.value}",
+        system_template=f"<｜begin▁of▁sentence｜>{MessagePlaceholders.SYSTEM.value}",  # noqa: RUF001
         system_message="You are Deepseek-R1, an AI assistant created exclusively by the Chinese "
         "Company DeepSeek. You'll provide helpful, harmless, and detailed responses to all "
         "user inquiries.",
-        roles={"user": "<｜User｜>", "assistant": "<｜Assistant｜>"},
-        seps=["", "<｜end▁of▁sentence｜>"],
+        roles={"user": "<｜User｜>", "assistant": "<｜Assistant｜>"},  # noqa: RUF001
+        seps=["", "<｜end▁of▁sentence｜>"],  # noqa: RUF001
         role_content_sep="",
         role_empty_sep="",
         stop_token_ids=[151643],
@@ -72,12 +72,12 @@ ConvTemplateRegistry.register_conv_template(
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="deepseek_r1_llama",
-        system_template=f"<｜begin▁of▁sentence｜>{MessagePlaceholders.SYSTEM.value}",
+        system_template=f"<｜begin▁of▁sentence｜>{MessagePlaceholders.SYSTEM.value}",  # noqa: RUF001
         system_message="You are Deepseek-R1, an AI assistant created exclusively by the Chinese "
         "Company DeepSeek. You'll provide helpful, harmless, and detailed responses to all"
         " user inquiries.",
-        roles={"user": "<｜User｜>", "assistant": "<｜Assistant｜>"},
-        seps=["", "<｜end▁of▁sentence｜>"],
+        roles={"user": "<｜User｜>", "assistant": "<｜Assistant｜>"},  # noqa: RUF001
+        seps=["", "<｜end▁of▁sentence｜>"],  # noqa: RUF001
         role_content_sep="",
         role_empty_sep="",
         stop_token_ids=[128001],

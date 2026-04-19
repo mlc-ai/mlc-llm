@@ -15,9 +15,8 @@ To directly run the Python file (a.k.a., not using pytest), you also need to
 specify the tokenizer path via environment variable.
 """
 
-# pylint: disable=missing-function-docstring
 import time
-from typing import List, Tuple
+from typing import List, Tuple  # noqa: UP035
 
 import pytest
 
@@ -55,7 +54,7 @@ DECODED_PARAGRAPH = (
 
 
 @require_test_tokenizers("Llama-2-7b-chat-hf-q4f16_1-MLC")
-def test_text_streamer(llama_tokenizer_path: str):  # pylint: disable=redefined-outer-name
+def test_text_streamer(llama_tokenizer_path: str):
     text_streamer = TextStreamer(Tokenizer(llama_tokenizer_path))
     total_text = ""
     for token in para_input_tokens:
@@ -66,7 +65,9 @@ def test_text_streamer(llama_tokenizer_path: str):  # pylint: disable=redefined-
 
 
 def stop_handler_process_tokens(
-    stop_handler: StopStrHandler, tokens: List[int], tokenizer: Tokenizer
+    stop_handler: StopStrHandler,
+    tokens: List[int],  # noqa: UP006
+    tokenizer: Tokenizer,
 ) -> str:
     returned_tokens = []
     for token in tokens:
@@ -81,7 +82,7 @@ def stop_handler_process_tokens(
 
 
 @require_test_tokenizers("Llama-2-7b-chat-hf-q4f16_1-MLC")
-def test_stop_str_handler_stop(llama_tokenizer_path: str):  # pylint: disable=redefined-outer-name
+def test_stop_str_handler_stop(llama_tokenizer_path: str):
     stop_strs = [" 🤔"]
     tokenizer = Tokenizer(llama_tokenizer_path)
     stop_handler = StopStrHandler(stop_strs, tokenizer)
@@ -98,7 +99,7 @@ def test_stop_str_handler_stop(llama_tokenizer_path: str):  # pylint: disable=re
 
 @require_test_tokenizers("Llama-2-7b-chat-hf-q4f16_1-MLC")
 def test_stop_str_handler_not_stop(
-    llama_tokenizer_path: str,  # pylint: disable=redefined-outer-name
+    llama_tokenizer_path: str,
 ):
     stop_strs = ["^^"]
     tokenizer = Tokenizer(llama_tokenizer_path)
@@ -110,7 +111,7 @@ def test_stop_str_handler_not_stop(
 
 @require_test_tokenizers("Llama-2-7b-chat-hf-q4f16_1-MLC")
 def test_stop_str_handler_return_cached_tokens(
-    llama_tokenizer_path: str,  # pylint: disable=redefined-outer-name
+    llama_tokenizer_path: str,
 ):
     tokens = para_input_tokens[:26]  # until "\n\n"
     stop_strs = ["\n\n\n"]
@@ -119,8 +120,7 @@ def test_stop_str_handler_return_cached_tokens(
 
     total_text = stop_handler_process_tokens(stop_handler, tokens, tokenizer)
     expected_text = (
-        "Sure, here's a short paragraph about emoji, "
-        "where each word is followed by an emoji:\n\n"
+        "Sure, here's a short paragraph about emoji, where each word is followed by an emoji:\n\n"
     )
 
     assert total_text == expected_text
@@ -128,7 +128,7 @@ def test_stop_str_handler_return_cached_tokens(
 
 @require_test_tokenizers("Llama-2-7b-chat-hf-q4f16_1-MLC")
 def test_stop_str_handler_throughput(
-    llama_tokenizer_path: str,  # pylint: disable=redefined-outer-name
+    llama_tokenizer_path: str,
 ):
     stop_strs = ["[INST]"]
     tokenizer = Tokenizer(llama_tokenizer_path)
@@ -169,8 +169,9 @@ emoji_tokens_expected_result = [
 @pytest.mark.parametrize("tokens_and_results", emoji_tokens_expected_result)
 @require_test_tokenizers("Llama-2-7b-chat-hf-q4f16_1-MLC")
 def test_text_streamer_emojis(
-    llama_tokenizer_path: str, tokens_and_results: Tuple[List[int], Tuple[str]]
-):  # pylint: disable=redefined-outer-name
+    llama_tokenizer_path: str,
+    tokens_and_results: Tuple[List[int], Tuple[str]],  # noqa: UP006
+):
     text_streamer = TextStreamer(Tokenizer(llama_tokenizer_path))
     total_text = ""
     tokens, expected_results = tokens_and_results

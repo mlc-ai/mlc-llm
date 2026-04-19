@@ -3,7 +3,7 @@ Implementation for InternLM architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class InternLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class InternLMConfig(ConfigBase):
     """Configuration of the InternLM model."""
 
     vocab_size: int
@@ -40,7 +40,7 @@ class InternLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
     head_dim: int = 0
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.context_window_size == 0:
@@ -80,10 +80,7 @@ class InternLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
             self.prefill_chunk_size = min(self.context_window_size, 8192)
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
-class InternLMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class InternLMAttention(nn.Module):
     def __init__(self, config: InternLMConfig):
         self.hidden_size = config.hidden_size
         if config.num_attention_heads % config.tensor_parallel_shards != 0:
@@ -214,7 +211,7 @@ class InternLMModel(nn.Module):
         return hidden_states
 
 
-class InternLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class InternLMForCausalLM(nn.Module):
     def __init__(self, config: InternLMConfig):
         self.model = InternLMModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
@@ -292,7 +289,7 @@ class InternLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

@@ -1,4 +1,3 @@
-# pylint: disable=missing-docstring
 import concurrent.futures as cf
 import os
 import shlex
@@ -84,7 +83,7 @@ def run_command(log_file, cmd):
         )
 
 
-def test_model_compile():  # pylint: disable=too-many-locals
+def test_model_compile():
     device = sys.argv[1]
     num_workers = int(sys.argv[2])
     target = DEVICE2TARGET[device]
@@ -145,11 +144,11 @@ def test_model_compile():  # pylint: disable=too-many-locals
                     future.result()
                     passed_cmds.append(cmd)
                     print(f"[PASS] {cmd}")
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     failed_cmds.append(cmd)
                     print("-------------------------------")
                     print(f"[FAIL] {cmd}")
-                    with open(log_file, "r", encoding="utf-8") as file:
+                    with open(log_file, encoding="utf-8") as file:
                         print(file.read())
                     print("-------------------------------")
     print("-------------------------------")

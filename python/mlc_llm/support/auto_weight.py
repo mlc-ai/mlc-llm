@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple  # noqa: UP035
 
 from . import logging
 from .style import bold, green, red
@@ -17,7 +17,7 @@ def detect_weight(
     weight_path: Path,
     config_json_path: Path,
     weight_format: str = "auto",
-) -> Tuple[Path, str]:
+) -> Tuple[Path, str]:  # noqa: UP006
     """Detect the weight directory, and detect the weight format.
 
     Parameters
@@ -49,9 +49,9 @@ def detect_weight(
         The valid weight format.
     """
     if weight_path is None:
-        assert (
-            config_json_path is not None and config_json_path.exists()
-        ), "Please provide config.json path."
+        assert config_json_path is not None and config_json_path.exists(), (
+            "Please provide config.json path."
+        )
 
         # 1. Find the weight_path in config.json
         with open(config_json_path, encoding="utf-8") as i_f:
@@ -90,8 +90,8 @@ def detect_weight(
     return weight_config_path, weight_format
 
 
-def _guess_weight_format(weight_path: Path) -> Tuple[Path, str]:
-    possible_formats: List[Tuple[Path, str]] = []
+def _guess_weight_format(weight_path: Path) -> Tuple[Path, str]:  # noqa: UP006
+    possible_formats: List[Tuple[Path, str]] = []  # noqa: UP006
     for weight_format, check_func in CHECK_FORMAT_METHODS.items():
         weight_config_path = check_func(weight_path)
         if weight_config_path:
@@ -150,7 +150,7 @@ def _check_safetensor(weight_path: Path) -> Optional[Path]:
 
     safetensor_file_path = weight_path / "model.safetensors"
     if safetensor_file_path.exists():
-        from safetensors.torch import (  # pylint: disable=import-outside-toplevel,import-error
+        from safetensors.torch import (
             load_file,
         )
 

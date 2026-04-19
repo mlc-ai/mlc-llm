@@ -6,6 +6,7 @@ set -x
 : ${GPU:="cpu"}
 
 pip install --force-reinstall wheels/*.whl
+pip install --quiet pytest
 
 if [[ ${GPU} == cuda* ]]; then
     TARGET=cuda

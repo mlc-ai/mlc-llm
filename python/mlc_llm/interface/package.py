@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal  # noqa: UP035
 
 from mlc_llm.interface import jit
 from mlc_llm.support import download_cache, logging, style
@@ -18,9 +18,12 @@ logger = logging.getLogger(__name__)
 SUPPORTED_DEVICES = ["iphone", "macabi", "android"]
 
 
-def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
-    package_config: Dict[str, Any], device: str, bundle_dir: Path, app_config_path: Path
-) -> Dict[str, str]:
+def build_model_library(
+    package_config: Dict[str, Any],  # noqa: UP006
+    device: str,
+    bundle_dir: Path,
+    app_config_path: Path,
+) -> Dict[str, str]:  # noqa: UP006
     """Build model libraries. Return the dictionary of "library prefix to lib path"."""
     # - Create the bundle directory.
     os.makedirs(bundle_dir, exist_ok=True)
@@ -159,7 +162,7 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
     return model_lib_path_for_prepare_libs
 
 
-def validate_model_lib(  # pylint: disable=too-many-locals,too-many-statements
+def validate_model_lib(
     app_config_path: Path,
     package_config_path: Path,
     model_lib_path_for_prepare_libs: dict,
@@ -167,14 +170,12 @@ def validate_model_lib(  # pylint: disable=too-many-locals,too-many-statements
     output: Path,
 ) -> None:
     """Validate the model lib prefixes of model libraries."""
-    # pylint: disable=import-outside-toplevel,redefined-outer-name,shadowed-import,reimported
     if device == "android":
         from tvm.contrib import ndk as cc
     else:
         from tvm.contrib import cc
-    # pylint: enable=import-outside-toplevel,redefined-outer-name,shadowed-import,reimported
 
-    with open(app_config_path, "r", encoding="utf-8") as file:
+    with open(app_config_path, encoding="utf-8") as file:
         app_config = json.load(file)
 
     tar_list = []
@@ -195,7 +196,7 @@ def validate_model_lib(  # pylint: disable=too-many-locals,too-many-statements
         lib_name = "libmodel_android.a"
     lib_path = output / "lib" / lib_name
 
-    def _get_model_libs(lib_path: Path) -> List[str]:
+    def _get_model_libs(lib_path: Path) -> List[str]:  # noqa: UP006
         """Get the model lib prefixes in the given static lib path."""
         global_symbol_map = cc.get_global_symbol_section_map(lib_path)
         libs = []
@@ -355,7 +356,7 @@ def package(
     logger.info('MLC LLM HOME: "%s"', mlc_llm_source_dir)
 
     # - Read package config.
-    with open(package_config_path, "r", encoding="utf-8") as file:
+    with open(package_config_path, encoding="utf-8") as file:
         package_config = json.load(file)
     if not isinstance(package_config, dict):
         raise ValueError(

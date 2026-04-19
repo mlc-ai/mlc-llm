@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
 import tvm
@@ -22,8 +22,10 @@ def _extract_metadata(mod: Module):
 
 
 def _load_params(
-    model_weight_path: str, device: Device, model_metadata: Dict[str, Any]
-) -> List[tvm.runtime.Tensor]:
+    model_weight_path: str,
+    device: Device,
+    model_metadata: Dict[str, Any],  # noqa: UP006
+) -> List[tvm.runtime.Tensor]:  # noqa: UP006
     params, meta = tvmjs.load_tensor_cache(model_weight_path, device)
     param_names = [param["name"] for param in model_metadata["params"]]
     assert len(param_names) == meta["ParamSize"]
@@ -108,7 +110,7 @@ class DefaultDebugInstrument:
         self.counter += 1
 
 
-class MLCEmbeddings:  # pylint: disable=too-few-public-methods
+class MLCEmbeddings:
     """A class to embed queries using MLC LLM encoder models.
 
     Parameters
@@ -134,7 +136,7 @@ class MLCEmbeddings:  # pylint: disable=too-few-public-methods
         The output folder to store the dumped debug files. If None, will not dump any debug files.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         model: str,
         model_lib_path: str,
@@ -150,7 +152,7 @@ class MLCEmbeddings:  # pylint: disable=too-few-public-methods
         self.tokenizer = Tokenizer(self.model_path)
         self.prefill_func = self.mod["prefill"]
 
-    def embed(self, queries: List[str]) -> tvm.runtime.Tensor:
+    def embed(self, queries: List[str]) -> tvm.runtime.Tensor:  # noqa: UP006
         """
         Embeds a list of queries in a single batch.
 
@@ -170,8 +172,8 @@ class MLCEmbeddings:  # pylint: disable=too-few-public-methods
         output = self.prefill_func(tokens_tvm, attention_mask_tvm, self.params)
         return output
 
-    def _tokenize_queries(self, queries: List[str]) -> Tuple[np.ndarray, np.ndarray]:
-        tokens = engine_utils.process_prompts(queries, self.tokenizer.encode)  # type: ignore
+    def _tokenize_queries(self, queries: List[str]) -> Tuple[np.ndarray, np.ndarray]:  # noqa: UP006
+        tokens = engine_utils.process_prompts(queries, self.tokenizer.encode)
         max_query_length = max(len(token_seq) for token_seq in tokens)
 
         token_inputs: np.ndarray = np.zeros((len(tokens), max_query_length), dtype=np.int32)

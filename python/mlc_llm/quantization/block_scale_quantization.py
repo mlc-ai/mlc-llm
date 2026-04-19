@@ -1,7 +1,7 @@
 """The block-scale quantization config"""
 
 from dataclasses import dataclass
-from typing import Any, Literal, Optional, Tuple
+from typing import Any, Literal, Optional, Tuple  # noqa: UP035
 
 import tvm
 from tvm import DataType, DataTypeCode, te, tirx
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class BlockScaleQuantize:  # pylint: disable=too-many-instance-attributes
+class BlockScaleQuantize:
     """Configuration for block-scale quantization"""
 
     name: str
@@ -28,7 +28,7 @@ class BlockScaleQuantize:  # pylint: disable=too-many-instance-attributes
     weight_dtype: Literal["float8_e4m3fn", "float8_e5m2"] = "float8_e4m3fn"
     model_dtype: Literal["float16", "bfloat16"] = "bfloat16"
     quantize_linear: bool = True
-    weight_block_size: Optional[Tuple[int, int]] = None
+    weight_block_size: Optional[Tuple[int, int]] = None  # noqa: UP006
     use_activation_scale: bool = False
 
     def __post_init__(self):
@@ -178,15 +178,15 @@ class BlockScaleQuantize:  # pylint: disable=too-many-instance-attributes
         return model
 
 
-class BlockScaleQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attributes
+class BlockScaleQuantizeLinear(nn.Module):
     """Block-scale quantization for Linear"""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         in_features: int,
         out_features: int,
         weight_dtype: Literal["float8_e4m3fn", "float8_e5m2"],
-        block_size: Tuple[int, int],
+        block_size: Tuple[int, int],  # noqa: UP006
         bias: bool = True,
         dtype: Optional[str] = None,
         out_dtype: Optional[str] = None,
@@ -214,7 +214,7 @@ class BlockScaleQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-
     def from_linear(
         src: nn.Linear,
         config: BlockScaleQuantize,
-        weight_block_size: Optional[Tuple[int, int]],
+        weight_block_size: Optional[Tuple[int, int]],  # noqa: UP006
     ) -> "BlockScaleQuantizeLinear":
         """
         Converts a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinear
@@ -282,10 +282,10 @@ class BlockScaleQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-
                 self.out_dtype if self.out_dtype is not None else x.dtype,
             ).reshape(*x_shape[:-1], -1)
 
-        shape_supported_by_cutlass = (  # pylint: disable=unused-variable
+        shape_supported_by_cutlass = (  # noqa: F841
             self.weight.shape[0] % 128 == 0 and self.weight.shape[1] % 128 == 0
         )
-        # Todo: check "shape supported by cutlass" for Hopper  # pylint: disable=fixme
+        # Todo: check "shape supported by cutlass" for Hopper
         if (
             extern.get_store().cutlass_gemm
             and tvm.get_global_func(
@@ -328,18 +328,18 @@ class BlockScaleQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-
         if self.bias is not None and self.out_dtype is None:
             self.bias.to(dtype=dtype)
         if dtype is not None and isinstance(getattr(self, "dtype", None), str):
-            self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
+            self.dtype = dtype
 
 
 class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
     """Block-scale quantization for static activation FP8."""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         in_features: int,
         out_features: int,
         weight_dtype: Literal["float8_e4m3fn", "float8_e5m2"],
-        block_size: Tuple[int, int],
+        block_size: Tuple[int, int],  # noqa: UP006
         bias: bool = True,
         dtype: Optional[str] = None,
         out_dtype: Optional[str] = None,
@@ -360,10 +360,10 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
     def from_linear(
         src: nn.Linear,
         config: BlockScaleQuantize,
-        weight_block_size: Optional[Tuple[int, int]],
+        weight_block_size: Optional[Tuple[int, int]],  # noqa: UP006
     ) -> "BlockScaleQuantizeLinearStaticActivation":
         """
-        Convert a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinearStaticActivation.  # pylint: disable=line-too-long
+        Convert a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinearStaticActivation.
 
         Parameters
         ----------
@@ -380,7 +380,7 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
         -------
         ret : BlockScaleQuantizeLinearStaticActivation
             The block-scale quantized BlockScaleQuantizeLinearStaticActivation
-        """
+        """  # noqa: E501
         assert weight_block_size is not None
         out_features, in_features = src.weight.shape
         quantized_linear = BlockScaleQuantizeLinearStaticActivation(
@@ -457,16 +457,16 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
         return out
 
 
-class BlockScaleQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instance-attributes
+class BlockScaleQuantizeMixtralExperts(nn.Module):
     """Block-scale quantization for MoE experts"""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         num_local_experts: int,
         in_features: int,
         out_features: int,
         weight_dtype: Literal["float8_e4m3fn", "float8_e5m2"],
-        block_size: Tuple[int, int],
+        block_size: Tuple[int, int],  # noqa: UP006
     ) -> None:
         super().__init__()
         self.num_local_experts = num_local_experts
@@ -488,7 +488,7 @@ class BlockScaleQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-i
     def from_mixtral_experts(
         src: "MixtralExperts",
         config: BlockScaleQuantize,
-        weight_block_size: Optional[Tuple[int, int]],
+        weight_block_size: Optional[Tuple[int, int]],  # noqa: UP006
     ) -> "BlockScaleQuantizeMixtralExperts":
         """
         Converts a non-quantized MixtralExperts to a block-scale
@@ -597,17 +597,17 @@ class BlockScaleQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-i
         Otherwise, we might run into dtype mismatch when computing x + self.bias.
         """
         if dtype is not None and isinstance(getattr(self, "dtype", None), str):
-            self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
+            self.dtype = dtype
 
 
-def rowwise_group_quant_fp8(  # pylint: disable=too-many-arguments
+def rowwise_group_quant_fp8(
     x: nn.Tensor,
     group_size: int,
     dtype: Literal["float8_e4m3fn", "float8_e5m2"],
     transpose_scale: bool,
     eps: float = 1e-10,
     keep_first_batch_dim: bool = False,
-) -> Tuple[nn.Tensor, nn.Tensor]:
+) -> Tuple[nn.Tensor, nn.Tensor]:  # noqa: UP006
     """Rowwise group quantization of fp8 tensor.
 
     Parameters
@@ -753,7 +753,7 @@ def dequantize_float8_groupwise_scaled_gemv(
     x: nn.Tensor,
     w: nn.Tensor,
     w_scale: nn.Tensor,
-    block_size: Tuple[int, int],
+    block_size: Tuple[int, int],  # noqa: UP006
     out_dtype: str,
 ) -> nn.Tensor:
     """GEMV for FP8 groupwise scaled quantization.
@@ -796,16 +796,16 @@ def dequantize_float8_groupwise_scaled_gemv(
 
     @T.prim_func(private=True)
     def _func(
-        x: T.Buffer((1, k), model_dtype),  # type: ignore
-        w: T.Buffer((n, k), quantize_dtype),  # type: ignore
-        w_scale: T.Buffer(  # type: ignore
+        x: T.Buffer((1, k), model_dtype),
+        w: T.Buffer((n, k), quantize_dtype),
+        w_scale: T.Buffer(
             (
                 (n + block_size[0] - 1) // block_size[0],
                 (k + block_size[1] - 1) // block_size[1],
             ),
             "float32",
         ),
-        o: T.Buffer((n,), out_dtype),  # type: ignore
+        o: T.Buffer((n,), out_dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
         y = T.sblock_alloc_buffer((n, k), model_dtype)

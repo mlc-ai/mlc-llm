@@ -7,7 +7,7 @@ from tvm.relax.expr_functor import PyExprMutator, mutator
 
 
 @tvm.transform.module_pass(opt_level=0, name="FuseTransposeMatmul")
-class FuseTransposeMatmul:  # pylint: disable=too-few-public-methods
+class FuseTransposeMatmul:
     """A compiler pass that fuses transpose + matmul."""
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
@@ -30,12 +30,10 @@ class FuseTransposeMatmul:  # pylint: disable=too-few-public-methods
 
 def _pattern():
     """Pattern for transpose + matmul."""
-    # pylint: disable=invalid-name
     w = wildcard()
     x = wildcard()
     wT = is_op("relax.permute_dims")(w)
     o = is_op("relax.matmul")(x, wT)
-    # pylint: enable=invalid-name
     annotations = {"o": o, "w": w, "x": x, "wT": wT}
 
     def _check(context: relax.transform.PatternCheckContext) -> bool:
@@ -52,15 +50,12 @@ def _pattern():
     return o, annotations, _check
 
 
-# pylint: disable=missing-docstring,invalid-name
-
-
 @mutator
-class _TransposeMatmulFuser(PyExprMutator):  # pylint: disable=abstract-method
+class _TransposeMatmulFuser(PyExprMutator):
     def __init__(self, mod):
         super().__init__(mod)
 
-    def visit_call_(  # pylint: disable=arguments-renamed
+    def visit_call_(
         self,
         call: relax.Call,
     ) -> relax.Expr:
@@ -131,7 +126,7 @@ class _TransposeMatmulFuser(PyExprMutator):  # pylint: disable=abstract-method
 
             return te.compute(
                 output_shape,
-                lambda *idx: matmul_compute(*idx),  # pylint: disable=unnecessary-lambda
+                lambda *idx: matmul_compute(*idx),
                 name="NT_matmul",
             )
 

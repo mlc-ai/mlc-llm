@@ -8,7 +8,7 @@ from tvm.relax.expr_functor import PyExprMutator, mutator
 
 
 @tvm.transform.module_pass(opt_level=0, name="FuseDequantizeTranspose")
-class FuseDequantizeTranspose:  # pylint: disable=too-few-public-methods
+class FuseDequantizeTranspose:
     """A compiler pass that fuses transpose + dequantize."""
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
@@ -17,7 +17,7 @@ class FuseDequantizeTranspose:  # pylint: disable=too-few-public-methods
 
 
 @mutator
-class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-method
+class _DequantizeTransposeFuser(PyExprMutator):
     def __init__(
         self,
         mod: IRModule,
@@ -34,7 +34,7 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
                 self.builder_.update_func(g_var, updated_func)
         return self.builder_.get()
 
-    def visit_call_(  # pylint: disable=arguments-renamed
+    def visit_call_(
         self,
         call: relax.Call,
     ) -> relax.Expr:
@@ -69,7 +69,7 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
 
         dequantize_tir_func = self.mod[transpose_input.args[0]]
         assert isinstance(dequantize_tir_func, tirx.PrimFunc)
-        if (  # pylint: disable=too-many-boolean-expressions
+        if (
             len(dequantize_tir_func.body.block.alloc_buffers) != 1
             or not isinstance(dequantize_tir_func.body.block.body, tirx.SeqStmt)
             or len(dequantize_tir_func.body.block.body) != 2

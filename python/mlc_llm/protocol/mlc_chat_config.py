@@ -1,7 +1,6 @@
-# pylint: disable=too-many-instance-attributes
 """Schema for mlc-chat-config"""
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union  # noqa: UP035
 
 from pydantic import BaseModel, Field
 
@@ -32,7 +31,7 @@ class MLCChatConfig(BaseModel):
     field_model_type: str = Field(alias="model_type")
     quantization: str
     # use alias to avoid protected namespace conflict with pydantic
-    field_model_config: Dict[str, Any] = Field(alias="model_config")
+    field_model_config: Dict[str, Any] = Field(alias="model_config")  # noqa: UP006
     vocab_size: int
     context_window_size: int
     sliding_window_size: int
@@ -48,9 +47,9 @@ class MLCChatConfig(BaseModel):
     repetition_penalty: Optional[float] = None
     top_p: Optional[float] = None
     # Tokenizer configuration
-    tokenizer_files: List[str] = Field(default_factory=list)
+    tokenizer_files: List[str] = Field(default_factory=list)  # noqa: UP006
     # The content of tokenizer.TokenizerInfo
-    tokenizer_info: Dict[str, Any] = Field(default_factory=dict)
+    tokenizer_info: Dict[str, Any] = Field(default_factory=dict)  # noqa: UP006
     # conversation template
     conv_template: Conversation
     # extra fields from generation_config.json
@@ -58,12 +57,12 @@ class MLCChatConfig(BaseModel):
     # but we keep them for book-keep purposes
     pad_token_id: Optional[int] = None
     bos_token_id: Optional[int] = None
-    eos_token_id: Optional[Union[int, List[int]]] = None
+    eos_token_id: Optional[Union[int, List[int]]] = None  # noqa: UP006
 
     field_model_task: Literal["chat", "embedding"] = Field(default="chat", alias="model_task")
-    embedding_metadata: Optional[Dict[str, Any]] = None
+    embedding_metadata: Optional[Dict[str, Any]] = None  # noqa: UP006
 
-    def get_system_defaults_for_missing_fields(self) -> Dict[str, Any]:
+    def get_system_defaults_for_missing_fields(self) -> Dict[str, Any]:  # noqa: UP006
         """Apply system default value for fields that are None
 
         Note

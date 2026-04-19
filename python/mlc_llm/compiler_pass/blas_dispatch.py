@@ -5,16 +5,15 @@ from tvm import IRModule, relax
 from tvm.relax.backend import get_patterns_with_prefix
 
 try:
-    import tvm.relax.backend.cuda.cublas as _cublas
-    import tvm.relax.backend.rocm.hipblas as _hipblas
+    import tvm.relax.backend.cuda.cublas as _cublas  # noqa: F401
+    import tvm.relax.backend.rocm.hipblas as _hipblas  # noqa: F401
 except ImportError:
     # Note: legacy path of cublas/hipblas for backward compatibility
-    import tvm.relax.backend.contrib.cublas as _cublas
-    import tvm.relax.backend.contrib.hipblas as _hipblas
+    pass
 
 
 @tvm.transform.module_pass(opt_level=0, name="BLASDispatch")
-class BLASDispatch:  # pylint: disable=too-few-public-methods,broad-exception-raised
+class BLASDispatch:
     """A compiler pass that dispatches patterns to cuBLAS/hipBLAS."""
 
     def __init__(self, target: tvm.target.Target) -> None:

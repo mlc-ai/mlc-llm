@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional  # noqa: UP035
 
 import pytest
 from pydantic import BaseModel
@@ -16,12 +16,12 @@ chat_completion_prompts = [
     "Introduce the history of Pittsburgh to me. Please elaborate in detail.",
     "Write a three-day Seattle travel plan. Please elaborate in detail.",
     "What is Alaska famous of? Please elaborate in detail.",
-    "What is the difference between Lambda calculus and Turing machine? Please elaborate in detail.",
+    "What is the difference between Lambda calculus and Turing machine? Please elaborate in detail.",  # noqa: E501
     "What are the necessary components to assemble a desktop computer? Please elaborate in detail.",
     "Why is Vitamin D important to human beings? Please elaborate in detail.",
     "Where is milk tea originated from? Please elaborate in detail.",
     "Where is the southernmost place in United States? Please elaborate in detail.",
-    "Do you know AlphaGo? What capabilities does it have, and what achievements has it got? Please elaborate in detail.",
+    "Do you know AlphaGo? What capabilities does it have, and what achievements has it got? Please elaborate in detail.",  # noqa: E501
 ]
 
 function_calling_prompts = [
@@ -55,13 +55,13 @@ tools = [
 def run_chat_completion(
     engine: JSONFFIEngine,
     model: str,
-    prompts: List[str] = chat_completion_prompts,
-    tools: Optional[List[Dict]] = None,
+    prompts: List[str] = chat_completion_prompts,  # noqa: UP006
+    tools: Optional[List[Dict]] = None,  # noqa: UP006
 ):
     num_requests = 2
     max_tokens = 64
     n = 1
-    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]  # noqa: UP006
 
     for rid in range(num_requests):
         print(f"chat completion for request {rid}")
@@ -92,20 +92,20 @@ def run_chat_completion(
 def run_json_schema_function_calling(
     engine: JSONFFIEngine,
     model: str,
-    prompts: List[str] = function_calling_prompts,
-    tools: Optional[List[Dict]] = None,
+    prompts: List[str] = function_calling_prompts,  # noqa: UP006
+    tools: Optional[List[Dict]] = None,  # noqa: UP006
 ):
     num_requests = 2
     max_tokens = 64
     n = 1
-    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]  # noqa: UP006
 
     class ToolCall(BaseModel):
         name: str
-        arguments: Dict[str, str]
+        arguments: Dict[str, str]  # noqa: UP006
 
     class Schema(BaseModel):
-        tool_calls: List[ToolCall]
+        tool_calls: List[ToolCall]  # noqa: UP006
 
     schema_str = json.dumps(Schema.model_json_schema())
     print("Schema str", schema_str)
@@ -116,12 +116,12 @@ def run_json_schema_function_calling(
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a function calling AI model. You are provided with function signatures within "
-                    "<tools></tools> XML tags. You may call one or more functions to assist with the user query. Don't make "
-                    f"assumptions about what values to plug into functions. Here are the available tools: <tools> {json.dumps(tools)} </tools> "
-                    "Do not stop calling functions until the task has been accomplished or you've reached max iteration of 10. "
-                    "Calling multiple functions at once can overload the system and increase cost so call one function at a time please. "
-                    "If you plan to continue with analysis, always call another function. Return a valid json object (using double "
+                    "content": "You are a function calling AI model. You are provided with function signatures within "  # noqa: E501
+                    "<tools></tools> XML tags. You may call one or more functions to assist with the user query. Don't make "  # noqa: E501
+                    f"assumptions about what values to plug into functions. Here are the available tools: <tools> {json.dumps(tools)} </tools> "  # noqa: E501
+                    "Do not stop calling functions until the task has been accomplished or you've reached max iteration of 10. "  # noqa: E501
+                    "Calling multiple functions at once can overload the system and increase cost so call one function at a time please. "  # noqa: E501
+                    "If you plan to continue with analysis, always call another function. Return a valid json object (using double "  # noqa: E501
                     f"quotes) in the following schema: {schema_str}",
                 },
                 {"role": "user", "content": [{"type": "text", "text": prompts[rid]}]},

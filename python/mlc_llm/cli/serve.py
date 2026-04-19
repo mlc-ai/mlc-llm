@@ -12,7 +12,7 @@ from mlc_llm.support.argparse import ArgumentParser
 
 
 @dataclasses.dataclass
-class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
+class EngineConfigOverride:
     """Arguments for overriding engine config."""
 
     # Overrides for EngineConfig (runtime)

@@ -4,7 +4,7 @@ PyTorch, HuggingFace safetensors.
 """
 
 import functools
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
 
@@ -14,8 +14,10 @@ from mlc_llm.quantization import BlockScaleQuantize, Quantization
 from .ministral3_model import Ministral3Config, Mistral3ForConditionalGeneration
 
 
-def _dequantize_block_scale_weight(  # pylint: disable=too-many-locals
-    weight: np.ndarray, weight_scale: np.ndarray, block_size: Tuple[int, int]
+def _dequantize_block_scale_weight(
+    weight: np.ndarray,
+    weight_scale: np.ndarray,
+    block_size: Tuple[int, int],  # noqa: UP006
 ) -> np.ndarray:
     """Reconstruct float weights from FP8 block-scale storage."""
 
@@ -41,9 +43,7 @@ def _dequantize_block_scale_weight(  # pylint: disable=too-many-locals
     return out
 
 
-def huggingface(  # pylint: disable=too-many-locals,too-many-statements
-    model_config: Ministral3Config, quantization: Quantization
-) -> ExternMapping:
+def huggingface(model_config: Ministral3Config, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -72,7 +72,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                 "Thus BlockScaleQuantize is not supported."
             )
 
-    _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
+    _, _named_params, _ = model.export_tvm(
         spec=model.get_default_spec(),
         allow_extern=True,
     )
@@ -103,9 +103,9 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
         )
 
     # Helper function to add both weight and scale mappings
-    def add_weight_and_scale_mapping(  # pylint: disable=too-many-locals
+    def add_weight_and_scale_mapping(
         weight_mlc_name: str,
-        weight_hf_names: List[str],
+        weight_hf_names: List[str],  # noqa: UP006
         weight_transform_func: Callable,
         activation_transform_func: Optional[Callable] = None,
     ):

@@ -3,7 +3,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import List
+from typing import List  # noqa: UP035
 
 MLC_CHAT_CONFIG_VERSION = "0.1.0"
 
@@ -56,7 +56,7 @@ def _get_dso_suffix() -> str:
     return "so"
 
 
-def _get_test_model_path() -> List[Path]:
+def _get_test_model_path() -> List[Path]:  # noqa: UP006
     paths = []
     if "MLC_LLM_TEST_MODEL_PATH" in os.environ:
         paths += [Path(p) for p in os.environ["MLC_LLM_TEST_MODEL_PATH"].split(os.pathsep)]
@@ -71,7 +71,7 @@ def _get_test_model_path() -> List[Path]:
     return paths
 
 
-def _get_read_only_weight_caches() -> List[Path]:
+def _get_read_only_weight_caches() -> List[Path]:  # noqa: UP006
     if "MLC_LLM_READONLY_WEIGHT_CACHE" in os.environ:
         return [Path(p) for p in os.environ["MLC_LLM_READONLY_WEIGHT_CACHE"].split(os.pathsep)]
     return []
@@ -81,7 +81,7 @@ MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
 MLC_MULTI_ARCH = os.environ.get("MLC_MULTI_ARCH", None)
 MLC_JIT_POLICY = os.environ.get("MLC_JIT_POLICY", "ON")
 MLC_DSO_SUFFIX = _get_dso_suffix()
-MLC_TEST_MODEL_PATH: List[Path] = _get_test_model_path()
+MLC_TEST_MODEL_PATH: List[Path] = _get_test_model_path()  # noqa: UP006
 
 MLC_DOWNLOAD_CACHE_POLICY = os.environ.get("MLC_DOWNLOAD_CACHE_POLICY", "ON")
 MLC_LLM_HOME: Path = _get_cache_dir()

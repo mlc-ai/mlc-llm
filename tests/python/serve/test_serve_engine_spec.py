@@ -1,6 +1,4 @@
-# pylint: disable=chained-comparison,line-too-long,missing-docstring,
-# pylint: disable=too-many-arguments,too-many-locals
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional  # noqa: UP035
 
 import numpy as np
 
@@ -14,12 +12,12 @@ prompts = [
     "Introduce the history of Pittsburgh to me. Please elaborate in detail.",
     "Write a three-day Seattle travel plan. Please elaborate in detail.",
     "What is Alaska famous of? Please elaborate in detail.",
-    "What is the difference between Lambda calculus and Turing machine? Please elaborate in detail.",
+    "What is the difference between Lambda calculus and Turing machine? Please elaborate in detail.",  # noqa: E501
     "What are the necessary components to assemble a desktop computer? Please elaborate in detail.",
     "Why is Vitamin D important to human beings? Please elaborate in detail.",
     "Where is milk tea originated from? Please elaborate in detail.",
     "Where is the southernmost place in United States? Please elaborate in detail.",
-    "Do you know AlphaGo? What capabilities does it have, and what achievements has it got? Please elaborate in detail.",
+    "Do you know AlphaGo? What capabilities does it have, and what achievements has it got? Please elaborate in detail.",  # noqa: E501
 ]
 
 
@@ -30,7 +28,7 @@ def create_requests(
     repetition_penalty: float = 1.0,
     max_tokens_low: int = 256,
     max_tokens_high: int = 257,
-) -> List[Request]:
+) -> List[Request]:  # noqa: UP006
     assert num_requests >= 0 and num_requests <= len(prompts)
 
     stop_token_ids = [stop_token_id] if stop_token_id is not None else []
@@ -74,10 +72,10 @@ def test_engine_basic(model: str, small_model: str):
     np.random.seed(0)
 
     # Output list
-    outputs: List[List[int]] = [[] for _ in range(num_requests)]
+    outputs: List[List[int]] = [[] for _ in range(num_requests)]  # noqa: UP006
 
     # Define the callback function for request generation results
-    def fcallback(delta_outputs: List[RequestStreamOutput]):
+    def fcallback(delta_outputs: List[RequestStreamOutput]):  # noqa: UP006
         for delta_output in delta_outputs:
             request_id, stream_outputs = delta_output.unpack()
             assert len(stream_outputs) == 1
@@ -138,10 +136,10 @@ def test_engine_eagle_basic(model: str):
     np.random.seed(0)
 
     # Output list
-    outputs: List[List[int]] = [[] for _ in range(num_requests)]
+    outputs: List[List[int]] = [[] for _ in range(num_requests)]  # noqa: UP006
 
     # Define the callback function for request generation results
-    def fcallback(delta_outputs: List[RequestStreamOutput]):
+    def fcallback(delta_outputs: List[RequestStreamOutput]):  # noqa: UP006
         for delta_output in delta_outputs:
             request_id, stream_outputs = delta_output.unpack()
             assert len(stream_outputs) == 1
@@ -209,15 +207,15 @@ def test_engine_continuous_batching_1(model: str, small_model: str):
     np.random.seed(0)
 
     # Output list
-    outputs: List[List[int]] = [[] for _ in range(num_requests)]
-    finish_time: List[Optional[int]] = [None] * num_requests
+    outputs: List[List[int]] = [[] for _ in range(num_requests)]  # noqa: UP006
+    finish_time: List[Optional[int]] = [None] * num_requests  # noqa: UP006
 
     # Define the callback class for request generation results
     class CallbackTimer:
         timer: int = -1
 
-        def callback_getter(self) -> Callable[[List[RequestStreamOutput]], None]:
-            def fcallback(delta_outputs: List[RequestStreamOutput]):
+        def callback_getter(self) -> Callable[[List[RequestStreamOutput]], None]:  # noqa: UP006
+            def fcallback(delta_outputs: List[RequestStreamOutput]):  # noqa: UP006
                 for delta_output in delta_outputs:
                     request_id, stream_outputs = delta_output.unpack()
                     assert len(stream_outputs) == 1
@@ -291,15 +289,15 @@ def test_engine_eagle_continuous_batching_1(model: str):
     np.random.seed(0)
 
     # Output list
-    outputs: List[List[int]] = [[] for _ in range(num_requests)]
-    finish_time: List[Optional[int]] = [None] * num_requests
+    outputs: List[List[int]] = [[] for _ in range(num_requests)]  # noqa: UP006
+    finish_time: List[Optional[int]] = [None] * num_requests  # noqa: UP006
 
     # Define the callback class for request generation results
     class CallbackTimer:
         timer: int = -1
 
-        def callback_getter(self) -> Callable[[List[RequestStreamOutput]], None]:
-            def fcallback(delta_outputs: List[RequestStreamOutput]):
+        def callback_getter(self) -> Callable[[List[RequestStreamOutput]], None]:  # noqa: UP006
+            def fcallback(delta_outputs: List[RequestStreamOutput]):  # noqa: UP006
                 for delta_output in delta_outputs:
                     request_id, stream_outputs = delta_output.unpack()
                     assert len(stream_outputs) == 1
@@ -424,9 +422,9 @@ def test_engine_generate(model: str, small_model: str, compare_precision=False):
     if compare_precision:
         precision_flag = compare_output_text(output_texts, output_texts_single_model)
         if precision_flag:
-            print(f"Accuracy verification succeed\n")
+            print("Accuracy verification succeed\n")
         else:
-            print(f"Accuracy verification failed\n")
+            print("Accuracy verification failed\n")
 
 
 @require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
@@ -474,10 +472,10 @@ def test_engine_efficiency(model: str):
     np.random.seed(0)
 
     # Output list
-    outputs: List[List[int]] = [[] for _ in range(num_requests)]
+    outputs: List[List[int]] = [[] for _ in range(num_requests)]  # noqa: UP006
 
     # Define the callback function for request generation results
-    def fcallback(delta_outputs: List[RequestStreamOutput]):
+    def fcallback(delta_outputs: List[RequestStreamOutput]):  # noqa: UP006
         for delta_output in delta_outputs:
             request_id, stream_outputs = delta_output.unpack()
             assert len(stream_outputs) == 1
@@ -533,10 +531,10 @@ def test_engine_spec_efficiency(model: str, small_model: str):
     np.random.seed(0)
 
     # Output list
-    outputs: List[List[int]] = [[] for _ in range(num_requests)]
+    outputs: List[List[int]] = [[] for _ in range(num_requests)]  # noqa: UP006
 
     # Define the callback function for request generation results
-    def fcallback(delta_outputs: List[RequestStreamOutput]):
+    def fcallback(delta_outputs: List[RequestStreamOutput]):  # noqa: UP006
         for delta_output in delta_outputs:
             request_id, stream_outputs = delta_output.unpack()
             assert len(stream_outputs) == 1
@@ -599,10 +597,10 @@ def test_engine_eagle_spec_efficiency(model: str):
     np.random.seed(0)
 
     # Output list
-    outputs: List[List[int]] = [[] for _ in range(num_requests)]
+    outputs: List[List[int]] = [[] for _ in range(num_requests)]  # noqa: UP006
 
     # Define the callback function for request generation results
-    def fcallback(delta_outputs: List[RequestStreamOutput]):
+    def fcallback(delta_outputs: List[RequestStreamOutput]):  # noqa: UP006
         for delta_output in delta_outputs:
             request_id, stream_outputs = delta_output.unpack()
             assert len(stream_outputs) == 1

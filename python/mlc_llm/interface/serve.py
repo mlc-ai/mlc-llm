@@ -1,6 +1,6 @@
 """Python entrypoint of serve."""
 
-from typing import Any, List, Literal, Optional, Tuple, Union
+from typing import Any, List, Literal, Optional, Tuple, Union  # noqa: UP035
 
 import fastapi
 import uvicorn
@@ -27,7 +27,7 @@ def serve(
     model_lib: Optional[str],
     mode: Literal["local", "interactive", "server"],
     enable_debug: bool,
-    additional_models: List[Union[str, Tuple[str, str]]],
+    additional_models: List[Union[str, Tuple[str, str]]],  # noqa: UP006
     embedding_model: Optional[str],
     embedding_model_lib: Optional[str],
     tensor_parallel_shards: Optional[int],
@@ -55,7 +55,7 @@ def serve(
     allow_methods: Any,
     allow_headers: Any,
     api_key: Optional[str] = None,
-):  # pylint: disable=too-many-arguments, too-many-locals
+):
     """Serve the model with the specified configuration."""
     # Create engine and start the background loop
     async_engine = engine.AsyncMLCEngine(

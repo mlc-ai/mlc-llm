@@ -85,7 +85,7 @@ class OptimizationFlags:
         """Update optimization flags based on additional information."""
 
         def _flashinfer(target) -> bool:
-            from mlc_llm.support.auto_target import (  # pylint: disable=import-outside-toplevel
+            from mlc_llm.support.auto_target import (
                 detect_cuda_arch_list,
             )
 
@@ -102,7 +102,7 @@ class OptimizationFlags:
 
         def _cublas_gemm(target, quantization) -> bool:
             """correct cublas_gemm flag"""
-            if not target.kind.name in ["cuda", "rocm"]:
+            if target.kind.name not in ["cuda", "rocm"]:
                 return False
             if not (
                 quantization.name in ["q0f16", "q0bf16", "q0f32"]
@@ -138,7 +138,7 @@ class OptimizationFlags:
 
 
 @dataclasses.dataclass
-class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-instance-attributes
+class ModelConfigOverride(ConfigOverrideBase):
     """Flags for overriding model config."""
 
     context_window_size: Optional[int] = None

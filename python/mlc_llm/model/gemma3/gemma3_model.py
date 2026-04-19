@@ -1,15 +1,15 @@
 """Implementation for Gemma3 architecture."""
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
-from mlc_llm.model.model_utils import index_last_token
 from mlc_llm.model.gemma.gemma_model import GemmaEmbedding
+from mlc_llm.model.model_utils import index_last_token
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class Gemma3TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class Gemma3TextConfig(ConfigBase):
     """Configuration of the text model inside Gemma3"""
 
     # NOTE More fields have defaults due to Huggingface Gemma3 configs missing fields
@@ -42,7 +42,7 @@ class Gemma3TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     query_pre_attn_scalar: int = 256
     sliding_window_size: int = None
     sliding_window_pattern = 6
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.hidden_activation is None:
@@ -94,7 +94,7 @@ class Gemma3TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
 
 
 @dataclasses.dataclass
-class Gemma3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class Gemma3Config(ConfigBase):
     """Configuration of the Gemma3 model"""
 
     text_config: Gemma3TextConfig = None
@@ -105,14 +105,14 @@ class Gemma3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     sliding_window_size: int = -1
     prefill_chunk_size: int = -1
     is_text_model: bool = False
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.text_config is None:
             self.is_text_model = True
             self.text_config = Gemma3TextConfig.from_dict(self.kwargs)
 
-        text_config_dict: Dict[str, Any]  # type: ignore
+        text_config_dict: Dict[str, Any]  # noqa: UP006
         if isinstance(self.text_config, Gemma3TextConfig):
             text_config_dict = dataclasses.asdict(self.text_config)
         else:
@@ -127,9 +127,6 @@ class Gemma3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
             if getattr(self, k) <= 0:
                 if hasattr(self.text_config, k):
                     setattr(self, k, getattr(self.text_config, k))
-
-
-# pylint: disable=invalid-name,missing-docstring
 
 
 class Gemma3MLP(nn.Module):
@@ -158,17 +155,17 @@ class Gemma3MLP(nn.Module):
         return self.down_proj(op.gelu(x1, approximate="tanh") * x2)
 
 
-class Gemma3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Gemma3Attention(nn.Module):
     def __init__(self, config: Gemma3Config):
         self.head_dim = config.text_config.head_dim
         self.num_q_heads = config.text_config.num_attention_heads // config.tensor_parallel_shards
         self.num_kv_heads = config.text_config.num_key_value_heads
-        assert (
-            self.num_kv_heads % config.tensor_parallel_shards == 0
-        ), f"num_kv_heads({self.num_kv_heads}) must be divisible by tensor_parallel_shards"
-        assert (
-            self.num_kv_heads >= config.tensor_parallel_shards
-        ), f"Too large tensor_parallel_shards, must be smaller than {self.num_kv_heads}"
+        assert self.num_kv_heads % config.tensor_parallel_shards == 0, (
+            f"num_kv_heads({self.num_kv_heads}) must be divisible by tensor_parallel_shards"
+        )
+        assert self.num_kv_heads >= config.tensor_parallel_shards, (
+            f"Too large tensor_parallel_shards, must be smaller than {self.num_kv_heads}"
+        )
         self.num_kv_heads = self.num_kv_heads // config.tensor_parallel_shards
         self.q_proj = nn.Linear(
             in_features=config.text_config.hidden_size,
@@ -303,7 +300,7 @@ class Gemma3TextModel(nn.Module):
         return hidden_states
 
 
-class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Gemma3LanguageModel(nn.Module):
     def __init__(self, config: Gemma3Config):
         self.model = Gemma3TextModel(config)
         self.config = config
@@ -382,7 +379,7 @@ class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,
@@ -484,7 +481,7 @@ class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)
 
 
-class Gemma3ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Gemma3ForCausalLM(nn.Module):
     def __init__(self, config: Gemma3Config):
         super().__init__()
         self.config = config
@@ -558,7 +555,7 @@ class Gemma3ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

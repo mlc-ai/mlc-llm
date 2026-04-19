@@ -2,12 +2,12 @@ import numpy as np
 import pytest
 
 tvm = pytest.importorskip("tvm")
-from tvm import relax
-from tvm.relax.frontend import nn
-from tvm.relax.frontend.nn import spec
-from tvm.runtime import tensor as tvm_tensor
+from tvm import relax  # noqa: E402
+from tvm.relax.frontend import nn  # noqa: E402
+from tvm.relax.frontend.nn import spec  # noqa: E402
+from tvm.runtime import tensor as tvm_tensor  # noqa: E402
 
-from mlc_llm.op import (
+from mlc_llm.op import (  # noqa: E402
     MultimodalRotaryEmbedding,
     VisionPositionMetadata,
     apply_multimodal_rotary_pos_emb,
@@ -76,7 +76,7 @@ def _run_mlc_mrope(
     theta: float,
     mrope_section: tuple[int, ...],
 ) -> tuple[np.ndarray, np.ndarray]:
-    class RopeModule(nn.Module):  # pylint: disable=too-few-public-methods
+    class RopeModule(nn.Module):
         def __init__(self):
             super().__init__()
             self.rotary = MultimodalRotaryEmbedding(q_np.shape[-1], theta, mrope_section)

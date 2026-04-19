@@ -19,8 +19,6 @@ Environment variables:
                                   (optional, defaults to dirname of model lib)
 """
 
-# pylint: disable=redefined-outer-name
-
 import json
 import os
 import signal
@@ -28,7 +26,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional  # noqa: UP035
 
 import numpy as np
 import pytest
@@ -71,7 +69,7 @@ def _skip_if_no_model():
 
 
 def check_embedding_response(
-    response: Dict,
+    response: Dict,  # noqa: UP006
     *,
     model: str,
     num_embeddings: int,
@@ -271,9 +269,9 @@ def test_cosine_similarity_via_endpoint(client):
     e0, e1, e2 = [np.array(d.embedding) for d in resp.data]
     sim_related = float(np.dot(e0, e1))
     sim_unrelated = float(np.dot(e0, e2))
-    assert (
-        sim_related > sim_unrelated
-    ), f"Related ({sim_related:.4f}) should > unrelated ({sim_unrelated:.4f})"
+    assert sim_related > sim_unrelated, (
+        f"Related ({sim_related:.4f}) should > unrelated ({sim_unrelated:.4f})"
+    )
 
 
 # ===================================================================

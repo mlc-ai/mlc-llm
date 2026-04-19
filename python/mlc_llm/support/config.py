@@ -10,11 +10,10 @@ The base class allows us to load the configuration from this JSON file, moving i
 into `kwargs`, such as `transformers_version` and `use_cache`.
 """
 
-# pylint: disable=too-few-public-methods
 import dataclasses
 import json
 from pathlib import Path
-from typing import Any, Dict, Type, TypeVar
+from typing import Any, Dict, Type, TypeVar  # noqa: UP035
 
 from . import logging
 from .style import bold, red
@@ -32,7 +31,7 @@ class ConfigBase:
     """
 
     @classmethod
-    def from_dict(cls: Type[ConfigClass], source: Dict[str, Any]) -> ConfigClass:
+    def from_dict(cls: Type[ConfigClass], source: Dict[str, Any]) -> ConfigClass:  # noqa: UP006
         """Create a config object from a dictionary.
 
         Parameters
@@ -45,13 +44,13 @@ class ConfigBase:
         cfg : ConfigClass
             An instance of the config object.
         """
-        field_names = [field.name for field in dataclasses.fields(cls)]  # type: ignore[arg-type]
+        field_names = [field.name for field in dataclasses.fields(cls)]
         fields = {k: v for k, v in source.items() if k in field_names}
         kwargs = {k: v for k, v in source.items() if k not in field_names}
-        return cls(**fields, kwargs=kwargs)  # type: ignore[call-arg]
+        return cls(**fields, kwargs=kwargs)
 
     @classmethod
-    def from_file(cls: Type[ConfigClass], source: Path) -> ConfigClass:
+    def from_file(cls: Type[ConfigClass], source: Path) -> ConfigClass:  # noqa: UP006
         """Create a config object from a file.
 
         Parameters
@@ -104,9 +103,7 @@ class ConfigOverrideBase:
                     bold(type(config).__name__),
                 )
             else:
-                logger.info(  # pylint: disable=logging-fstring-interpolation
-                    f"Overriding {bold(key)} from {updated[key]} to {value}"
-                )
+                logger.info(f"Overriding {bold(key)} from {updated[key]} to {value}")
                 updated[key] = value
         return type(config).from_dict(updated)
 

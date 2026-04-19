@@ -12,5 +12,5 @@ huggingface = make_standard_hf_loader(
     layer_prefix="transformer.h",
     qkv_target_name="c_attn",
     include_gate_up=False,
-    num_layers_getter=lambda config: config.n_layer,  # type: ignore[attr-defined]
+    num_layers_getter=lambda config: config.n_layer,
 )

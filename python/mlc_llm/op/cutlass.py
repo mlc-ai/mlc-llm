@@ -1,6 +1,6 @@
 """Operators enabled by external modules."""
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple  # noqa: UP035
 
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import op
@@ -13,7 +13,7 @@ def group_gemm(
     scale: Optional[nn.Tensor] = None,
     weight_dtype: Optional[str] = None,
     out_dtype: Optional[str] = None,
-):  # pylint: disable=too-many-arguments
+):
     """
     Cutlass group gemm operator.
 
@@ -50,7 +50,6 @@ def group_gemm(
     out_dtype = out_dtype if out_dtype else x.dtype
     weight_dtype = weight_dtype if weight_dtype else weight.dtype
 
-    # pylint: disable=too-many-boolean-expressions
     if x.dtype == "float8_e5m2" and weight_dtype == "float8_e5m2" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_e5m2_e5m2_fp16"
     elif x.dtype == "float8_e4m3fn" and weight_dtype == "float8_e5m2" and out_dtype == "float16":
@@ -65,7 +64,6 @@ def group_gemm(
         raise NotImplementedError(
             f"Unsupported data type: x={x.dtype}, weight={weight_dtype}, out={out_dtype}"
         )
-    # pylint: enable=too-many-boolean-expressions
 
     if "float8" in x.dtype:
         assert scale is not None, "scale is required for float8 input"
@@ -85,7 +83,7 @@ def fp8_gemm(
     scale: nn.Tensor,
     weight_dtype: Optional[str] = None,
     out_dtype: Optional[str] = None,
-):  # pylint: disable=too-many-arguments
+):
     """
     Cutlass fp8 gemm operator.
 
@@ -137,12 +135,12 @@ def fp8_gemm(
     )
 
 
-def fp8_groupwise_scaled_gemm(  # pylint: disable=too-many-arguments
+def fp8_groupwise_scaled_gemm(
     x: nn.Tensor,
     x_scale: nn.Tensor,
     weight: nn.Tensor,
     weight_scale: nn.Tensor,
-    block_size: Tuple[int, int],
+    block_size: Tuple[int, int],  # noqa: UP006
     out_dtype: str,
 ):
     """Cutlass block-scale fp8 gemm operator.
@@ -208,12 +206,12 @@ def fp8_groupwise_scaled_gemm(  # pylint: disable=too-many-arguments
     )
 
 
-def fp8_groupwise_scaled_bmm(  # pylint: disable=too-many-arguments
+def fp8_groupwise_scaled_bmm(
     x: nn.Tensor,
     x_scale: nn.Tensor,
     weight: nn.Tensor,
     weight_scale: nn.Tensor,
-    block_size: Tuple[int, int],
+    block_size: Tuple[int, int],  # noqa: UP006
     out_dtype: str,
 ):
     """Cutlass block-scale fp8 gemm operator.
@@ -280,13 +278,13 @@ def fp8_groupwise_scaled_bmm(  # pylint: disable=too-many-arguments
     )
 
 
-def fp8_groupwise_scaled_group_gemm(  # pylint: disable=too-many-arguments,too-many-locals
+def fp8_groupwise_scaled_group_gemm(
     x: nn.Tensor,
     x_scale: nn.Tensor,
     weight: nn.Tensor,
     weight_scale: nn.Tensor,
     indptr: nn.Tensor,
-    block_size: Tuple[int, int],
+    block_size: Tuple[int, int],  # noqa: UP006
     out_dtype: str,
 ):
     """Triton block-scale fp8 group gemm operator.

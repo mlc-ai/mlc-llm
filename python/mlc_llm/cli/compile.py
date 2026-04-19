@@ -7,7 +7,7 @@ from functools import partial
 from pathlib import Path
 from typing import Union
 
-from mlc_llm.interface.compile import (  # pylint: disable=redefined-builtin
+from mlc_llm.interface.compile import (
     ModelConfigOverride,
     OptimizationFlags,
     compile,
@@ -70,7 +70,7 @@ def main(argv):
         "--model-type",
         type=str,
         default="auto",
-        choices=["auto"] + list(MODELS.keys()),
+        choices=["auto", *list(MODELS.keys())],
         help=HELP["model_type"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
@@ -135,7 +135,7 @@ def main(argv):
         parsed.model_type.name,
         parsed.quantization.name,
     )
-    with open(parsed.model, "r", encoding="utf-8") as config_file:
+    with open(parsed.model, encoding="utf-8") as config_file:
         config = json.load(config_file)
 
     compile(

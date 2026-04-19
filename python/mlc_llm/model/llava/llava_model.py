@@ -5,7 +5,7 @@ Implements the CLIP Vision Encoder. Uses Llama for the Language Encoder.
 
 import dataclasses
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -33,7 +33,7 @@ ARCHITECTURE_MAP = {
 
 
 @dataclasses.dataclass
-class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class LlavaConfig(ConfigBase):
     """
     LLaVa Config
     """
@@ -48,10 +48,10 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
     text_architecture: str = "LlamaForCausalLM"
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self) -> None:
-        vision_config_dict: Dict[str, Any]
+        vision_config_dict: Dict[str, Any]  # noqa: UP006
         if isinstance(self.vision_config, CLIPVisionConfig):
             vision_config_dict = dataclasses.asdict(self.vision_config)
         else:
@@ -62,7 +62,7 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
         self.vision_config = CLIPVisionConfig.from_dict(vision_config_dict)
 
-        text_config_dict: Dict[str, Any]
+        text_config_dict: Dict[str, Any]  # noqa: UP006
         if isinstance(self.text_config, ConfigBase):
             text_config_dict = dataclasses.asdict(self.text_config)
         else:
@@ -78,23 +78,20 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             for k, v in text_config_dict.pop("kwargs", {}).items():
                 text_config_dict[k] = v
 
-        self.text_config = CONFIG_MAP[self.text_architecture].from_dict(  # type: ignore
-            text_config_dict
-        )
+        self.text_config = CONFIG_MAP[self.text_architecture].from_dict(text_config_dict)
 
         for k in ["context_window_size", "sliding_window_size", "prefill_chunk_size"]:
             if getattr(self, k) <= 0:
                 if hasattr(self.text_config, k):
                     setattr(self, k, getattr(self.text_config, k))
 
-    def get_hf_config(self, text_config_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def get_hf_config(self, text_config_dict: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006
         """
         Get the Hugging Face config of the text model
         """
 
-        hf_config: Dict[str, Any]
+        hf_config: Dict[str, Any]  # noqa: UP006
         try:
-            # pylint: disable=import-outside-toplevel, import-error
             from transformers import AutoConfig
 
             hf_config = AutoConfig.from_pretrained(text_config_dict["_name_or_path"]).to_dict()
@@ -113,9 +110,6 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 raise ValueError("Unsupported text model") from e
 
         return hf_config
-
-
-# pylint: disable=invalid-name,missing-docstring
 
 
 class LlavaMultiModalProjector(nn.Module):
@@ -182,7 +176,7 @@ class LlavaForCausalLM(Module):
         image_features_all = self.vision_tower.forward(pixel_values)
         image_features = wrap_nested(
             strided_slice(
-                image_features_all._expr,  # pylint: disable=protected-access
+                image_features_all._expr,
                 axes=[1],
                 begin=[1],
                 end=[image_features_all.shape[1]],
@@ -227,7 +221,7 @@ class LlavaForCausalLM(Module):
     def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
         return self.language_model.batch_verify(input_embeds, paged_kv_cache)
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

@@ -25,9 +25,6 @@ class EagleConfig(LlamaConfig):
     bias: bool = True  # Whether to use bias in the fc layers
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
 class EagleDecoderLayer(nn.Module):
     def __init__(self, config: EagleConfig, index: int):
         rms_norm_eps = config.rms_norm_eps
@@ -76,7 +73,7 @@ class EagleDecoderLayer(nn.Module):
         return out + residual
 
 
-class EagleForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class EagleForCausalLM(nn.Module):
     def __init__(self, config: EagleConfig):
         # Put the model definition here to align with EAGLE's original structure
         assert config.hidden_size % config.num_attention_heads == 0
@@ -164,7 +161,7 @@ class EagleForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         hidden_states = self.batch_forward(hidden_states, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

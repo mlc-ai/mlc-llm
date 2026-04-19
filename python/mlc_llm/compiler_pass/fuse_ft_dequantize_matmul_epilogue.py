@@ -10,7 +10,7 @@ from tvm.relax.dpl.pattern import is_op, wildcard
 
 
 @tvm.transform.module_pass(opt_level=0, name="FuseDequantizeEpilogue")
-class FuseFTDequantizeEpilogue:  # pylint: disable=too-few-public-methods
+class FuseFTDequantizeEpilogue:
     """A compiler pass that fuses FasterTransformer dequantize matmul + epilogue."""
 
     def transform_module(
@@ -121,7 +121,6 @@ def fuse_activation(func: relax.Function) -> relax.Function:
     ret : relax.Function
         The function after fusion.
     """
-    # pylint: disable=unsupported-binary-operation
     decode_matmul = is_op("relax.call_dps_packed")(varg_default_wildcard=True)
     pattern = (
         is_op("relax.nn.silu")(decode_matmul)
@@ -218,7 +217,6 @@ def fuse_residual_binary(func: relax.Function) -> relax.Function:
     ret : relax.Function
         The function after fusion.
     """
-    # pylint: disable=unsupported-binary-operation
     decode_matmul = is_op("relax.call_dps_packed")(varg_default_wildcard=True)
     residual = wildcard()
     pattern = (
@@ -290,7 +288,6 @@ def fuse_residual_unary(func: relax.Function) -> relax.Function:
     ret : relax.Function
         The function after fusion.
     """
-    # pylint: disable=unsupported-binary-operation
     decode_matmul = is_op("relax.call_dps_packed")(varg_default_wildcard=True)
     pattern = (
         is_op("relax.nn.silu")(decode_matmul)

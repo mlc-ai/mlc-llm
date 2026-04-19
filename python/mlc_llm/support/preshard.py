@@ -1,7 +1,8 @@
 """Functions for pre-sharding weights"""
 
 import logging
-from typing import Any, Callable, Dict, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any, Callable, Dict, Tuple  # noqa: UP035
 
 from tvm import IRModule, relax
 from tvm.relax.frontend import nn
@@ -16,9 +17,7 @@ def _sharded_param_name(param_name, worker_id):
     return f"{param_name}_shard-{worker_id}"
 
 
-def _create_shard_func(
-    bb: relax.BlockBuilder, param: nn.Parameter, tensor_parallel_shards: int
-):  # pylint: disable=too-many-locals
+def _create_shard_func(bb: relax.BlockBuilder, param: nn.Parameter, tensor_parallel_shards: int):
     shard_strategy = param.attrs.get("shard_strategy", None)
     # generate tirx shard function
     tir_func = shard_strategy.gen_tir(shards=tensor_parallel_shards, weight=param)
@@ -56,7 +55,7 @@ def _compile_shard_funcs(mod: IRModule, device: Device):
     target = Target.from_device(device)
     with target:
         mod = relax.transform.LegalizeOps()(mod)
-        mod = dl.ApplyDefaultSchedule(  # type: ignore   # pylint: disable=not-callable
+        mod = dl.ApplyDefaultSchedule(
             dl.gpu.Matmul(),
             dl.gpu.GEMV(),
             dl.gpu.Reduction(),
@@ -69,10 +68,10 @@ def _compile_shard_funcs(mod: IRModule, device: Device):
 
 
 def apply_preshard(
-    named_params: Dict[str, nn.Parameter],
+    named_params: Dict[str, nn.Parameter],  # noqa: UP006
     tensor_parallel_shards: int,
     args: Any,
-) -> Tuple[Dict[str, nn.Parameter], Dict[str, Callable[[Tensor], Sequence[Tensor]]]]:
+) -> Tuple[Dict[str, nn.Parameter], Dict[str, Callable[[Tensor], Sequence[Tensor]]]]:  # noqa: UP006
     """Apply pre-sharding to the named parameters.
 
     Parameters
@@ -93,7 +92,7 @@ def apply_preshard(
     bb = relax.BlockBuilder()
     param_to_shard_func = {}
     shard_func_names = set()
-    new_named_params: Dict[str, nn.Parameter] = {}
+    new_named_params: Dict[str, nn.Parameter] = {}  # noqa: UP006
     has_shard_strategy = False
     for name, param in named_params.items():
         shard_strategy = param.attrs.get("shard_strategy", None)

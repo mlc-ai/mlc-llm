@@ -2,11 +2,11 @@
 
 import json
 from dataclasses import asdict, dataclass, field
-from typing import List, Literal, Optional, Tuple, Union
+from typing import List, Literal, Optional, Tuple, Union  # noqa: UP035
 
 
 @dataclass
-class EngineConfig:  # pylint: disable=too-many-instance-attributes
+class EngineConfig:
     """The class of MLCEngine execution configuration.
 
     Parameters
@@ -136,7 +136,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
 
     model: Optional[str] = None
     model_lib: Optional[str] = None
-    additional_models: List[Union[str, Tuple[str, str]]] = field(default_factory=list)
+    additional_models: List[Union[str, Tuple[str, str]]] = field(default_factory=list)  # noqa: UP006
     mode: Optional[Literal["local", "interactive", "server"]] = None
     tensor_parallel_shards: Optional[int] = None
     pipeline_parallel_stages: Optional[int] = None

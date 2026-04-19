@@ -1,10 +1,8 @@
 """A builtin set of models available in MLC LLM."""
 
-from typing import Any, Dict  # pylint: disable=too-many-lines
+from typing import Any, Dict  # noqa: UP035
 
-# pylint: disable=too-many-lines
-
-MODEL_PRESETS: Dict[str, Any] = {
+MODEL_PRESETS: Dict[str, Any] = {  # noqa: UP006
     "llama2_7b": {
         "architectures": ["LlamaForCausalLM"],
         "bos_token_id": 1,

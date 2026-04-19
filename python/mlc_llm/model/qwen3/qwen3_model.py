@@ -4,7 +4,7 @@ Implementation for QWEN2 architecture.
 
 import dataclasses
 from functools import partial
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class Qwen3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class Qwen3Config(ConfigBase):
     """Configuration of the Qwen3 model."""
 
     hidden_act: str
@@ -42,8 +42,8 @@ class Qwen3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     head_dim: int = 0
     dtype: str = "float32"
     max_batch_size: int = 1
-    weight_block_size: Optional[Tuple[int, int]] = None
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    weight_block_size: Optional[Tuple[int, int]] = None  # noqa: UP006
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if "quantization_config" in self.kwargs:
@@ -104,10 +104,7 @@ class Qwen3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = min(self.context_window_size, 2048)
 
 
-# pylint: disable=invalid-name,missing-docstring,too-many-locals
-
-
-class Qwen3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Qwen3Attention(nn.Module):
     def __init__(self, config: Qwen3Config):
         self.head_dim = config.head_dim
         if config.num_key_value_heads % config.tensor_parallel_shards != 0:
@@ -259,7 +256,7 @@ class Qwen3Model(nn.Module):
         return hidden_states
 
 
-class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Qwen3LMHeadModel(nn.Module):
     def __init__(self, config: Qwen3Config):
         self.model = Qwen3Model(config)
         self.tie_word_embeddings = config.tie_word_embeddings
@@ -352,7 +349,7 @@ class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

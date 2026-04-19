@@ -3,7 +3,7 @@ Implementation for Aya23 architecture
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class CohereConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class CohereConfig(ConfigBase):
     """Configuration of the Cohere Aya-23 model"""
 
     model_type: str  # cohere
@@ -38,7 +38,7 @@ class CohereConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     head_dim: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.position_embedding_base == 0:
@@ -79,15 +79,12 @@ class CohereConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 self.num_key_value_heads = self.num_attention_heads
             if self.head_dim == 0:
                 self.head_dim = self.hidden_size // self.num_attention_heads
-            assert (
-                self.head_dim * self.num_attention_heads == self.hidden_size
-            ), "head_dim * num_attention_heads != hidden_size"
-            assert (
-                self.num_attention_heads % self.num_key_value_heads == 0
-            ), "num_attention_heads % num_key_value_heads != 0"
-
-
-# pylint: disable=invalid-name,missing-docstring
+            assert self.head_dim * self.num_attention_heads == self.hidden_size, (
+                "head_dim * num_attention_heads != hidden_size"
+            )
+            assert self.num_attention_heads % self.num_key_value_heads == 0, (
+                "num_attention_heads % num_key_value_heads != 0"
+            )
 
 
 class CohereMLP(nn.Module):
@@ -107,9 +104,6 @@ class CohereMLP(nn.Module):
     def forward(self, x):
         down_proj = self.down_proj(op.silu(self.gate_proj(x)) * self.up_proj(x))
         return down_proj
-
-
-# pylint: disable=invalid-name,missing-docstring
 
 
 class CohereAttention(nn.Module):
@@ -184,8 +178,8 @@ class CohereDecoderLayer(nn.Module):
         hidden_ln = self.input_layernorm(hidden_states)
         attn = self.self_attn(hidden_ln, paged_kv_cache, layer_id)
         mlp = self.mlp(hidden_ln)
-        hidden_states = self._apply_parallel_residual(attn, residual=hidden_states)  # type: ignore
-        hidden_states = self._apply_parallel_residual(mlp, residual=hidden_states)  # type: ignore
+        hidden_states = self._apply_parallel_residual(attn, residual=hidden_states)
+        hidden_states = self._apply_parallel_residual(mlp, residual=hidden_states)
         return hidden_states
 
     def _apply_parallel_residual(self, mlp_out, residual):
@@ -240,7 +234,6 @@ class CohereModel(nn.Module):
 
 
 class CohereForCausalLM(nn.Module):
-    # pylint: disable=too-many-instance-attributes
     def __init__(self, config: CohereConfig) -> None:
         super().__init__()
         self.model = CohereModel(config)
@@ -281,7 +274,7 @@ class CohereForCausalLM(nn.Module):
         hidden_states = self.model(input_embed, paged_kv_cache)
         hidden_states = index_last_token(hidden_states)
         # logits = self.lm_head(hidden_states)
-        logits = self.model.embed_tokens.lm_head_forward(hidden_states)  # type: ignore
+        logits = self.model.embed_tokens.lm_head_forward(hidden_states)
 
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -304,7 +297,7 @@ class CohereForCausalLM(nn.Module):
         paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
-            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)  # type: ignore
+            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache
 
@@ -318,11 +311,11 @@ class CohereForCausalLM(nn.Module):
 
     def embed(self, input_ids: Tensor):
         if self.tensor_parallel_shards > 1:
-            input_ids = op.ccl_broadcast_from_worker0(input_ids)  # type: ignore
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
         embeds = self.model.embed_tokens(input_ids)
         return embeds
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,
@@ -410,4 +403,4 @@ class CohereForCausalLM(nn.Module):
                 },
             },
         }
-        return nn.spec.ModuleSpec.from_raw(mod_spec, self)  # type: ignore
+        return nn.spec.ModuleSpec.from_raw(mod_spec, self)

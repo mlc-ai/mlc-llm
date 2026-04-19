@@ -1,16 +1,12 @@
 """The MLC LLM Serving Engine."""
 
-# pylint: disable=too-many-lines
-
 import asyncio
 import queue
-import sys
 import weakref
-from typing import (
+from collections.abc import AsyncGenerator, Iterator
+from typing import (  # noqa: UP035
     Any,
-    AsyncGenerator,
     Dict,
-    Iterator,
     List,
     Literal,
     Optional,
@@ -34,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 # Note: we define both AsyncChat and Chat for Python type analysis.
-class AsyncChat:  # pylint: disable=too-few-public-methods
+class AsyncChat:
     """The proxy class to direct to async chat completions."""
 
     def __init__(self, engine: weakref.ReferenceType) -> None:
@@ -42,7 +38,7 @@ class AsyncChat:  # pylint: disable=too-few-public-methods
         self.completions = AsyncChatCompletion(engine)
 
 
-class Chat:  # pylint: disable=too-few-public-methods
+class Chat:
     """The proxy class to direct to chat completions."""
 
     def __init__(self, engine: weakref.ReferenceType) -> None:
@@ -50,42 +46,39 @@ class Chat:  # pylint: disable=too-few-public-methods
         self.completions = ChatCompletion(engine)
 
 
-class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
+class AsyncChatCompletion:
     """The proxy class to direct to async chat completions."""
 
-    if sys.version_info >= (3, 9):
-        engine: weakref.ReferenceType["AsyncMLCEngine"]
-    else:
-        engine: weakref.ReferenceType
+    engine: weakref.ReferenceType["AsyncMLCEngine"]
 
     def __init__(self, engine: weakref.ReferenceType) -> None:
         self.engine = engine
 
     @overload
-    async def create(  # pylint: disable=too-many-arguments,too-many-locals
+    async def create(
         self,
         *,
-        messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],  # noqa: UP006
         stream: Literal[True],
         model: Optional[str] = None,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,  # noqa: UP006
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,  # noqa: UP006
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> AsyncGenerator[openai_api_protocol.ChatCompletionStreamResponse, Any]:
         """Asynchronous streaming chat completion interface with OpenAI API compatibility.
         The method is a coroutine that streams ChatCompletionStreamResponse
@@ -117,30 +110,30 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         """
 
     @overload
-    async def create(  # pylint: disable=too-many-arguments,too-many-locals
+    async def create(
         self,
         *,
-        messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],  # noqa: UP006
         model: Optional[str] = None,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: Literal[False] = False,
         stream_options: Literal[None] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,  # noqa: UP006
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,  # noqa: UP006
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> openai_api_protocol.ChatCompletionResponse:
         """Asynchronous non-streaming chat completion interface with OpenAI API compatibility.
         The method is a coroutine that streams ChatCompletionStreamResponse
@@ -171,30 +164,30 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
             BadRequestError is raised when the request is invalid.
         """
 
-    async def create(  # pylint: disable=too-many-arguments,too-many-locals
+    async def create(
         self,
         *,
-        messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],  # noqa: UP006
         model: Optional[str] = None,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: bool = False,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,  # noqa: UP006
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,  # noqa: UP006
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> Union[
         AsyncGenerator[openai_api_protocol.ChatCompletionStreamResponse, Any],
         openai_api_protocol.ChatCompletionResponse,
@@ -218,7 +211,7 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         e : BadRequestError
             BadRequestError is raised when the request is invalid.
         """
-        return await self.engine()._chat_completion(  # pylint: disable=protected-access
+        return await self.engine()._chat_completion(
             messages=messages,
             model=model,
             frequency_penalty=frequency_penalty,
@@ -247,42 +240,39 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         )
 
 
-class ChatCompletion:  # pylint: disable=too-few-public-methods
+class ChatCompletion:
     """The proxy class to direct to chat completions."""
 
-    if sys.version_info >= (3, 9):
-        engine: weakref.ReferenceType["MLCEngine"]
-    else:
-        engine: weakref.ReferenceType
+    engine: weakref.ReferenceType["MLCEngine"]
 
     def __init__(self, engine: weakref.ReferenceType) -> None:
         self.engine = engine
 
     @overload
-    def create(  # pylint: disable=too-many-arguments,too-many-locals
+    def create(
         self,
         *,
-        messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],  # noqa: UP006
         stream: Literal[True],
         model: Optional[str] = None,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,  # noqa: UP006
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,  # noqa: UP006
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
         """Synchronous streaming chat completion interface with OpenAI API compatibility.
         The method streams back ChatCompletionStreamResponse that conforms to
@@ -314,30 +304,30 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         """
 
     @overload
-    def create(  # pylint: disable=too-many-arguments,too-many-locals
+    def create(
         self,
         *,
-        messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],  # noqa: UP006
         model: Optional[str] = None,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: Literal[False] = False,
         stream_options: Literal[None] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,  # noqa: UP006
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,  # noqa: UP006
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> openai_api_protocol.ChatCompletionResponse:
         """Synchronous non-streaming chat completion interface with OpenAI API compatibility.
 
@@ -366,30 +356,30 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
             BadRequestError is raised when the request is invalid.
         """
 
-    def create(  # pylint: disable=too-many-arguments,too-many-locals
+    def create(
         self,
         *,
-        messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],  # noqa: UP006
         model: Optional[str] = None,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: bool = False,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,  # noqa: UP006
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,  # noqa: UP006
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> Union[
         Iterator[openai_api_protocol.ChatCompletionStreamResponse],
         openai_api_protocol.ChatCompletionResponse,
@@ -413,7 +403,7 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         e : BadRequestError
             BadRequestError is raised when the request is invalid.
         """
-        return self.engine()._chat_completion(  # pylint: disable=protected-access
+        return self.engine()._chat_completion(
             messages=messages,
             model=model,
             frequency_penalty=frequency_penalty,
@@ -442,22 +432,19 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         )
 
 
-class AsyncCompletion:  # pylint: disable=too-few-public-methods
+class AsyncCompletion:
     """The proxy class to direct to async completions."""
 
-    if sys.version_info >= (3, 9):
-        engine: weakref.ReferenceType["AsyncMLCEngine"]
-    else:
-        engine: weakref.ReferenceType
+    engine: weakref.ReferenceType["AsyncMLCEngine"]
 
     def __init__(self, engine: weakref.ReferenceType) -> None:
         self.engine = engine
 
     @overload
-    async def create(  # pylint: disable=too-many-arguments,too-many-locals
+    async def create(
         self,
         *,
-        prompt: Union[str, List[int]],
+        prompt: Union[str, List[int]],  # noqa: UP006
         stream: Literal[True],
         model: Optional[str] = None,
         best_of: int = 1,
@@ -465,19 +452,19 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: Optional[int] = None,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         suffix: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
         """Asynchronous streaming completion interface with OpenAI API compatibility.
         The method is a coroutine that streams CompletionResponse
@@ -509,30 +496,30 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         """
 
     @overload
-    async def create(  # pylint: disable=too-many-arguments,too-many-locals
+    async def create(
         self,
         *,
-        prompt: Union[str, List[int]],
+        prompt: Union[str, List[int]],  # noqa: UP006
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: Optional[int] = None,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: Literal[False] = False,
         stream_options: Literal[None] = None,
         suffix: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> openai_api_protocol.CompletionResponse:
         """Asynchronous non-streaming completion interface with OpenAI API compatibility.
 
@@ -561,30 +548,30 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
             BadRequestError is raised when the request is invalid.
         """
 
-    async def create(  # pylint: disable=too-many-arguments,too-many-locals
+    async def create(
         self,
         *,
-        prompt: Union[str, List[int]],
+        prompt: Union[str, List[int]],  # noqa: UP006
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: Optional[int] = None,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: bool = False,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         suffix: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> Union[
         AsyncGenerator[openai_api_protocol.CompletionResponse, Any],
         openai_api_protocol.CompletionResponse,
@@ -608,7 +595,7 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         e : BadRequestError
             BadRequestError is raised when the request is invalid.
         """
-        return await self.engine()._completion(  # pylint: disable=protected-access
+        return await self.engine()._completion(
             model=model,
             prompt=prompt,
             best_of=best_of,
@@ -637,22 +624,19 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         )
 
 
-class Completion:  # pylint: disable=too-few-public-methods
+class Completion:
     """The proxy class to direct to completions."""
 
-    if sys.version_info >= (3, 9):
-        engine: weakref.ReferenceType["MLCEngine"]
-    else:
-        engine: weakref.ReferenceType
+    engine: weakref.ReferenceType["MLCEngine"]
 
     def __init__(self, engine: weakref.ReferenceType) -> None:
         self.engine = engine
 
     @overload
-    def create(  # pylint: disable=too-many-arguments,too-many-locals
+    def create(
         self,
         *,
-        prompt: Union[str, List[int]],
+        prompt: Union[str, List[int]],  # noqa: UP006
         stream: Literal[True],
         model: Optional[str] = None,
         best_of: int = 1,
@@ -660,19 +644,19 @@ class Completion:  # pylint: disable=too-few-public-methods
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: Optional[int] = None,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         suffix: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> Iterator[openai_api_protocol.CompletionResponse]:
         """Synchronous streaming completion interface with OpenAI API compatibility.
         The method streams back CompletionResponse that conforms to
@@ -704,30 +688,30 @@ class Completion:  # pylint: disable=too-few-public-methods
         """
 
     @overload
-    def create(  # pylint: disable=too-many-arguments,too-many-locals
+    def create(
         self,
         *,
-        prompt: Union[str, List[int]],
+        prompt: Union[str, List[int]],  # noqa: UP006
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: Optional[int] = None,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: Literal[False] = False,
         stream_options: Literal[None] = None,
         suffix: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> openai_api_protocol.CompletionResponse:
         """Synchronous non-streaming completion interface with OpenAI API compatibility.
 
@@ -756,30 +740,30 @@ class Completion:  # pylint: disable=too-few-public-methods
             BadRequestError is raised when the request is invalid.
         """
 
-    def create(  # pylint: disable=too-many-arguments,too-many-locals
+    def create(
         self,
         *,
-        prompt: Union[str, List[int]],
+        prompt: Union[str, List[int]],  # noqa: UP006
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: Optional[int] = None,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: bool = False,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         suffix: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> Union[
         Iterator[openai_api_protocol.CompletionResponse],
         openai_api_protocol.CompletionResponse,
@@ -803,7 +787,7 @@ class Completion:  # pylint: disable=too-few-public-methods
         e : BadRequestError
             BadRequestError is raised when the request is invalid.
         """
-        return self.engine()._completion(  # pylint: disable=protected-access
+        return self.engine()._completion(
             model=model,
             prompt=prompt,
             best_of=best_of,
@@ -882,7 +866,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         A boolean indicating if to enable event logging for requests.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
+    def __init__(
         self,
         model: str,
         device: Union[str, Device] = "auto",
@@ -922,33 +906,32 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         metrics: EngineMetrics
             The engine metrics
         """
-        # pylint: disable=protected-access
         return await engine_base._async_query_engine_metrics(self)
 
-    async def _chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
+    async def _chat_completion(
         self,
         *,
-        messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],  # noqa: UP006
         model: Optional[str] = None,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: bool = False,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,  # noqa: UP006
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,  # noqa: UP006
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        debug_config: Optional[Dict[str, Any]] = None,
+        debug_config: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> Union[
         AsyncGenerator[openai_api_protocol.ChatCompletionStreamResponse, Any],
         openai_api_protocol.ChatCompletionResponse,
@@ -1026,8 +1009,8 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             return chatcmpl_generator
         # Normal response.
         output_texts = ["" for _ in range(n)]
-        finish_reasons: List[Optional[str]] = [None for _ in range(n)]
-        logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]] = (
+        finish_reasons: List[Optional[str]] = [None for _ in range(n)]  # noqa: UP006
+        logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]] = (  # noqa: UP006
             [[] for _ in range(n)] if logprobs else None
         )
         request_final_usage = None
@@ -1044,13 +1027,11 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                         finish_reasons[choice.index] = choice.finish_reason
                     if choice.logprobs is not None:
                         assert logprob_results is not None
-                        logprob_results[  # pylint: disable=unsupported-assignment-operation
-                            choice.index
-                        ] += choice.logprobs.content
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                        logprob_results[choice.index] += choice.logprobs.content
+        except asyncio.CancelledError:
             # for cancelled error, we can simply pass it through
             raise
-        except Exception as err:  # pylint: disable=broad-exception-caught
+        except Exception as err:
             logger.error("Error in chat completion with request ID %s: %s", request_id, err)
             raise
 
@@ -1069,30 +1050,30 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             usage=request_final_usage,
         )
 
-    async def _completion(  # pylint: disable=too-many-arguments,too-many-locals
+    async def _completion(
         self,
         *,
-        prompt: Union[str, List[int]],
+        prompt: Union[str, List[int]],  # noqa: UP006
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: Optional[int] = None,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: bool = False,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         suffix: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        debug_config: Optional[Dict[str, Any]] = None,
+        debug_config: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> Union[
         AsyncGenerator[openai_api_protocol.CompletionResponse, Any],
         openai_api_protocol.CompletionResponse,
@@ -1161,8 +1142,8 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         # Normal response.
         request_final_usage = None
         output_texts = [""] * n
-        finish_reasons: List[Optional[str]] = [None] * n
-        logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]] = [None] * n
+        finish_reasons: List[Optional[str]] = [None] * n  # noqa: UP006
+        logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]] = [None] * n  # noqa: UP006
 
         async for response in cmpl_generator:
             # this is the final chunk
@@ -1223,13 +1204,13 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         )
         # prompt length is not used
         _ = prompt_length
-        finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
+        finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]  # noqa: UP006
         self.state.record_event(request_id, event="invoke generate")
         try:
             async for delta_outputs in self._generate(
-                prompts,  # type: ignore[arg-type]
+                prompts,
                 generation_cfg,
-                request_id,  # type: ignore
+                request_id,
             ):
                 response = engine_base.process_chat_completion_stream_output(
                     delta_outputs,
@@ -1246,10 +1227,10 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                             response.usage.extra = None
                     yield response
             self.state.record_event(request_id, event="finish")
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             # for cancelled error, we can simply pass it through
             raise
-        except Exception as err:  # pylint: disable=broad-exception-caught
+        except Exception as err:
             logger.error("Error in _handle_chat_completion for request %s: %s", request_id, err)
             raise
 
@@ -1290,13 +1271,13 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         if echo_response is not None:
             yield echo_response
 
-        finish_reasons: List[Optional[str]] = [None] * generation_cfg.n
+        finish_reasons: List[Optional[str]] = [None] * generation_cfg.n  # noqa: UP006
         self.state.record_event(request_id, event="invoke generate")
         try:
             async for delta_outputs in self._generate(
                 prompt,
                 generation_cfg,
-                request_id,  # type: ignore
+                request_id,
             ):
                 response = engine_base.process_completion_stream_output(
                     delta_outputs,
@@ -1318,19 +1299,19 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             if suffix_response is not None:
                 yield suffix_response
             self.state.record_event(request_id, event="finish")
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             # for cancelled error, we can simply pass it through
             raise
-        except Exception as err:  # pylint: disable=broad-exception-caught
+        except Exception as err:
             logger.error("Error in _handle_completion for request %s: %s", request_id, err)
             raise
 
     async def _generate(
         self,
-        prompt: Union[str, List[int], List[Union[str, List[int], data.Data]]],
+        prompt: Union[str, List[int], List[Union[str, List[int], data.Data]]],  # noqa: UP006
         generation_config: GenerationConfig,
         request_id: str,
-    ) -> AsyncGenerator[List[engine_base.CallbackStreamOutput], Any]:
+    ) -> AsyncGenerator[List[engine_base.CallbackStreamOutput], Any]:  # noqa: UP006
         """Internal asynchronous text generation interface of AsyncMLCEngine.
         The method is a coroutine that streams a list of CallbackStreamOutput
         at a time via yield. The returned list length is the number of
@@ -1394,10 +1375,10 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             try:
                 async for request_output in stream:
                     yield request_output
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            except asyncio.CancelledError:
                 # for cancelled error, we can simply pass it through
                 raise
-            except Exception as exception:  # pylint: disable=broad-exception-caught
+            except Exception as exception:
                 logger.error("Exception in _generate for request %s: %s", request_id, exception)
                 raise
 
@@ -1457,7 +1438,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         A boolean indicating if to enable event logging for requests.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
+    def __init__(
         self,
         model: str,
         device: Union[str, Device] = "auto",
@@ -1497,33 +1478,32 @@ class MLCEngine(engine_base.MLCEngineBase):
         metrics: EngineMetrics
             The engine metrics
         """
-        # pylint: disable=protected-access
         return engine_base._query_engine_metrics(self)
 
-    def _chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
+    def _chat_completion(
         self,
         *,
-        messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],  # noqa: UP006
         model: Optional[str] = None,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: bool = False,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,  # noqa: UP006
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,  # noqa: UP006
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        debug_config: Optional[Dict[str, Any]] = None,
+        debug_config: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> Union[
         Iterator[openai_api_protocol.ChatCompletionStreamResponse],
         openai_api_protocol.ChatCompletionResponse,
@@ -1599,8 +1579,8 @@ class MLCEngine(engine_base.MLCEngineBase):
         # Normal response.
         request_final_usage = None
         output_texts = ["" for _ in range(n)]
-        finish_reasons: List[Optional[str]] = [None for _ in range(n)]
-        logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]] = (
+        finish_reasons: List[Optional[str]] = [None for _ in range(n)]  # noqa: UP006
+        logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]] = (  # noqa: UP006
             [[] for _ in range(n)] if logprobs else None
         )
         for response in chatcmpl_generator:
@@ -1615,9 +1595,7 @@ class MLCEngine(engine_base.MLCEngineBase):
                     finish_reasons[choice.index] = choice.finish_reason
                 if choice.logprobs is not None:
                     assert logprob_results is not None
-                    logprob_results[  # pylint: disable=unsupported-assignment-operation
-                        choice.index
-                    ] += choice.logprobs.content
+                    logprob_results[choice.index] += choice.logprobs.content
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
         use_function_calling, tool_calls_list = engine_base.process_function_call_output(
@@ -1634,30 +1612,30 @@ class MLCEngine(engine_base.MLCEngineBase):
             usage=request_final_usage,
         )
 
-    def _completion(  # pylint: disable=too-many-arguments,too-many-locals
+    def _completion(
         self,
         *,
-        prompt: Union[str, List[int]],
+        prompt: Union[str, List[int]],  # noqa: UP006
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: Optional[int] = None,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: bool = False,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         suffix: Optional[str] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        debug_config: Optional[Dict[str, Any]] = None,
+        debug_config: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> Union[
         Iterator[openai_api_protocol.CompletionResponse],
         openai_api_protocol.CompletionResponse,
@@ -1726,8 +1704,8 @@ class MLCEngine(engine_base.MLCEngineBase):
         # Normal response.
         request_final_usage = None
         output_texts = [""] * n
-        finish_reasons: List[Optional[str]] = [None] * n
-        logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]] = [None] * n
+        finish_reasons: List[Optional[str]] = [None] * n  # noqa: UP006
+        logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]] = [None] * n  # noqa: UP006
 
         for response in cmpl_generator:
             # this is the final chunk
@@ -1784,9 +1762,9 @@ class MLCEngine(engine_base.MLCEngineBase):
         )
         _ = prompt_length
 
-        finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
+        finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]  # noqa: UP006
         self.state.record_event(request_id, event="invoke generate")
-        for delta_outputs in self._generate(prompts, generation_cfg, request_id):  # type: ignore
+        for delta_outputs in self._generate(prompts, generation_cfg, request_id):
             response = engine_base.process_chat_completion_stream_output(
                 delta_outputs,
                 request,
@@ -1833,9 +1811,9 @@ class MLCEngine(engine_base.MLCEngineBase):
         if echo_response is not None:
             yield echo_response
 
-        finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
+        finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]  # noqa: UP006
         self.state.record_event(request_id, event="invoke generate")
-        for delta_outputs in self._generate(prompt, generation_cfg, request_id):  # type: ignore
+        for delta_outputs in self._generate(prompt, generation_cfg, request_id):
             response = engine_base.process_completion_stream_output(
                 delta_outputs,
                 request,
@@ -1853,12 +1831,12 @@ class MLCEngine(engine_base.MLCEngineBase):
             yield suffix_response
         self.state.record_event(request_id, event="finish")
 
-    def _generate(  # pylint: disable=too-many-locals
+    def _generate(
         self,
-        prompt: Union[str, List[int], List[Union[str, List[int], data.Data]]],
+        prompt: Union[str, List[int], List[Union[str, List[int], data.Data]]],  # noqa: UP006
         generation_config: GenerationConfig,
         request_id: str,
-    ) -> Iterator[List[engine_base.CallbackStreamOutput]]:
+    ) -> Iterator[List[engine_base.CallbackStreamOutput]]:  # noqa: UP006
         """Internal synchronous text generation interface of MLCEngine.
         The method is a coroutine that streams a list of CallbackStreamOutput
         at a time via yield. The returned list length is the number of
@@ -1911,7 +1889,7 @@ class MLCEngine(engine_base.MLCEngineBase):
                 request_outputs, request_final_usage_json_str = self._request_stream_callback_impl(
                     delta_outputs
                 )
-                for request_output in request_outputs:  # pylint: disable=use-yield-from
+                for request_output in request_outputs:
                     yield request_output
 
                 if request_final_usage_json_str is not None:
@@ -1926,10 +1904,11 @@ class MLCEngine(engine_base.MLCEngineBase):
                     break
 
     def _request_stream_callback_impl(
-        self, delta_outputs: List[data.RequestStreamOutput]
-    ) -> Tuple[List[List[engine_base.CallbackStreamOutput]], Optional[str]]:
+        self,
+        delta_outputs: List[data.RequestStreamOutput],  # noqa: UP006
+    ) -> Tuple[List[List[engine_base.CallbackStreamOutput]], Optional[str]]:  # noqa: UP006
         """The underlying implementation of request stream callback of MLCEngine."""
-        batch_outputs: List[List[engine_base.CallbackStreamOutput]] = []
+        batch_outputs: List[List[engine_base.CallbackStreamOutput]] = []  # noqa: UP006
         for delta_output in delta_outputs:
             request_id, stream_outputs = delta_output.unpack()
             self.state.record_event(request_id, event="start callback")
@@ -1942,7 +1921,7 @@ class MLCEngine(engine_base.MLCEngineBase):
             if is_final_chunk:
                 return (batch_outputs, stream_outputs[0].request_final_usage_json_str)
 
-            outputs: List[engine_base.CallbackStreamOutput] = []
+            outputs: List[engine_base.CallbackStreamOutput] = []  # noqa: UP006
             for stream_output, text_streamer in zip(stream_outputs, self.state.sync_text_streamers):
                 self.state.record_event(request_id, event="start detokenization")
                 delta_text = stream_output.extra_prefix_string + (

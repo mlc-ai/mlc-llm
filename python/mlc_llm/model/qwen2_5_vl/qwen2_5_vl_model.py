@@ -14,11 +14,9 @@ Missing pieces for full Qwen2.5-VL support include:
 - end-to-end multimodal preprocessing and compile/chat wiring.
 """
 
-# pylint: disable=missing-function-docstring,missing-class-docstring
-
 import dataclasses
 from functools import partial
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -70,12 +68,12 @@ class Qwen25VLAttentionState:
     head_dim: int
     num_attention_heads: int
     num_key_value_heads: int
-    mrope_section: Tuple[int, int, int]
+    mrope_section: Tuple[int, int, int]  # noqa: UP006
     softmax_scale: float
 
 
 @dataclasses.dataclass
-class Qwen25VLConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class Qwen25VLConfig(ConfigBase):
     """Configuration for the Qwen2.5-VL model."""
 
     hidden_act: str
@@ -94,17 +92,17 @@ class Qwen25VLConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
     head_dim: int = 0
     dtype: str = "float32"
     max_batch_size: int = 1
-    rope_parameters: Optional[Dict[str, Any]] = None
-    mrope_section: Optional[Tuple[int, int, int]] = None
+    rope_parameters: Optional[Dict[str, Any]] = None  # noqa: UP006
+    mrope_section: Optional[Tuple[int, int, int]] = None  # noqa: UP006
     vision_tokens: Qwen25VLVisionTokenConfig = dataclasses.field(
         default_factory=Qwen25VLVisionTokenConfig
     )
     vision_grid: Qwen25VLVisionGridConfig = dataclasses.field(
         default_factory=Qwen25VLVisionGridConfig
     )
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
-    def __post_init__(self):  # pylint: disable=too-many-branches
+    def __post_init__(self):
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
                 if name in self.kwargs:
@@ -214,7 +212,7 @@ class Qwen25VLAttention(nn.Module):
         head_dim = config.head_dim
         num_attention_heads = config.num_attention_heads // config.tensor_parallel_shards
         num_key_value_heads = config.num_key_value_heads // config.tensor_parallel_shards
-        mrope_section: Tuple[int, int, int] = (
+        mrope_section: Tuple[int, int, int] = (  # noqa: UP006
             config.mrope_section if config.mrope_section is not None else (0, 0, 0)
         )
         self.state = Qwen25VLAttentionState(
@@ -249,12 +247,12 @@ class Qwen25VLAttention(nn.Module):
     def num_key_value_heads(self) -> int:
         return self.state.num_key_value_heads
 
-    def forward(  # pylint: disable=too-many-locals
+    def forward(
         self,
         hidden_states: Tensor,
         paged_kv_cache: PagedKVCache,
         layer_id: int,
-        position_embeddings: Tuple[Tensor, Tensor],
+        position_embeddings: Tuple[Tensor, Tensor],  # noqa: UP006
     ):
         d, h_q, h_kv = (
             self.state.head_dim,
@@ -331,7 +329,7 @@ class Qwen25VLDecoderLayer(nn.Module):
         hidden_states: Tensor,
         paged_kv_cache: PagedKVCache,
         layer_id: int,
-        position_embeddings: Tuple[Tensor, Tensor],
+        position_embeddings: Tuple[Tensor, Tensor],  # noqa: UP006
     ):
         out = self.input_layernorm(hidden_states)
         out = self.self_attn(out, paged_kv_cache, layer_id, position_embeddings)
@@ -446,7 +444,7 @@ class Qwen25VLLMHeadModel(nn.Module):
         logits = self._apply_lm_head(hidden_states)
         return logits, paged_kv_cache
 
-    def batch_prefill(  # pylint: disable=too-many-arguments
+    def batch_prefill(
         self,
         input_embeds: Tensor,
         position_ids: Tensor,
@@ -461,7 +459,7 @@ class Qwen25VLLMHeadModel(nn.Module):
         )
         return logits, paged_kv_cache
 
-    def batch_forward(  # pylint: disable=too-many-arguments
+    def batch_forward(
         self,
         input_embeds: Tensor,
         position_ids: Tensor,
@@ -492,7 +490,7 @@ class Qwen25VLLMHeadModel(nn.Module):
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.model.embed_tokens(input_ids)
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

@@ -13,8 +13,8 @@ def test_llama3_prompt():
     user_msg1 = "What is France's capital?"
     assistant_msg1 = "Bonjour! The capital of France is Paris!"
     user_msg2 = "What can I do there?"
-    assistant_msg2 = "Paris, the City of Light, offers a romantic getaway with must-see attractions like the Eiffel Tower and Louvre Museum, romantic experiences like river cruises and charming neighborhoods, and delicious food and drink options, with helpful tips for making the most of your trip."
-    prompt = "Give me a detailed list of the attractions I should visit, and time it takes in each one, to plan my trip accordingly."
+    assistant_msg2 = "Paris, the City of Light, offers a romantic getaway with must-see attractions like the Eiffel Tower and Louvre Museum, romantic experiences like river cruises and charming neighborhoods, and delicious food and drink options, with helpful tips for making the most of your trip."  # noqa: E501
+    prompt = "Give me a detailed list of the attractions I should visit, and time it takes in each one, to plan my trip accordingly."  # noqa: E501
 
     conversation.system_message = system_msg
     conversation.messages.append(("user", user_msg1))
@@ -30,10 +30,10 @@ def test_llama3_prompt():
         "You are a helpful AI assistant for travel tips and recommendations<|eot_id|>\n"
         "<|start_header_id|>user<|end_header_id|>\n\n"
         "What is France's capital?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-        "Bonjour! The capital of France is Paris!<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
+        "Bonjour! The capital of France is Paris!<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"  # noqa: E501
         "What can I do there?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-        "Paris, the City of Light, offers a romantic getaway with must-see attractions like the Eiffel Tower and Louvre Museum, romantic experiences like river cruises and charming neighborhoods, and delicious food and drink options, with helpful tips for making the most of your trip.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
-        "Give me a detailed list of the attractions I should visit, and time it takes in each one, to plan my trip accordingly.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+        "Paris, the City of Light, offers a romantic getaway with must-see attractions like the Eiffel Tower and Louvre Museum, romantic experiences like river cruises and charming neighborhoods, and delicious food and drink options, with helpful tips for making the most of your trip.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"  # noqa: E501
+        "Give me a detailed list of the attractions I should visit, and time it takes in each one, to plan my trip accordingly.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"  # noqa: E501
     )
 
     assert res[0] == expected

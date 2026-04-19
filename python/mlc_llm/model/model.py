@@ -1,7 +1,7 @@
 """A centralized registry of all existing model architures and their configurations."""
 
 import dataclasses
-from typing import Any, Callable, Dict, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, Literal, Optional, Tuple  # noqa: UP035
 
 from tvm.relax.frontend import nn
 
@@ -60,7 +60,7 @@ a class method `from_file` with the following signature:
 """
 
 FuncGetExternMap = Callable[[ModelConfig, Quantization], ExternMapping]
-FuncQuantization = Callable[[ModelConfig, Quantization], Tuple[nn.Module, QuantizeMapping]]
+FuncQuantization = Callable[[ModelConfig, Quantization], Tuple[nn.Module, QuantizeMapping]]  # noqa: UP006
 
 
 @dataclasses.dataclass
@@ -116,8 +116,8 @@ class Model:
     name: str
     config: ModelConfig
     model: Callable[[ModelConfig], nn.Module]
-    source: Dict[str, FuncGetExternMap]
-    quantize: Dict[str, FuncQuantization]
+    source: Dict[str, FuncGetExternMap]  # noqa: UP006
+    quantize: Dict[str, FuncQuantization]  # noqa: UP006
 
     model_task: Literal["chat", "embedding"] = "chat"
     embedding_metadata: Optional[EmbeddingMetadata] = None
@@ -131,7 +131,7 @@ class Model:
             )
 
 
-MODELS: Dict[str, Model] = {
+MODELS: Dict[str, Model] = {  # noqa: UP006
     "llama": Model(
         name="llama",
         model=llama_model.LlamaForCausalLM,

@@ -75,10 +75,7 @@ class Stats:
     def log_time_info(self, weight_format: str):
         """Log the time used in loading, pre-quantization and quantization."""
         logger.info(
-            "%s: "
-            "%s loading: %.3f sec; "
-            "Pre-quantization mapping: %.3f sec; "
-            "Quantization: %.3f sec",
+            "%s: %s loading: %.3f sec; Pre-quantization mapping: %.3f sec; Quantization: %.3f sec",
             green("Time usage"),
             weight_format,
             self.load_time_sec,

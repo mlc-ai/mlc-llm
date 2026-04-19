@@ -1,6 +1,6 @@
 """The request class in MLC LLM serving"""
 
-from typing import List
+from typing import List  # noqa: UP035
 
 import tvm_ffi
 from tvm.runtime import Object
@@ -11,7 +11,7 @@ from . import _ffi_api
 from .data import Data
 
 
-@tvm_ffi.register_object("mlc.serve.Request")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.Request")
 class Request(Object):
     """The user submitted text-generation request, which contains
     a unique request id, a list of multi-modal inputs, a set of
@@ -24,13 +24,11 @@ class Request(Object):
     """
 
     @property
-    def inputs(self) -> List[Data]:
+    def inputs(self) -> List[Data]:  # noqa: UP006
         """The inputs of the request."""
-        return _ffi_api.RequestGetInputs(self)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.RequestGetInputs(self)
 
     @property
     def generation_config(self) -> GenerationConfig:
         """The generation config of the request."""
-        return GenerationConfig.model_validate_json(
-            _ffi_api.RequestGetGenerationConfigJSON(self)  # type: ignore  # pylint: disable=no-member
-        )
+        return GenerationConfig.model_validate_json(_ffi_api.RequestGetGenerationConfigJSON(self))

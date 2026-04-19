@@ -39,9 +39,6 @@ class Gemma2Config(GemmaConfig):
         self.context_window_size = self.sliding_window
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
 class Gemma2Attention(GemmaAttention):
     def __init__(self, config: Gemma2Config):
         super().__init__(config)
@@ -112,7 +109,7 @@ class Gemma2Model(GemmaModel):
         )
 
 
-class Gemma2ForCausalLM(GemmaForCausalLM):  # pylint: disable=too-many-instance-attributes
+class Gemma2ForCausalLM(GemmaForCausalLM):
     def __init__(self, config: Gemma2Config):
         super().__init__(config)
         self.model = Gemma2Model(config)

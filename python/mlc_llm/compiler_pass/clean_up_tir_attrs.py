@@ -1,16 +1,16 @@
 """A compiler pass that cleans up undesired TIR attrs."""
 
-from typing import List
+from typing import List  # noqa: UP035
 
 import tvm
 from tvm.ir.module import IRModule
 
 
 @tvm.transform.module_pass(opt_level=0, name="CleanUpTIRAttrs")
-class CleanUpTIRAttrs:  # pylint: disable=too-few-public-methods
+class CleanUpTIRAttrs:
     """A compiler pass that cleans up undesired TIR attrs."""
 
-    def __init__(self, attrs: List[str]):
+    def __init__(self, attrs: List[str]):  # noqa: UP006
         self.attrs = attrs
 
     def transform_module(

@@ -1,7 +1,7 @@
 """Medusa model definition."""
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm.relax.frontend import nn
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class MedusaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class MedusaConfig(ConfigBase):
     """Configuration of the Llama model."""
 
     medusa_num_heads: int
@@ -22,14 +22,11 @@ class MedusaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     max_batch_size: int = 1
     tensor_parallel_shards: int = 1
 
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     # Unused parameters. Kept for compatibility with the compilation flow.
     prefill_chunk_size: int = -1
     context_window_size: int = -1
-
-
-# pylint: disable=missing-docstring
 
 
 class ResBlock(nn.Module):

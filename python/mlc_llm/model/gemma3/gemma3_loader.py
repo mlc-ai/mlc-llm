@@ -17,7 +17,7 @@ def huggingface(model_config: Gemma3Config, quantization: Quantization) -> Exter
     model = Gemma3ForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
-    _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
+    _, _named_params, _ = model.export_tvm(
         spec=model.get_default_spec(),
         allow_extern=True,
     )
@@ -34,7 +34,7 @@ def huggingface(model_config: Gemma3Config, quantization: Quantization) -> Exter
         return f"{hf_prefix}{name}"
 
     def num_layers(config: object) -> int:
-        return config.text_config.num_hidden_layers  # type: ignore[attr-defined]
+        return config.text_config.num_hidden_layers
 
     base_loader = make_standard_hf_loader(
         model_cls=Gemma3ForCausalLM,

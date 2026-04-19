@@ -11,12 +11,10 @@ def _var(dtype, size=1):
     return T.sblock_alloc_buffer((size,), dtype, scope="local")
 
 
-# pylint: disable=invalid-name,missing-docstring,no-else-return,too-many-locals,useless-parent-delegation
 class ImageProcessor(Module):
     def __init__(self):
         super().__init__()
 
-    # pylint: disable=dangerous-default-value
     def apply_schedule(self, sch, block, bdx=32, tile=[32, 32]):
         loop_x, loop_y = sch.get_loops(block)[-2:]
         xo, xi = sch.split(loop_x, factors=[tile[0], None])
@@ -91,7 +89,6 @@ class ImageProcessor(Module):
         out = op.interpolate(image, (new_h, new_w), data_layout="NCHW", mode="linear")
         return out
 
-    # pylint: disable=too-many-arguments,too-many-locals
     def crop(self, image: Tensor, crop_size):
         assert 4 == image.ndim, "image should be 4D data tensor"
         assert 3 == image.shape[1], "image layout should be NCHW"
@@ -239,15 +236,15 @@ class ImageProcessor(Module):
         assert 4 == image.ndim, "image should be 4D data tensor"
         assert 3 == image.shape[1], "image layout should be NCHW"
 
-        def create_pad_func(l, r, fill=255):
+        def create_pad_func(left, right, fill=255):
             @T.prim_func
             def pad_func(image: T.handle, out: T.handle, t: T.int64(), b: T.int64()):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
                 image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
-                out_buf = T.match_buffer(out, (n, c, h + t + b, w + l + r), dtype=dtype)
+                out_buf = T.match_buffer(out, (n, c, h + t + b, w + left + right), dtype=dtype)
                 out_h = h + t + b
-                out_w = w + l + r
+                out_w = w + left + right
 
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
@@ -255,11 +252,11 @@ class ImageProcessor(Module):
                             with T.sblock("pad"):
                                 T.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
                                 T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
-                                if h_idx < t or h_idx > h + b or w_idx < l or w_idx > w + r:
+                                if h_idx < t or h_idx > h + b or w_idx < left or w_idx > w + right:
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = fill
                                 else:
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = image_buf[
-                                        n_idx, c_idx, h_idx - t, w_idx - l
+                                        n_idx, c_idx, h_idx - t, w_idx - left
                                     ]
 
             sch = s_tir.Schedule(pad_func)
@@ -270,12 +267,12 @@ class ImageProcessor(Module):
         tar = tirx.truncdiv(h + 335, 336) * 336
         t = tirx.div(tar - h, 2)
         b = tar - h - t
-        l = 0
-        r = 0
+        left = 0
+        right = 0
 
         n, c, h, w = image.shape
         out = op.tensor_ir_op(
-            create_pad_func(l, r),
+            create_pad_func(left, right),
             "pad",
             [image, t, b],
             [Tensor.placeholder((n, c, tar, w), image.dtype)],

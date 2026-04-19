@@ -3,7 +3,7 @@ Implementation for Phi architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class Phi1Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class Phi1Config(ConfigBase):
     """Configuration of the Phi-1/Phi-1.5 model."""
 
     vocab_size: int = 51200
@@ -38,7 +38,7 @@ class Phi1Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     head_dim: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.position_embedding_base == 0:
@@ -89,7 +89,7 @@ class Phi1Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
 
 @dataclasses.dataclass
-class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class PhiConfig(ConfigBase):
     """Configuration of the Phi-2 model."""
 
     model_type: str  # "phi", "phi-msft", "mixformer-sequential"
@@ -107,7 +107,7 @@ class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     n_head_kv: int = 0
     head_dim: int = 0
     tensor_parallel_shards: int = 1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.position_embedding_base == 0:
@@ -169,9 +169,6 @@ class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         )
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
 class PhiMLP(nn.Module):
     def __init__(self, config: PhiConfig):
         super().__init__()
@@ -192,16 +189,16 @@ class PhiMLP(nn.Module):
         return hidden_states
 
 
-class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
+class PhiMHA(nn.Module):
     def __init__(self, config: PhiConfig):
         self.num_q_heads = config.n_head // config.tensor_parallel_shards
-        assert (
-            config.n_head % config.tensor_parallel_shards == 0
-        ), f"n_head({config.n_head}) must be divisible by tensor_parallel_shards"
+        assert config.n_head % config.tensor_parallel_shards == 0, (
+            f"n_head({config.n_head}) must be divisible by tensor_parallel_shards"
+        )
         self.n_head_kv = config.n_head_kv // config.tensor_parallel_shards
-        assert (
-            config.n_head_kv % config.tensor_parallel_shards == 0
-        ), f"n_head({config.n_head_kv}) must be divisible by tensor_parallel_shards"
+        assert config.n_head_kv % config.tensor_parallel_shards == 0, (
+            f"n_head({config.n_head_kv}) must be divisible by tensor_parallel_shards"
+        )
         self.head_dim = config.head_dim
         op_size = self.head_dim * (self.num_q_heads + 2 * self.n_head_kv)
         hidden_size = config.n_embd
@@ -313,7 +310,6 @@ class PhiModel(nn.Module):
 
 
 class PhiForCausalLM(nn.Module):
-    # pylint: disable=too-many-instance-attributes
     def __init__(self, config: Union[PhiConfig, Phi1Config]) -> None:
         super().__init__()
 
@@ -400,7 +396,7 @@ class PhiForCausalLM(nn.Module):
         embeds = self.transformer.embd(input_ids)
         return embeds
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

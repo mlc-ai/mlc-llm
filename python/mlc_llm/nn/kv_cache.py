@@ -1,8 +1,7 @@
 """Attention KV cache modeling."""
 
-# pylint: disable=too-many-statements,too-many-lines,too-many-arguments
 import json
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union  # noqa: UP035
 
 import numpy as np
 from tvm import relax as rx
@@ -11,12 +10,12 @@ from tvm.relax.frontend.nn.llm.kv_cache import PagedKVCache as TVMPagedKVCache
 from tvm.relax.frontend.nn.llm.kv_cache import RopeMode
 
 
-class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
+class PagedKVCache(TVMPagedKVCache):
     """The Paged KV Cache used in LLM batching for efficient attention computation."""
 
     @staticmethod
-    def create_generic(  # pylint: disable=too-many-locals
-        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]],
+    def create_generic(
+        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]],  # noqa: UP006
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,
         prefill_chunk_size: tirx.Var,
@@ -34,9 +33,9 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
         mla_original_qk_head_dim: int = 0,
         mla_original_v_head_dim: int = 0,
         rotary_dim: Optional[int] = None,
-        rope_scaling: Optional[Dict[str, Any]] = None,
-        rope_ext_factors: Optional[List[int]] = None,
-        layer_partition: Optional[List[int]] = None,
+        rope_scaling: Optional[Dict[str, Any]] = None,  # noqa: UP006
+        rope_ext_factors: Optional[List[int]] = None,  # noqa: UP006
+        layer_partition: Optional[List[int]] = None,  # noqa: UP006
         enable_disaggregation: bool = False,
         name: str = "paged_kv_cache",
     ) -> "PagedKVCache":
@@ -49,7 +48,7 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
             rope_scaling = {}
         if layer_partition is None:
             layer_partition = [0, num_hidden_layers]
-        if isinstance(attn_kind, List):
+        if isinstance(attn_kind, List):  # noqa: UP006
             rx_attn_kind = [rx.StringImm(layer_kind) for layer_kind in attn_kind]
         else:
             rx_attn_kind = rx.StringImm(attn_kind)

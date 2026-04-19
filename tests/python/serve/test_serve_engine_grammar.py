@@ -1,9 +1,7 @@
-# pylint: disable=chained-comparison,line-too-long,missing-docstring,
-# pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
 import asyncio
 import json
 import random
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal  # noqa: UP035
 
 from pydantic import BaseModel
 
@@ -36,7 +34,7 @@ def test_batch_generation_with_grammar(model: str):
     max_tokens = 4096
 
     # non-json output
-    responses_text: List[ChatCompletionResponse] = []
+    responses_text: List[ChatCompletionResponse] = []  # noqa: UP006
     for _ in range(repeat):
         for p in prompts_list:
             print(f"Start generation task for request {len(responses_text)}")
@@ -63,7 +61,7 @@ def test_batch_generation_with_grammar(model: str):
         print(f"Output {req_id}: {output}\n")
 
     # json output
-    responses_json: List[ChatCompletionResponse] = []
+    responses_json: List[ChatCompletionResponse] = []  # noqa: UP006
     for _ in range(repeat):
         for p in prompts_list:
             print(f"Start generation task for request {len(responses_json)}")
@@ -104,8 +102,8 @@ def test_batch_generation_with_schema(model: str):
         price: float
         is_featured: Literal[True]
         category: Literal["Electronics", "Clothing", "Food"]
-        tags: List[str]
-        stock: Dict[str, int]
+        tags: List[str]  # noqa: UP006
+        stock: Dict[str, int]  # noqa: UP006
 
     schema_str = json.dumps(Product.model_json_schema())
 
@@ -121,7 +119,7 @@ def test_batch_generation_with_schema(model: str):
     max_tokens = 4096
 
     # non-json output
-    responses_text: List[ChatCompletionResponse] = []
+    responses_text: List[ChatCompletionResponse] = []  # noqa: UP006
     for i in range(repeat):
         print(f"Start generation task for request {i}")
         responses_text.append(
@@ -146,7 +144,7 @@ def test_batch_generation_with_schema(model: str):
         print(f"Output {req_id}: {output}\n")
 
     # json output without schema
-    responses_json: List[ChatCompletionResponse] = []
+    responses_json: List[ChatCompletionResponse] = []  # noqa: UP006
     for i in range(repeat):
         print(f"Start generation task for request {i}")
         responses_json.append(
@@ -171,7 +169,7 @@ def test_batch_generation_with_schema(model: str):
         print(f"Output {req_id}: {output}\n")
 
     # json output with schema
-    responses_schema: List[ChatCompletionResponse] = []
+    responses_schema: List[ChatCompletionResponse] = []  # noqa: UP006
     for i in range(repeat):
         print(f"Start generation task for request {i}")
         responses_schema.append(
@@ -211,8 +209,8 @@ def test_batch_generation_jump_forward(model: str, jump_forward: bool = True, re
         price: float
         is_featured: Literal[True]
         category: Literal["Electronics", "Clothing", "Food"]
-        tags: List[str]
-        stock: Dict[str, int]
+        tags: List[str]  # noqa: UP006
+        stock: Dict[str, int]  # noqa: UP006
 
     schema_str = json.dumps(Product.model_json_schema())
 
@@ -228,7 +226,7 @@ def test_batch_generation_jump_forward(model: str, jump_forward: bool = True, re
     grammar_execution_mode = "jump_forward" if jump_forward else "constraint"
 
     # json output with schema
-    responses: List[ChatCompletionResponse] = []
+    responses: List[ChatCompletionResponse] = []  # noqa: UP006
     for i in range(repeat):
         print(f"Start generation task for request {i}")
         responses.append(
@@ -275,8 +273,8 @@ async def run_async_engine(
         price: float
         is_featured: Literal[True]
         category: Literal["Electronics", "Clothing", "Food"]
-        tags: List[str]
-        stock: Dict[str, int]
+        tags: List[str]  # noqa: UP006
+        stock: Dict[str, int]  # noqa: UP006
 
     schema_str = json.dumps(Product.model_json_schema())
 
@@ -303,7 +301,7 @@ async def run_async_engine(
     async def generate_task(prompt: str, request_id: str):
         print(f"Start generation task for request {request_id}")
         rid = int(request_id)
-        async for response in await async_engine.chat.completions.create(
+        async for response in await async_engine.chat.completions.create(  # noqa: F821
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},

@@ -64,7 +64,7 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
         mask_list.extend(res[1])
         q_pos_list.extend(res[2])
 
-    qkv_indptr = np.array(np.cumsum([0] + m_list)).astype(np.int32)
+    qkv_indptr = np.array(np.cumsum([0, *m_list])).astype(np.int32)
     m_list = np.array(m_list).astype(np.int32)
     mn_list = np.array(mn_list).astype(np.int32)
     mn_list = np.cumsum(mn_list).astype(np.int32)
@@ -159,15 +159,15 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
 
         def rope(buffer, offset, rotary_dim, theta, scale, dtype):
             result = buffer.copy()
-            for l, h, d in np.ndindex(buffer.shape):
-                cos_freq, sin_freq = rope_freq(offset[l] * scale, d, rotary_dim, theta, dtype)
-                cos = cos_freq * buffer[l, h, d]
+            for pos, h, d in np.ndindex(buffer.shape):
+                cos_freq, sin_freq = rope_freq(offset[pos] * scale, d, rotary_dim, theta, dtype)
+                cos = cos_freq * buffer[pos, h, d]
                 sin = sin_freq * (
-                    -buffer[l, h, d + rotary_dim // 2]
+                    -buffer[pos, h, d + rotary_dim // 2]
                     if d < rotary_dim // 2
-                    else buffer[l, h, d - rotary_dim // 2]
+                    else buffer[pos, h, d - rotary_dim // 2]
                 )
-                result[l, h, d] = cos + sin
+                result[pos, h, d] = cos + sin
             return result
 
         for i in range(len(m_arr)):

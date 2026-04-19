@@ -10,7 +10,7 @@ from tvm.runtime import device as as_device
 def _check_device(device: Device) -> bool:
     try:
         return bool(device.exist)
-    except:  # pylint: disable=bare-except
+    except Exception:
         return False
 
 

@@ -4,7 +4,7 @@ Implementation for QWEN2 architecture.
 
 import dataclasses
 from functools import partial
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class QWen2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class QWen2Config(ConfigBase):
     """Configuration of the QWen2 model."""
 
     hidden_act: str
@@ -41,7 +41,7 @@ class QWen2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     head_dim: int = 0
     dtype: str = "float32"
     max_batch_size: int = 1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.context_window_size == 0:
@@ -81,10 +81,7 @@ class QWen2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = min(self.context_window_size, 8192)
 
 
-# pylint: disable=invalid-name,missing-docstring,too-many-locals
-
-
-class QWen2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class QWen2Attention(nn.Module):
     def __init__(self, config: QWen2Config):
         self.head_dim = config.head_dim
         if config.num_key_value_heads % config.tensor_parallel_shards != 0:
@@ -227,7 +224,7 @@ class QWen2Model(nn.Module):
         return hidden_states
 
 
-class QWen2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attributes
+class QWen2LMHeadModel(nn.Module):
     def __init__(self, config: QWen2Config):
         self.model = QWen2Model(config)
         self.tie_word_embeddings = config.tie_word_embeddings
@@ -319,7 +316,7 @@ class QWen2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

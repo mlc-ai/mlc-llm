@@ -1,12 +1,12 @@
 """Operators for pipeline parallelism."""
 
-from typing import List
+from typing import List  # noqa: UP035
 
 from tvm import relax
 from tvm.relax.frontend.nn import Tensor, op
 
 
-def pipeline_stage_boundary(*tensors: Tensor) -> List[Tensor]:
+def pipeline_stage_boundary(*tensors: Tensor) -> List[Tensor]:  # noqa: UP006
     """Pipeline parallelism stage boundary mark operator in MLC.
 
     Parameters
@@ -19,7 +19,6 @@ def pipeline_stage_boundary(*tensors: Tensor) -> List[Tensor]:
     tensors : List[Tensor]
         The list of input tensors passed to the next stage.
     """
-    # pylint: disable=protected-access
     return op.wrap_nested(
         relax.call_pure_packed(
             "mlc.pipeline_parallel_stage_boundary",
@@ -32,4 +31,3 @@ def pipeline_stage_boundary(*tensors: Tensor) -> List[Tensor]:
         ),
         name="pipeline_stage_boundary",
     )
-    # pylint: enable=protected-access

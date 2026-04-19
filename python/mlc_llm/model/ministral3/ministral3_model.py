@@ -5,7 +5,7 @@ Implementation for Ministral 3 architecture.
 import dataclasses
 import math
 from functools import partial
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class Ministral3Config(ConfigBase):
     """Configuration of the Ministral 3 model."""
 
     hidden_size: int
@@ -41,23 +41,23 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
     num_key_value_heads: int = 0
     position_embedding_base: int = 0
     prefill_chunk_size: int = 0
-    rope_parameters: Optional[Dict[str, Any]] = None
+    rope_parameters: Optional[Dict[str, Any]] = None  # noqa: UP006
     sliding_window_size: int = 0
     tensor_parallel_shards: int = 1
     tie_word_embeddings: bool = False
-    weight_block_size: Optional[Tuple[int, int]] = None
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    modules_to_not_convert: Tuple[str, ...] = dataclasses.field(default_factory=tuple)
+    weight_block_size: Optional[Tuple[int, int]] = None  # noqa: UP006
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
+    modules_to_not_convert: Tuple[str, ...] = dataclasses.field(default_factory=tuple)  # noqa: UP006
 
     @classmethod
-    def from_dict(  # type: ignore[override]
+    def from_dict(
         cls,
-        source: Dict[str, Any],
+        source: Dict[str, Any],  # noqa: UP006
     ) -> "Ministral3Config":
         if "text_config" in source and isinstance(source["text_config"], dict):
             top_level = dict(source)
             text_cfg = top_level.pop("text_config")
-            merged: Dict[str, Any] = dict(top_level)
+            merged: Dict[str, Any] = dict(top_level)  # noqa: UP006
             merged.update(text_cfg)
             if "tie_word_embeddings" in source:
                 merged["tie_word_embeddings"] = source["tie_word_embeddings"]
@@ -66,7 +66,7 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
             return super().from_dict(merged)
         return super().from_dict(source)
 
-    def __post_init__(self):  # pylint: disable=too-many-branches,too-many-statements
+    def __post_init__(self):
         if "quantization_config" in self.kwargs:
             quantization_config = self.kwargs.pop("quantization_config")
             if isinstance(quantization_config, dict):
@@ -92,7 +92,7 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                     else:
                         # Set default block size if not provided.
                         self.weight_block_size = (128, 128)
-                        logger.info(  # pylint: disable=logging-too-many-args
+                        logger.info(
                             "Setting default weight_block_size=%s, ",
                             "since quantization_config does not provide ",
                             "FP8 block-scale details required by ",
@@ -189,9 +189,6 @@ class Ministral3Embedding(nn.Embedding):
         return nn.op.matmul(x, weight, out_dtype="float32")
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
 class Ministral3MLP(nn.Module):
     """Same as in Llama architecture (LlamaFFN)."""
 
@@ -223,7 +220,7 @@ def yarn_get_sm_scale(scale=1, mscale=1):
     return 0.1 * mscale * math.log(scale) + 1.0
 
 
-class Ministral3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Ministral3Attention(nn.Module):
     """Same as LlamaAttention, but with sliding window attention using a rolling buffer cache."""
 
     def __init__(self, config: Ministral3Config):
@@ -333,7 +330,7 @@ class Ministral3Model(nn.Module):
         return hidden_states
 
 
-class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Mistral3ForConditionalGeneration(nn.Module):
     def __init__(self, config: Ministral3Config):
         self.model = Ministral3Model(config)
         self.tie_word_embeddings = config.tie_word_embeddings
@@ -355,7 +352,7 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
         self.dtype = config.dtype
         self.weight_block_size = config.weight_block_size
 
-    def _mark_modules_no_quant(self, modules: Tuple[str, ...]):
+    def _mark_modules_no_quant(self, modules: Tuple[str, ...]):  # noqa: UP006
         for path in modules:
             if not path:
                 continue
@@ -445,7 +442,7 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

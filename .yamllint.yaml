@@ -1,0 +1,15 @@
+extends: default
+
+rules:
+  document-start: disable
+  line-length:
+    max: 120
+    level: warning
+  truthy:
+    allowed-values:
+      - "on"
+      - "off"
+      - "yes"
+      - "no"
+      - "true"
+      - "false"

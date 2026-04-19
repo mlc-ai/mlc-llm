@@ -1,25 +1,25 @@
 """Common utilities for loading parameters"""
 
-# pylint: disable=too-few-public-methods
+import functools
+import operator
+from collections.abc import Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Set, Tuple
+from typing import TYPE_CHECKING, Set, Tuple  # noqa: UP035
 
 import numpy as np
 
 from mlc_llm.support import logging
 
 if TYPE_CHECKING:
-    from tvm.runtime import Tensor
-
     from .mapping import ExternMapping
 
 
 logger = logging.getLogger(__name__)
 
 
-def check_parameter_usage(param_map: "ExternMapping", extern_weights: Set[str]):
+def check_parameter_usage(param_map: "ExternMapping", extern_weights: Set[str]):  # noqa: UP006
     """Check that all external parameters have been used and are stored in the weights file."""
-    used_extern_names = set(sum(param_map.param_map.values(), []))
+    used_extern_names = set(functools.reduce(operator.iadd, param_map.param_map.values(), []))
     # Check 1. All extern parameters in the weight files are used unless explicitly specified
     unused_extern_names = extern_weights - used_extern_names - param_map.unused_params
     if unused_extern_names:
@@ -36,9 +36,9 @@ def check_parameter_usage(param_map: "ExternMapping", extern_weights: Set[str]):
         )
 
 
-def load_torch_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:
+def load_torch_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:  # noqa: UP006
     """Load and yield PyTorch format parameters."""
-    import torch  # pylint: disable=import-outside-toplevel
+    import torch
 
     for name, param in torch.load(path, map_location=torch.device("cpu")).items():
         if param is None:
@@ -52,10 +52,10 @@ def load_torch_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:
         yield name, param
 
 
-def load_safetensor_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:
+def load_safetensor_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:  # noqa: UP006
     """Load and yield SafeTensor format parameters."""
-    import safetensors  # pylint: disable=import-outside-toplevel,import-error
-    import torch  # pylint: disable=import-outside-toplevel
+    import safetensors
+    import torch
 
     with safetensors.safe_open(path, framework="pt", device="cpu") as in_file:
         for name in in_file.keys():
@@ -63,11 +63,11 @@ def load_safetensor_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:
             param = param.detach().cpu()
             dtype = str(param.dtype)
             if dtype == "torch.bfloat16":
-                import ml_dtypes  # pylint: disable=import-outside-toplevel
+                import ml_dtypes
 
                 param = param.view(torch.float16).cpu().numpy().view(ml_dtypes.bfloat16)
             elif dtype == "torch.float8_e4m3fn":
-                import ml_dtypes  # pylint: disable=import-outside-toplevel
+                import ml_dtypes
 
                 param = param.view(torch.uint8).cpu().numpy().view(ml_dtypes.float8_e4m3fn)
             else:

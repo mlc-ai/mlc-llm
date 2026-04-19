@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List  # noqa: UP035
 
 from mlc_llm.support import logging
 from mlc_llm.support.argparse import ArgumentParser
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class ModelInfo:  # pylint: disable=too-many-instance-attributes
+class ModelInfo:
     """Necessary information for the model delivery"""
 
     model_id: str
@@ -30,7 +30,7 @@ class ModelInfo:  # pylint: disable=too-many-instance-attributes
     # overrides the `context_window_size`, `prefill_chunk_size`,
     # `sliding_window_size`, `attention_sink_size`, `max_batch_size`
     # and `tensor_parallel_shards in mlc-chat-config.json
-    overrides: Dict[str, int]
+    overrides: Dict[str, int]  # noqa: UP006
 
 
 class DeferredScope:
@@ -119,13 +119,13 @@ def _run_compilation(model_info: ModelInfo, repo_dir: Path) -> bool:
     return succeeded
 
 
-def _main(  # pylint: disable=too-many-locals
-    spec: Dict[str, Any],
+def _main(
+    spec: Dict[str, Any],  # noqa: UP006
 ):
     """Compile the model libs in the spec and save them to the binary_libs_dir."""
-    failed_cases: List[Any] = []
+    failed_cases: List[Any] = []  # noqa: UP006
     for task_index, task in enumerate(spec["tasks"], 1):
-        logger.info(  # pylint: disable=logging-not-lazy
+        logger.info(
             bold("[{task_index}/{total_tasks}] Processing model: ").format(
                 task_index=task_index,
                 total_tasks=len(spec["tasks"]),
@@ -175,7 +175,7 @@ def _main(  # pylint: disable=too-many-locals
 def main():
     """Entry point."""
 
-    def _load_spec(path_spec: str) -> Dict[str, Any]:
+    def _load_spec(path_spec: str) -> Dict[str, Any]:  # noqa: UP006
         path = Path(path_spec)
         if not path.exists():
             raise argparse.ArgumentTypeError(f"Spec file does not exist: {path}")

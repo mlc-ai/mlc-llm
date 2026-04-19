@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import functools
-from typing import Callable, Iterable, Optional, Sequence, Type
+from collections.abc import Iterable, Sequence
+from typing import Callable, Optional, Type  # noqa: UP035
 
 import numpy as np
-from tvm.relax.frontend import nn  # type: ignore[import]
+from tvm.relax.frontend import nn
 
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
@@ -19,9 +20,9 @@ def _default_export_spec(model: nn.Module) -> object:
     return model.get_default_spec()
 
 
-def make_standard_hf_loader(  # pylint: disable=too-many-arguments,too-many-locals
+def make_standard_hf_loader(
     *,
-    model_cls: Type[nn.Module],
+    model_cls: Type[nn.Module],  # noqa: UP006
     layer_prefix: str = "model.layers",
     qkv_names: Sequence[str] = ("q_proj", "k_proj", "v_proj"),
     qkv_concat_axis: int = 0,
@@ -33,11 +34,11 @@ def make_standard_hf_loader(  # pylint: disable=too-many-arguments,too-many-loca
     gate_up_target_name: str = "gate_up_proj",
     include_qkv: bool = True,
     include_gate_up: bool = True,
-    add_unused: Optional[Iterable[str]] = None,
+    add_unused: Optional[Iterable[str]] = None,  # noqa: UP045
     hf_prefix: str = "model.",
-    name_transform: Optional[NameTransform] = None,
-    export_spec_getter: Optional[ExportSpecGetter] = None,
-    num_layers_getter: Optional[Callable[[object], int]] = None,
+    name_transform: Optional[NameTransform] = None,  # noqa: UP045
+    export_spec_getter: Optional[ExportSpecGetter] = None,  # noqa: UP045
+    num_layers_getter: Optional[Callable[[object], int]] = None,  # noqa: UP045
 ) -> Callable[[object, Quantization], ExternMapping]:
     """Create a standard loader for HuggingFace weights.
 
@@ -65,14 +66,14 @@ def make_standard_hf_loader(  # pylint: disable=too-many-arguments,too-many-loca
     spec_getter = export_spec_getter or _default_export_spec
     unused_names = tuple(add_unused or ())
 
-    def huggingface(  # pylint: disable=too-many-locals,too-many-branches
+    def huggingface(
         model_config: object,
         quantization: Quantization,
     ) -> ExternMapping:
         model = model_cls(model_config)
         if quantization is not None:
             model.to(quantization.model_dtype)
-        _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
+        _, _named_params, _ = model.export_tvm(
             spec=spec_getter(model),
             allow_extern=True,
         )
@@ -81,7 +82,7 @@ def make_standard_hf_loader(  # pylint: disable=too-many-arguments,too-many-loca
 
         if include_qkv or include_gate_up or unused_names:
             if num_layers_getter is None:
-                num_layers = model_config.num_hidden_layers  # type: ignore[attr-defined]
+                num_layers = model_config.num_hidden_layers
             else:
                 num_layers = num_layers_getter(model_config)
 

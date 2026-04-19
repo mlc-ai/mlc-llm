@@ -1,9 +1,8 @@
-# pylint: disable=chained-comparison,missing-docstring,too-few-public-methods,too-many-instance-attributes
-# pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
 import json
 import queue
 import threading
-from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
+from collections.abc import Iterator
+from typing import Any, Callable, Dict, List, Literal, Optional, Union  # noqa: UP035
 
 import tvm
 
@@ -48,7 +47,7 @@ class EngineState:
         """
         self.sync_queue = queue.Queue()
 
-        success = bool(ffi["chat_completion"](request_json_str, request_id))
+        ffi["chat_completion"](request_json_str, request_id)
 
         try:
             last_chunk_arrived = False
@@ -68,7 +67,7 @@ class EngineState:
                         last_chunk_arrived = True
                         break
                     yield chat_completion_response
-        except Exception as exception:  # pylint: disable=broad-exception-caught
+        except Exception as exception:
             ffi["abort"](request_id)
             raise exception
 
@@ -115,30 +114,30 @@ class Completions:
         self._state = state
         self._background_loops = background_loops
 
-    def create(  # pylint: disable=too-many-arguments,too-many-locals
+    def create(
         self,
         *,
-        messages: List[Dict[str, Any]],
-        model: str = None,
+        messages: List[Dict[str, Any]],  # noqa: UP006
+        model: Optional[str] = None,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
+        logit_bias: Optional[Dict[int, float]] = None,  # noqa: UP006
         max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
+        stop: Optional[Union[str, List[str]]] = None,  # noqa: UP006
         stream: bool = True,
-        stream_options: Optional[Dict[str, Any]] = None,
+        stream_options: Optional[Dict[str, Any]] = None,  # noqa: UP006
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,  # noqa: UP006
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,  # noqa: UP006
         user: Optional[str] = None,
-        response_format: Optional[Dict[str, Any]] = None,
+        response_format: Optional[Dict[str, Any]] = None,  # noqa: UP006
         request_id: Optional[str] = None,
-        extra_body: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
         if request_id is None:
             request_id = f"chatcmpl-{engine_utils.random_uuid()}"
@@ -194,7 +193,7 @@ class Completions:
             ),
             request_id=request_id,
         )
-        for response in chatcmpl_generator:  # pylint: disable=use-yield-from
+        for response in chatcmpl_generator:
             yield response
 
 
@@ -210,7 +209,7 @@ class Chat:
 class JSONFFIEngine:
     chat: Chat
 
-    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
+    def __init__(
         self,
         model: str,
         device: Union[str, tvm.runtime.Device] = "auto",
@@ -257,7 +256,7 @@ class JSONFFIEngine:
 
         engine_config.model = model_args[0][0]
         engine_config.model_lib = model_args[0][1]
-        engine_config.additional_models = model_args[1:]  # type: ignore
+        engine_config.additional_models = model_args[1:]
         engine_config.mode = mode
         self.engine_config = engine_config
 

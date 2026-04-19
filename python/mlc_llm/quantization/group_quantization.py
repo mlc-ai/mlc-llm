@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, List, Literal, Optional, Tuple, Union
+from typing import Any, List, Literal, Optional, Tuple, Union  # noqa: UP035
 
 from tvm import DataType, DataTypeCode, IRModule, relax, te, tirx, topi
 from tvm.relax.frontend import nn
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class GroupQuantize:  # pylint: disable=too-many-instance-attributes
+class GroupQuantize:
     """Configuration for group quantization"""
 
     name: str
@@ -157,7 +157,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         weight: te.Tensor,
         scale: te.Tensor,
         axis: int,
-        out_shape: Optional[List[tirx.PrimExpr]] = None,
+        out_shape: Optional[List[tirx.PrimExpr]] = None,  # noqa: UP006
     ):
         tir_max_int = tirx.const(self.max_int_value, self.model_dtype)
         float_weight = convert_uint_to_float(
@@ -187,7 +187,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
 
     def quantize_weight(
         self, weight: Tensor, axis: int = -1, output_transpose: bool = False
-    ) -> List[Tensor]:
+    ) -> List[Tensor]:  # noqa: UP006
         """
         Quantize weight with group quantization
 
@@ -208,18 +208,16 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             The list of group quantized weights.
         """
         device = weight.device
-        device_type = device._DEVICE_TYPE_TO_NAME[  # pylint: disable=protected-access
-            device.dlpack_device_type()
-        ]
+        device_type = device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]
         axis = axis if axis >= 0 else len(weight.shape) + axis
 
         def _create_quantize_func() -> IRModule:
-            bb = relax.BlockBuilder()  # pylint: disable=invalid-name
+            bb = relax.BlockBuilder()
             weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, weight.dtype))
             with bb.function(name="main", params=[weight_var]):
                 with bb.dataflow():
                     lv = bb.emit_te(self._quantize, weight_var, axis, output_transpose)
-                    gv = bb.emit_output(lv)  # pylint: disable=invalid-name
+                    gv = bb.emit_output(lv)
                 bb.emit_func_output(gv)
             return bb.finalize()
 
@@ -234,19 +232,19 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             self._quantize_func_cache[key] = quantize_func
         return quantize_func(weight)
 
-    def _quantize(  # pylint: disable=too-many-locals
+    def _quantize(
         self,
         weight: te.Tensor,
         axis: int = -1,
         output_transpose: bool = False,
-    ) -> Tuple[te.Tensor, te.Tensor]:
+    ) -> Tuple[te.Tensor, te.Tensor]:  # noqa: UP006
         """Group quantization for weight tensor, defined in tensor expression."""
         max_int = tirx.const(self.max_int_value, self.model_dtype)
-        shape = weight.shape  # pylint: disable=invalid-name
+        shape = weight.shape
         axis = axis if axis >= 0 else len(shape) + axis
         k = shape[axis]
         # compute scale per group
-        r = te.reduce_axis((0, self.group_size), name="r")  # pylint: disable=invalid-name
+        r = te.reduce_axis((0, self.group_size), name="r")
         num_group = tirx.ceildiv(k, self.group_size)
         scale_shape = (*shape[:axis], num_group, *shape[axis + 1 :])
         max_abs = te.compute(
@@ -308,10 +306,10 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         return quantized_weight, scale
 
 
-class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attributes
+class GroupQuantizeLinear(nn.Module):
     """An nn.Linear module with group quantization"""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         in_features: int,
         out_features: Union[int, tirx.Var],
@@ -389,7 +387,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
             apply_sharding(shard, f"{shard.name}_q_scale", quantized_linear.q_scale)
         return quantized_linear
 
-    def forward(self, x: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
+    def forward(self, x: nn.Tensor) -> nn.Tensor:
         """
         Forward method for group quantized linear layer.
 
@@ -403,8 +401,8 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         ret : nn.Tensor
             The output tensor for the group quantized linear layer.
         """
-        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
+        w = nn.op.tensor_expr_op(
+            lambda weight, scale: self.config._dequantize(
                 weight,
                 scale,
                 axis=self.config.linear_quant_axis,
@@ -432,7 +430,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
             args=[self.q_weight, self.q_scale],
         )
         if self.config.linear_weight_layout == "NK":
-            w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
+            w = nn.op.permute_dims(w)
         x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
         if self.bias is not None:
             x = x + self.bias
@@ -448,7 +446,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         if self.bias is not None and self.out_dtype is None:
             self.bias.to(dtype=dtype)
         if dtype is not None and isinstance(getattr(self, "dtype", None), str):
-            self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
+            self.dtype = dtype
 
 
 class GroupQuantizeEmbedding(nn.Module):
@@ -485,7 +483,7 @@ class GroupQuantizeEmbedding(nn.Module):
         num, dim = embedding.weight.shape
         return GroupQuantizeEmbedding(num, dim, config)
 
-    def forward(self, x: nn.Tensor):  # pylint: disable=invalid-name
+    def forward(self, x: nn.Tensor):
         """
         Forward method for group quantized embedding layer.
 
@@ -499,8 +497,8 @@ class GroupQuantizeEmbedding(nn.Module):
         ret : nn.Tensor
             The output tensor for the embedding layer.
         """
-        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
+        w = nn.op.tensor_expr_op(
+            lambda weight, scale: self.config._dequantize(
                 weight,
                 scale,
                 axis=-1,
@@ -537,8 +535,8 @@ class GroupQuantizeEmbedding(nn.Module):
         ret : nn.Tensor
             The output tensor for the lm_head layer.
         """
-        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
+        w = nn.op.tensor_expr_op(
+            lambda weight, scale: self.config._dequantize(
                 weight,
                 scale,
                 axis=-1,
@@ -558,7 +556,7 @@ class GroupQuantizeEmbedding(nn.Module):
         return nn.op.matmul(x, w, out_dtype="float32")
 
 
-class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instance-attributes
+class GroupQuantizeMixtralExperts(nn.Module):
     """An MixtralExperts module with group quantization"""
 
     def __init__(
@@ -567,7 +565,7 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         in_features,
         out_features,
         config: GroupQuantize,
-    ):  # pylint: disable=too-many-arguments
+    ):
         self.num_local_experts = num_local_experts
         self.in_features = in_features
         self.out_features = out_features
@@ -618,7 +616,7 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
             apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
         return quantized_mistral_experts
 
-    def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
+    def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:
         """Forward method for group quantized mistral experts.
 
         Parameters
@@ -637,7 +635,7 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         ret : nn.Tensor
             The output tensor for the group quantized mistral experts layer.
         """
-        from mlc_llm.op import moe_matmul  # pylint: disable=import-outside-toplevel
+        from mlc_llm.op import moe_matmul
 
         assert x.ndim == 2
         if indptr.ndim == 2:  # single-batch

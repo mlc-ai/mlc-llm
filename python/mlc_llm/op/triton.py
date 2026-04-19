@@ -1,8 +1,6 @@
 """Operators enabled by external modules."""
 
-# pylint: disable=invalid-name
-
-from typing import List, Literal, Tuple
+from typing import List, Literal, Tuple  # noqa: UP035
 
 import tvm
 from tvm.relax.frontend import nn
@@ -21,8 +19,8 @@ except ImportError:
 # triton is not installed.
 def _get_triton_w8a8_block_fp8_gemm():
     # Triton kernel adapted from SGLang project
-    # https://github.com/sgl-project/sglang/blob/v0.4.4/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py  # pylint: disable=line-too-long
-    def _triton_w8a8_block_fp8_gemm(  # pylint: disable=too-many-arguments,too-many-locals
+    # https://github.com/sgl-project/sglang/blob/v0.4.4/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py# noqa: E501
+    def _triton_w8a8_block_fp8_gemm(
         # Pointers to inputs and output
         A,
         B,
@@ -112,8 +110,8 @@ def _get_triton_w8a8_block_fp8_gemm():
 # triton is not installed.
 def _get_triton_w8a8_block_fp8_group_gemm():
     # Triton kernel adapted from SGLang project
-    # https://github.com/sgl-project/sglang/blob/v0.4.4/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py  # pylint: disable=line-too-long
-    def _triton_w8a8_block_fp8_group_gemm(  # pylint: disable=too-many-arguments,too-many-locals
+    # https://github.com/sgl-project/sglang/blob/v0.4.4/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py# noqa: E501
+    def _triton_w8a8_block_fp8_group_gemm(
         # Pointers to matrices
         a_ptr,
         b_ptr,
@@ -270,7 +268,7 @@ def _get_triton_w8a8_block_fp8_group_gemm():
     return _triton_w8a8_block_fp8_group_gemm
 
 
-def get_tir_w8a8_block_fp8_matmul(  # pylint: disable=too-many-arguments,too-many-locals
+def get_tir_w8a8_block_fp8_matmul(
     N: int,
     K: int,
     block_n: int,
@@ -283,7 +281,7 @@ def get_tir_w8a8_block_fp8_matmul(  # pylint: disable=too-many-arguments,too-man
     GROUP_SIZE_M: int,
     num_warps: int,
     num_stages: int,
-    extern_mods: List[tvm.runtime.Module],
+    extern_mods: List[tvm.runtime.Module],  # noqa: UP006
 ):
     """Get the TIR function for the w8a8_block_fp8_matmul kernel."""
     # NOTE: adding the type annotation of " -> Tuple[Optional[tvm.tirx.PrimFunc], str]"
@@ -302,9 +300,9 @@ def get_tir_w8a8_block_fp8_matmul(  # pylint: disable=too-many-arguments,too-man
     triton_kernel.__name__ = kernel_name
 
     @I.ir_module
-    class BlockFP8Matmul:  # pylint: disable=missing-class-docstring,too-few-public-methods
+    class BlockFP8Matmul:
         @T.prim_func(private=True)
-        def tir_w8a8_block_fp8_matmul(  # pylint: disable=missing-function-docstring
+        def tir_w8a8_block_fp8_matmul(
             var_A: T.handle,
             var_B: T.handle,
             var_As: T.handle,
@@ -364,13 +362,13 @@ def get_tir_w8a8_block_fp8_matmul(  # pylint: disable=too-many-arguments,too-man
                     num_stages=num_stages,
                 )
 
-    new_ext_mods = BlockFP8Matmul.attrs["external_mods"]  # type: ignore  # pylint: disable=no-member
+    new_ext_mods = BlockFP8Matmul.attrs["external_mods"]
     assert len(new_ext_mods) == 1
     extern_mods.append(new_ext_mods[0])
-    return BlockFP8Matmul["tir_w8a8_block_fp8_matmul"], tir_name  # type: ignore
+    return BlockFP8Matmul["tir_w8a8_block_fp8_matmul"], tir_name
 
 
-def get_tir_w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-arguments,too-many-locals
+def get_tir_w8a8_block_fp8_group_matmul(
     N: int,
     K: int,
     num_experts: int,
@@ -384,7 +382,7 @@ def get_tir_w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-arguments,t
     GROUP_SIZE_M: int,
     num_warps: int,
     num_stages: int,
-    extern_mods: List[tvm.runtime.Module],
+    extern_mods: List[tvm.runtime.Module],  # noqa: UP006
 ):
     """Get the TIR function for the w8a8_block_fp8_group_gemm kernel."""
     if triton is None:
@@ -404,9 +402,9 @@ def get_tir_w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-arguments,t
     triton_kernel.__name__ = kernel_name
 
     @I.ir_module
-    class BlockFP8GroupMatmul:  # pylint: disable=missing-class-docstring,too-few-public-methods
+    class BlockFP8GroupMatmul:
         @T.prim_func(private=True)
-        def tir_w8a8_block_fp8_group_gemm(  # pylint: disable=missing-function-docstring,too-many-arguments
+        def tir_w8a8_block_fp8_group_gemm(
             var_A: T.handle,
             var_B: T.handle,
             var_As: T.handle,
@@ -488,10 +486,10 @@ def get_tir_w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-arguments,t
                     num_stages=num_stages,
                 )
 
-    new_ext_mods = BlockFP8GroupMatmul.attrs["external_mods"]  # type: ignore  # pylint: disable=no-member
+    new_ext_mods = BlockFP8GroupMatmul.attrs["external_mods"]
     assert len(new_ext_mods) == 1
     extern_mods.append(new_ext_mods[0])
-    return BlockFP8GroupMatmul["tir_w8a8_block_fp8_group_gemm"], tir_name  # type: ignore
+    return BlockFP8GroupMatmul["tir_w8a8_block_fp8_group_gemm"], tir_name
 
 
 def _compute_expert_id_per_block(
@@ -565,12 +563,12 @@ def _compute_expert_id_per_block(
     )
 
 
-def fp8_groupwise_scaled_gemm(  # pylint: disable=too-many-arguments,too-many-locals
+def fp8_groupwise_scaled_gemm(
     x: nn.Tensor,
     x_scale: nn.Tensor,
     weight: nn.Tensor,
     weight_scale: nn.Tensor,
-    block_size: Tuple[int, int],
+    block_size: Tuple[int, int],  # noqa: UP006
     out_dtype: str,
 ) -> nn.Tensor:
     """Triton block-scale fp8 gemm operator.
@@ -665,13 +663,13 @@ def fp8_groupwise_scaled_gemm(  # pylint: disable=too-many-arguments,too-many-lo
     return out.reshape(*x_shape[:-1], N) if len(x_shape) > 2 else out
 
 
-def fp8_groupwise_scaled_group_gemm(  # pylint: disable=too-many-arguments,too-many-locals
+def fp8_groupwise_scaled_group_gemm(
     x: nn.Tensor,
     x_scale: nn.Tensor,
     weight: nn.Tensor,
     weight_scale: nn.Tensor,
     indptr: nn.Tensor,
-    block_size: Tuple[int, int],
+    block_size: Tuple[int, int],  # noqa: UP006
     out_dtype: str,
 ):
     """Triton block-scale fp8 group gemm operator.

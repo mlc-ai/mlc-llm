@@ -22,7 +22,7 @@ def test_engine_generate():
     )
     max_tokens = 256
 
-    with open(Path(model) / "mlc-chat-config.json", "r", encoding="utf-8") as file:
+    with open(Path(model) / "mlc-chat-config.json", encoding="utf-8") as file:
         model_config = json.load(file)
 
     prompts = [

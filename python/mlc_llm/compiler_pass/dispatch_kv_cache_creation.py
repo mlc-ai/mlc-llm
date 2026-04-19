@@ -1,7 +1,7 @@
 """A pass that rewrites KV cache creation functions in IRModule."""
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List  # noqa: UP035
 
 import tvm
 from tvm import IRModule, relax
@@ -13,7 +13,7 @@ from mlc_llm.support import logging
 logger = logging.getLogger(__name__)
 
 
-def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
+def extract_creation_args(func: relax.Function) -> Dict[str, Any]:  # noqa: UP006
     """Extract the KV cache creation args from the given generic creation func."""
     assert isinstance(func.body, relax.SeqExpr)
     assert len(func.body.blocks) == 1
@@ -76,11 +76,14 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
 
 
 @tvm.transform.module_pass(opt_level=0, name="DispatchKVCacheCreation")
-class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
+class DispatchKVCacheCreation:
     """Rewrite KV cache creation functions to IRModule."""
 
     def __init__(
-        self, target: tvm.target.Target, flashinfer: bool, metadata: Dict[str, Any]
+        self,
+        target: tvm.target.Target,
+        flashinfer: bool,
+        metadata: Dict[str, Any],  # noqa: UP006
     ) -> None:
         """Initializer.
 
@@ -132,7 +135,7 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         mod = mod.with_attr("external_mods", mod_attrs.get("external_mods", []) + extern_mods)
         return mod
 
-    def attach_kv_cache_metadata(self, kwargs: Dict[str, Any]):
+    def attach_kv_cache_metadata(self, kwargs: Dict[str, Any]):  # noqa: UP006
         """Attach the KV cache metadata to model metadata."""
         self.metadata["kv_cache"] = {
             "num_hidden_layers": kwargs["num_hidden_layers"],
@@ -142,8 +145,10 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         }
 
     def create_tir_paged_kv_cache(
-        self, bb: relax.BlockBuilder, kwargs: Dict[str, Any]
-    ) -> List[tvm.runtime.Module]:
+        self,
+        bb: relax.BlockBuilder,
+        kwargs: Dict[str, Any],  # noqa: UP006
+    ) -> List[tvm.runtime.Module]:  # noqa: UP006
         """Create the TIR-based PagedKVCache"""
         max_batch_size = relax.Var(
             "max_batch_size_", relax.ShapeStructInfo([kwargs["max_batch_size"]])
@@ -175,16 +180,18 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
             ],
         ):
             cache = kv_cache.TIRPagedKVCache(target=self.target, **kwargs)
-            bb.emit_func_output(cache._expr)  # pylint: disable=protected-access
+            bb.emit_func_output(cache._expr)
 
         return cache.extern_mods
 
     def create_flashinfer_paged_kv_cache(
-        self, bb: relax.BlockBuilder, kwargs: Dict[str, Any]
-    ) -> List[tvm.runtime.Module]:
+        self,
+        bb: relax.BlockBuilder,
+        kwargs: Dict[str, Any],  # noqa: UP006
+    ) -> List[tvm.runtime.Module]:  # noqa: UP006
         """Create the FlashInfer-based PagedKVCache"""
         # Filter the cases which FlashInfer does not support.
-        if (  # pylint: disable=too-many-boolean-expressions
+        if (
             not self.flashinfer
             or self.target.kind.name != "cuda"
             or str(kwargs["dtype"]) not in ["float16", "bfloat16"]
@@ -225,8 +232,8 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
                 ],
             ):
                 cache = kv_cache.FlashInferPagedKVCache(target=self.target, **kwargs)
-                bb.emit_func_output(cache._expr)  # pylint: disable=protected-access
-        except Exception as e:  # pylint: disable=broad-exception-caught
+                bb.emit_func_output(cache._expr)
+        except Exception as e:
             logger.info(
                 "Error caught when creating FlashInfer PagedKVCache: %s\n"
                 "The model will fallback to TIR-based KV cache.",

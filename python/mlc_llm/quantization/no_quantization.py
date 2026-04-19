@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class NoQuantize:  # pylint: disable=too-many-instance-attributes
+class NoQuantize:
     """Configuration for no quantization"""
 
     name: str

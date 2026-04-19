@@ -1,8 +1,9 @@
 """Microserving customized router example."""
 
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
-import aiohttp  # pylint: disable=import-error
+import aiohttp
 
 from mlc_llm.interface.router import serve
 from mlc_llm.protocol import openai_api_protocol

@@ -3,7 +3,7 @@ Implementation for GPTBigCode architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class GPTBigCodeConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class GPTBigCodeConfig(ConfigBase):
     """Configuration of the GPTBigCode model."""
 
     n_embd: int
@@ -35,7 +35,7 @@ class GPTBigCodeConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.context_window_size == 0:
@@ -70,9 +70,6 @@ class GPTBigCodeConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
             self.prefill_chunk_size = min(self.context_window_size, 8192)
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
 class GPTBigCodeMLP(nn.Module):
     def __init__(self, config: GPTBigCodeConfig):
         super().__init__()
@@ -87,15 +84,15 @@ class GPTBigCodeMLP(nn.Module):
         return hidden_states
 
 
-class GPTBigCodeAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class GPTBigCodeAttention(nn.Module):
     def __init__(self, config: GPTBigCodeConfig):
         self.n_embd = config.n_embd
         self.head_dim = config.n_embd // config.n_head
         self.num_q_heads = config.n_head // config.tensor_parallel_shards
         self.num_kv_heads = 1
-        assert (
-            config.tensor_parallel_shards == 1
-        ), "GPT bigcode only support tensor parallel shards = 1"
+        assert config.tensor_parallel_shards == 1, (
+            "GPT bigcode only support tensor parallel shards = 1"
+        )
         self.c_attn = nn.Linear(
             in_features=self.n_embd,
             out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
@@ -186,7 +183,7 @@ class GPTBigCodeModel(nn.Module):
         return hidden_states
 
 
-class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class GPTBigCodeForCausalLM(nn.Module):
     def __init__(self, config: GPTBigCodeConfig):
         self.transformer = GPTBigCodeModel(config)
         self.lm_head = nn.Linear(config.n_embd, "vocab_size", bias=False)
@@ -262,7 +259,7 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

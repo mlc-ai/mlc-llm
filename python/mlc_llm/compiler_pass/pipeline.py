@@ -1,11 +1,11 @@
 """The compilation pipeline for LLM applications."""
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: UP035
 
 import tvm
 from tvm import IRModule
-from tvm.relax import register_pipeline  # pylint: disable=no-name-in-module
+from tvm.relax import register_pipeline
 from tvm.relax.frontend import nn
 from tvm.s_tir import dlight as dl
 
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 @tvm.transform.module_pass(opt_level=0, name="_LogProgress")
-class _LogProgress:  # pylint: disable=too-few-public-methods
+class _LogProgress:
     """A dummy compiler pass that does nothing but logging."""
 
     def __init__(self, *args):
@@ -59,7 +59,7 @@ class _LogProgress:  # pylint: disable=too-few-public-methods
 
 
 @tvm.transform.module_pass(opt_level=0, name="DebugDump")
-class _DebugDump:  # pylint: disable=too-few-public-methods
+class _DebugDump:
     """A dummy compiler pass that does nothing but logging.
     Only enabled when debug_dump is not None"""
 
@@ -79,17 +79,17 @@ class _DebugDump:  # pylint: disable=too-few-public-methods
 
 
 @register_pipeline("mlc_llm")
-def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
+def _mlc_llm_pipeline(
     target: tvm.target.Target,
     flashinfer: bool = False,
     cublas_gemm: bool = False,
-    faster_transformer: bool = False,  # pylint: disable=unused-argument
+    faster_transformer: bool = False,
     allreduce_strategy: IPCAllReduceStrategyType = IPCAllReduceStrategyType.NONE,
-    variable_bounds: Dict[str, int] = None,
-    cuda_graph_symbolic_capture_hints: Dict[str, List[str]] = None,
-    additional_tirs: Dict[str, tvm.tirx.PrimFunc] = None,
-    metadata: Dict[str, Any] = None,
-    ext_mods: List[nn.ExternModule] = None,
+    variable_bounds: Optional[Dict[str, int]] = None,  # noqa: UP006
+    cuda_graph_symbolic_capture_hints: Optional[Dict[str, List[str]]] = None,  # noqa: UP006
+    additional_tirs: Optional[Dict[str, tvm.tirx.PrimFunc]] = None,  # noqa: UP006
+    metadata: Optional[Dict[str, Any]] = None,  # noqa: UP006
+    ext_mods: Optional[List[nn.ExternModule]] = None,  # noqa: UP006
     debug_dump: Optional[Path] = None,
 ):
     variable_bounds = variable_bounds or {}

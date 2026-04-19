@@ -12,10 +12,10 @@ from tvm.relax.dpl.pattern import (
 
 
 @tvm.transform.module_pass(opt_level=0, name="FuseDequantizeTake")
-class FuseDequantizeTake:  # pylint: disable=too-few-public-methods
+class FuseDequantizeTake:
     """A compiler pass that fuses dequantize + take."""
 
-    def transform_module(  # pylint: disable=too-many-locals
+    def transform_module(
         self,
         mod: IRModule,
         _ctx: tvm.transform.PassContext,

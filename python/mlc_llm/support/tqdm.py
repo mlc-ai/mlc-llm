@@ -36,4 +36,4 @@ def redirect():
             yield
 
 
-__all__ = ["tqdm", "redirect"]
+__all__ = ["redirect", "tqdm"]

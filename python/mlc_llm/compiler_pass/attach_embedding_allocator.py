@@ -1,16 +1,16 @@
 """The pass that attaches embedding allocation function to the IRModule."""
 
-from typing import Any, Dict
+from typing import Any, Dict  # noqa: UP035
 
 import tvm
 from tvm import IRModule, relax
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachAllocEmbeddingTensorFunc")
-class AttachAllocEmbeddingTensorFunc:  # pylint: disable=too-few-public-methods
+class AttachAllocEmbeddingTensorFunc:
     """Attach embedding tensor allocation Relax function to IRModule."""
 
-    def __init__(self, metadata: Dict[str, Any]):
+    def __init__(self, metadata: Dict[str, Any]):  # noqa: UP006
         self.metadata = metadata
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:

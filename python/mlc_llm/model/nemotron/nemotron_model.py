@@ -3,7 +3,7 @@ Implementation for Nemotron architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class NemotronConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class NemotronConfig(ConfigBase):
     """Configuration of the Nemotron model."""
 
     vocab_size: int
@@ -33,7 +33,7 @@ class NemotronConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
     num_key_value_heads: int
     rope_theta: int = 10000
     partial_rotary_factor: float = 0.5
-    rope_scaling: Optional[Dict[str, Any]] = None
+    rope_scaling: Optional[Dict[str, Any]] = None  # noqa: UP006
     norm_eps: float = 1e-5
     head_dim: int = 0
     tie_word_embeddings: bool = False
@@ -44,9 +44,9 @@ class NemotronConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
     pipeline_parallel_stages: int = 1
     max_batch_size: int = 1
     disaggregation: bool = False
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
-    def __post_init__(self):  # pylint: disable=too-many-branches
+    def __post_init__(self):
         if self.context_window_size == 0:
             self.context_window_size = self.max_position_embeddings
         if self.head_dim == 0:
@@ -68,9 +68,6 @@ class NemotronConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
                 min(self.context_window_size, 8192),
             )
             self.prefill_chunk_size = min(self.context_window_size, 8192)
-
-
-# pylint: disable=invalid-name,missing-docstring
 
 
 class NemotronMLP(nn.Module):
@@ -122,16 +119,16 @@ class NemotronLayerNorm1P(nn.LayerNorm):
         )
 
 
-class NemotronAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class NemotronAttention(nn.Module):
     def __init__(self, config: NemotronConfig):
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
-        assert (
-            config.num_key_value_heads % config.tensor_parallel_shards == 0
-        ), f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
-        assert (
-            config.num_key_value_heads >= config.tensor_parallel_shards
-        ), f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
+        assert config.num_key_value_heads % config.tensor_parallel_shards == 0, (
+            f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"  # noqa: E501
+        )
+        assert config.num_key_value_heads >= config.tensor_parallel_shards, (
+            f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
+        )
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
@@ -225,7 +222,7 @@ class NemotronModel(nn.Module):
         return hidden_states
 
 
-class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class NemotronForCausalLM(nn.Module):
     def __init__(self, config: NemotronConfig):
         self.model = NemotronModel(config)
         self.tie_word_embeddings = config.tie_word_embeddings
@@ -375,7 +372,7 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

@@ -33,7 +33,7 @@ def huggingface(model_config: MiniCPMConfig, quantization: Quantization) -> Exte
     model = MiniCPMForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
-    _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
+    _, _named_params, _ = model.export_tvm(
         spec=model.get_default_spec(),
         allow_extern=True,
     )

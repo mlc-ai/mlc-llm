@@ -1,6 +1,7 @@
 """RNN State modeling."""
 
-from typing import Sequence, Union
+from collections.abc import Sequence
+from typing import Union
 
 from tvm import relax as rx
 from tvm import tirx
@@ -131,7 +132,7 @@ class RNNState(Object):
                     self._expr,
                     rx.PrimValue(layer_id),
                     rx.PrimValue(state_id),
-                    value._expr,  # pylint: disable=protected-access
+                    value._expr,
                     sinfo_args=[rx.ObjectStructInfo()],
                 )
             ),

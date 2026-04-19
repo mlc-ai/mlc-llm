@@ -3,7 +3,7 @@ Implementation for InternLM2 architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class InternLM2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class InternLM2Config(ConfigBase):
     """Configuration of the InternLM2 model."""
 
     vocab_size: int
@@ -42,7 +42,7 @@ class InternLM2Config(ConfigBase):  # pylint: disable=too-many-instance-attribut
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
     head_dim: int = 0
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.context_window_size == 0:
@@ -82,10 +82,7 @@ class InternLM2Config(ConfigBase):  # pylint: disable=too-many-instance-attribut
             self.prefill_chunk_size = min(self.context_window_size, 2048)
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
-class InternLM2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class InternLM2Attention(nn.Module):
     def __init__(self, config: InternLM2Config):
         if config.num_attention_heads % config.tensor_parallel_shards != 0:
             raise ValueError(
@@ -211,7 +208,7 @@ class InternLM2Model(nn.Module):
         return hidden_states
 
 
-class InternLM2ForCausalLM(nn.Module):  # pylint: disable=R0902
+class InternLM2ForCausalLM(nn.Module):
     def __init__(self, config: InternLM2Config):
         self.model = InternLM2Model(config)
         self.output = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
@@ -289,7 +286,7 @@ class InternLM2ForCausalLM(nn.Module):  # pylint: disable=R0902
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

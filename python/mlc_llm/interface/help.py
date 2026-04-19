@@ -173,7 +173,7 @@ Enable Chrome Tracing for the server.
 After enabling, you can send POST request to the "debug/dump_event_trace" entrypoint
 to get the Chrome Trace. For example,
 "curl -X POST http://127.0.0.1:8000/debug/dump_event_trace -H "Content-Type: application/json" -d '{"model": "dist/llama"}'"
-""".strip(),
+""".strip(),  # noqa: E501
     "mode_serve": """
 The engine mode in MLC LLM. We provide three preset modes: "local", "interactive" and "server".
 The default mode is "local".

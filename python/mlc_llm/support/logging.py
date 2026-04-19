@@ -19,6 +19,6 @@ def enable_logging():
     )
 
 
-def getLogger(name: str):  # pylint: disable=invalid-name
+def getLogger(name: str):
     """Get a logger according to the given name"""
     return logging.getLogger(name)

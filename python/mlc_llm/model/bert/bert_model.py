@@ -4,7 +4,7 @@ Implementation for BERT architecture.
 
 import dataclasses
 from functools import partial
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import te, tirx
 from tvm.relax.frontend import nn
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class BertConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class BertConfig(ConfigBase):
     """Configuration of the BERT model."""
 
     vocab_size: int
@@ -37,7 +37,7 @@ class BertConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     position_offset: int = 0
     head_dim: int = 0
     max_batch_size: int = 1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.intermediate_size is None or self.intermediate_size == -1:
@@ -81,10 +81,7 @@ class BertConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = self.context_window_size
 
 
-# pylint: disable=invalid-name,missing-docstring,too-many-locals
-
-
-class BertSelfAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class BertSelfAttention(nn.Module):
     def __init__(self, config: BertConfig):
         if config.num_attention_heads % config.tensor_parallel_shards != 0:
             raise ValueError(
@@ -222,7 +219,7 @@ class BertModel(nn.Module):
             self.dtype = dtype
 
     def forward(self, inputs: Tensor, attention_mask: Tensor):
-        # TODO: XLM-RoBERTa models use position indices starting from pad_token_id + 1  # pylint: disable=fixme
+        # TODO: XLM-RoBERTa models use position indices starting from pad_token_id + 1
         # (e.g., [2, 3, 4, ...] when pad_token_id=1), while this implementation uses
         # [0, 1, 2, ...]. For XLM-RoBERTa models (e.g., bge-m3), the position_embeddings
         # weights need to be shifted during weight conversion to compensate.

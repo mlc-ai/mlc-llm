@@ -11,7 +11,6 @@ from mlc_llm.quantization import Quantization
 from .phi3v_model import Phi3VConfig, Phi3VForCausalLM
 
 
-# pylint: disable=too-many-statements
 def huggingface(model_config: Phi3VConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of Phi-1/Phi-1.5 HuggingFace PyTorch parameters.
@@ -32,9 +31,7 @@ def huggingface(model_config: Phi3VConfig, quantization: Quantization) -> Extern
     model = Phi3VForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
-    _, _named_params = model.export_tvm(  # pylint: disable=W0632:unbalanced-tuple-unpacking
-        spec=model.get_default_spec()
-    )
+    _, _named_params = model.export_tvm(spec=model.get_default_spec())
     named_parameters = dict(_named_params)
 
     mapping = ExternMapping()
@@ -57,7 +54,6 @@ def huggingface(model_config: Phi3VConfig, quantization: Quantization) -> Extern
 
     _add("model.embd.weight", "model.embed_tokens.weight")
 
-    # pylint: disable=line-too-long
     prefix = "model.h"
     hf_prefix = "model.layers"
     for i in range(model_config.num_hidden_layers):

@@ -4,7 +4,7 @@ PyTorch, HuggingFace safetensors.
 """
 
 import functools
-from typing import Callable, List
+from typing import Callable, List  # noqa: UP035
 
 import numpy as np
 
@@ -43,7 +43,7 @@ def huggingface(model_config: Qwen3MoeConfig, quantization: Quantization) -> Ext
                 "Thus BlockScaleQuantize is not supported."
             )
 
-    _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
+    _, _named_params, _ = model.export_tvm(
         spec=model.get_default_spec(),
         allow_extern=True,
     )
@@ -63,7 +63,7 @@ def huggingface(model_config: Qwen3MoeConfig, quantization: Quantization) -> Ext
     # Helper function to add both weight and scale mappings
     def add_weight_and_scale_mapping(
         weight_mlc_name: str,
-        weight_hf_names: List[str],
+        weight_hf_names: List[str],  # noqa: UP006
         weight_transform_func: Callable,
     ):
         mlc_param = named_parameters[weight_mlc_name]

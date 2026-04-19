@@ -1,6 +1,6 @@
 """A compiler pass that scatters TupleGetItem for lazy TupleGetItems."""
 
-from typing import Dict
+from typing import Dict  # noqa: UP035
 
 import tvm
 from tvm import relax
@@ -11,7 +11,7 @@ from tvm.relax.expr_functor import PyExprMutator, mutator
 
 
 @tvm.transform.module_pass(opt_level=0, name="ScatterTupleGetItem")
-class ScatterTupleGetItem:  # pylint: disable=too-few-public-methods
+class ScatterTupleGetItem:
     """A compiler pass that scatters TupleGetItem for lazy TupleGetItems."""
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
@@ -20,11 +20,11 @@ class ScatterTupleGetItem:  # pylint: disable=too-few-public-methods
 
 
 @mutator
-class _Scatter(PyExprMutator):  # pylint: disable=abstract-method
+class _Scatter(PyExprMutator):
     def __init__(self, mod: IRModule) -> None:
         super().__init__(mod)
         self.mod = mod
-        self.var_map: Dict[Var, Expr] = {}
+        self.var_map: Dict[Var, Expr] = {}  # noqa: UP006
 
     def transform(self) -> IRModule:
         """Entry point"""
@@ -40,9 +40,7 @@ class _Scatter(PyExprMutator):  # pylint: disable=abstract-method
         if isinstance(binding.value, relax.TupleGetItem):
             self.var_map[binding.var] = binding.value
 
-    def visit_dataflow_var_(  # pylint: disable=arguments-renamed
-        self, var: relax.DataflowVar
-    ) -> Expr:
+    def visit_dataflow_var_(self, var: relax.DataflowVar) -> Expr:
         if var in self.var_map:
             new_var = self.builder_.emit(self.var_map[var], name_hint=var.name_hint)
             self.set_var_remap(var.vid, new_var)

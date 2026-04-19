@@ -6,10 +6,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union  # noqa: UP035
 
-from huggingface_hub import HfApi, snapshot_download  # pylint: disable=import-error
-from huggingface_hub.utils import HfHubHTTPError  # pylint: disable=import-error
+from huggingface_hub import HfApi, snapshot_download
+from huggingface_hub.utils import HfHubHTTPError
 from pydantic import BaseModel, Field, ValidationError
 
 from mlc_llm.support import logging
@@ -62,8 +62,8 @@ class ModelDeliveryTask(BaseModel):
     model_id: str
     model: str
     conv_template: str
-    quantization: Union[List[str], str] = Field(default_factory=list)
-    overrides: Dict[str, OverrideConfigs] = Field(default_factory=dict)
+    quantization: Union[List[str], str] = Field(default_factory=list)  # noqa: UP006
+    overrides: Dict[str, OverrideConfigs] = Field(default_factory=dict)  # noqa: UP006
     destination: Optional[str] = None
     gen_config_only: Optional[bool] = False
 
@@ -73,14 +73,14 @@ class ModelDeliveryList(BaseModel):
     The class that specifies the model delivery list.
     """
 
-    tasks: List[ModelDeliveryTask]
+    tasks: List[ModelDeliveryTask]  # noqa: UP006
     # For delivered log, the default destination and quantization fields are optional
     default_destination: Optional[str] = None
-    default_quantization: List[str] = Field(default_factory=list)
-    default_overrides: Dict[str, OverrideConfigs] = Field(default_factory=dict)
+    default_quantization: List[str] = Field(default_factory=list)  # noqa: UP006
+    default_overrides: Dict[str, OverrideConfigs] = Field(default_factory=dict)  # noqa: UP006
 
     @classmethod
-    def from_json(cls: Type[T], json_dict: Dict[str, Any]) -> T:
+    def from_json(cls: Type[T], json_dict: Dict[str, Any]) -> T:  # noqa: UP006
         """
         Convert from a json dictionary.
         """
@@ -90,7 +90,7 @@ class ModelDeliveryList(BaseModel):
             logger.error("Error validating ModelDeliveryList: %s", e)
             raise e
 
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> Dict[str, Any]:  # noqa: UP006
         """
         Convert to a json dictionary.
         """
@@ -195,7 +195,7 @@ def _run_quantization(
                 repo_id=repo,
                 ignore_patterns=["logs.txt"],
             )
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             logger.error("[%s] %s. Retrying...", red("FAILED"), exc)
         else:
             break
@@ -216,7 +216,7 @@ def _get_current_log(log: str) -> ModelDeliveryList:
     return current_log
 
 
-def _generate_model_delivery_diff(  # pylint: disable=too-many-locals
+def _generate_model_delivery_diff(
     spec: ModelDeliveryList, log: ModelDeliveryList
 ) -> ModelDeliveryList:
     diff_tasks = []
@@ -278,7 +278,7 @@ def _generate_model_delivery_diff(  # pylint: disable=too-many-locals
     return diff_config
 
 
-def _main(  # pylint: disable=too-many-locals, too-many-arguments
+def _main(
     username: str,
     api: HfApi,
     spec: ModelDeliveryList,
@@ -292,10 +292,10 @@ def _main(  # pylint: disable=too-many-locals, too-many-arguments
         logger.info("Dry run. No actual delivery.")
         return
 
-    failed_cases: List[Tuple[str, str]] = []
+    failed_cases: List[Tuple[str, str]] = []  # noqa: UP006
     delivered_log = _get_current_log(log)
     for task_index, task in enumerate(delivery_diff.tasks, 1):
-        logger.info(  # pylint: disable=logging-not-lazy
+        logger.info(
             bold("[{task_index}/{total_tasks}] Processing model: ").format(
                 task_index=task_index,
                 total_tasks=len(delivery_diff.tasks),
@@ -386,13 +386,13 @@ def main():
         # If not found, look for the token in the default cache folder
         token_file_path = os.path.expanduser("~/.cache/huggingface/token")
         if os.path.exists(token_file_path):
-            with open(token_file_path, "r", encoding="utf-8") as token_file:
+            with open(token_file_path, encoding="utf-8") as token_file:
                 hf_token = token_file.read().strip()
                 if hf_token:
                     logger.info("HF token found in ~/.cache/huggingface/token")
                     return hf_token
 
-        raise EnvironmentError("HF token not found")
+        raise OSError("HF token not found")
 
     parser = ArgumentParser("MLC LLM continuous model delivery")
     parser.add_argument(

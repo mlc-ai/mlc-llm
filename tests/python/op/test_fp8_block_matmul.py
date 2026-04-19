@@ -1,5 +1,5 @@
 from itertools import product
-from typing import Tuple
+from typing import Tuple  # noqa: UP035
 
 import ml_dtypes
 import numpy as np
@@ -34,7 +34,6 @@ def test_fp8_block_matmul_cutlass(M: int, N: int, K: int, dtype: str):
 
         def cutlass_gemm(self, x: nn.Tensor, w: nn.Tensor, w_scale: nn.Tensor):
             n, k = w.shape
-            m = x.shape[0]
             # assert n % block_size[0] == 0
             assert k % block_size[1] == 0
             assert (n + block_size[0] - 1) // block_size[0] == w_scale.shape[0]
@@ -124,7 +123,6 @@ def test_fp8_block_matmul_triton(M: int, N: int, K: int, dtype: str):
 
         def triton_gemm(self, x: nn.Tensor, w: nn.Tensor, w_scale: nn.Tensor):
             n, k = w.shape
-            m = x.shape[0]
             assert (n + block_size[0] - 1) // block_size[0] == w_scale.shape[0]
             assert (k + block_size[1] - 1) // block_size[1] == w_scale.shape[1]
             assert x.shape[1] == k
@@ -159,7 +157,7 @@ def test_fp8_block_matmul_triton(M: int, N: int, K: int, dtype: str):
         },
         allow_extern=True,
     )
-    mod = DispatchTritonKernel(target)(mod)  # type: ignore
+    mod = DispatchTritonKernel(target)(mod)
     exec = relax.build(
         mod,
         target=target,
@@ -226,7 +224,6 @@ def test_fp8_block_group_matmul_cutlass(M: int, N: int, K: int, dtype: str):
             indptr: nn.Tensor,
         ):
             e, n, k = w.shape
-            m = x.shape[0]
             assert e == num_experts
             assert (n + block_size[0] - 1) // block_size[0] == w_scale.shape[1]
             assert (k + block_size[1] - 1) // block_size[1] == w_scale.shape[2]
@@ -372,7 +369,6 @@ def test_fp8_block_group_matmul_triton(M: int, N: int, K: int, dtype: str):
             indptr: nn.Tensor,
         ):
             e, n, k = w.shape
-            m = x.shape[0]
             assert e == num_experts
             assert (n + block_size[0] - 1) // block_size[0] == w_scale.shape[1]
             assert (k + block_size[1] - 1) // block_size[1] == w_scale.shape[2]
@@ -411,7 +407,7 @@ def test_fp8_block_group_matmul_triton(M: int, N: int, K: int, dtype: str):
         },
         allow_extern=True,
     )
-    mod = DispatchTritonKernel(target)(mod)  # type: ignore
+    mod = DispatchTritonKernel(target)(mod)
     exec = relax.build(
         mod,
         target=target,
@@ -579,7 +575,6 @@ def test_fp8_block_gemv_tir(N: int, K: int, up: bool, dtype: str):
             expert_indices: nn.Tensor,
         ):
             e, n, k = w.shape
-            m = x.shape[0]
             assert e == num_experts
             assert (n + block_size[0] - 1) // block_size[0] == w_scale.shape[1]
             assert (k + block_size[1] - 1) // block_size[1] == w_scale.shape[2]
@@ -807,7 +802,9 @@ def blockwise_bmm(
 
 
 def blockwise_quant_fp8(
-    w_full_torch: torch.Tensor, block_size: Tuple[int, int], quant_dtype: torch.dtype
+    w_full_torch: torch.Tensor,
+    block_size: Tuple[int, int],  # noqa: UP006
+    quant_dtype: torch.dtype,
 ):
     w_scale_shape = (
         *w_full_torch.shape[:-2],
@@ -860,10 +857,12 @@ def blockwise_quant_fp8(
                     ] = torch.clamp(
                         w_full_torch[
                             e,
-                            i
-                            * block_size[0] : min((i + 1) * block_size[0], w_full_torch.shape[-2]),
-                            j
-                            * block_size[1] : min((j + 1) * block_size[1], w_full_torch.shape[-1]),
+                            i * block_size[0] : min(
+                                (i + 1) * block_size[0], w_full_torch.shape[-2]
+                            ),
+                            j * block_size[1] : min(
+                                (j + 1) * block_size[1], w_full_torch.shape[-1]
+                            ),
                         ]
                         / w_scale_torch[e, i, j],
                         -fp8_max,
@@ -877,7 +876,9 @@ def blockwise_quant_fp8(
 
 
 def rowwise_quant_fp8(
-    x_full_torch: torch.Tensor, block_size: Tuple[int, int], quant_dtype: torch.dtype
+    x_full_torch: torch.Tensor,
+    block_size: Tuple[int, int],  # noqa: UP006
+    quant_dtype: torch.dtype,
 ):
     x_scale_shape = (
         *x_full_torch.shape[:-1],

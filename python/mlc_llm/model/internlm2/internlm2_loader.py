@@ -1,4 +1,3 @@
-# pylint: disable=W0611
 """
 This file specifies how MLC's InternLM2 parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
@@ -11,7 +10,7 @@ import numpy as np
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
-from .internlm2_model import InternLM2Config, InternLM2ForCausalLM
+from .internlm2_model import InternLM2ForCausalLM
 
 
 def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) -> ExternMapping:
@@ -34,7 +33,7 @@ def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) 
     model = InternLM2ForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
-    _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
+    _, _named_params, _ = model.export_tvm(
         spec=model.get_default_spec(),
         allow_extern=True,
     )
@@ -47,7 +46,7 @@ def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) 
         kv_groups = config.num_attention_heads // config.num_key_value_heads
         head_dim = config.hidden_size // config.num_attention_heads
         wqkv = wqkv.reshape(-1, 2 + kv_groups, head_dim, wqkv.shape[-1])
-        wq, wk, wv = np.split(wqkv, [kv_groups, kv_groups + 1], axis=1)  # pylint: disable=W0632
+        wq, wk, wv = np.split(wqkv, [kv_groups, kv_groups + 1], axis=1)
         wq = wq.reshape(-1, wq.shape[-1])
         wk = wk.reshape(-1, wk.shape[-1])
         wv = wv.reshape(-1, wv.shape[-1])

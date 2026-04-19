@@ -5,7 +5,7 @@ from tvm import IRModule, relax
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachCUDAGraphAllocInitFunc")
-class AttachCUDAGraphAllocInitFunc:  # pylint: disable=too-few-public-methods
+class AttachCUDAGraphAllocInitFunc:
     """Attach an empty function for initialization."""
 
     def __init__(self):

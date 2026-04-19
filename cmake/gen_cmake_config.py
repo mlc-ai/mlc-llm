@@ -3,13 +3,13 @@ from collections import namedtuple
 Backend = namedtuple("Backend", ["name", "cmake_config_name", "prompt_str", "parent"])
 
 if __name__ == "__main__":
-    tvm_home = ""  # pylint: disable=invalid-name
+    tvm_home = ""
 
     tvm_home = input(
-        "Enter TVM_SOURCE_DIR in absolute path. If not specified, 3rdparty/tvm will be used by default: "
+        "Enter TVM_SOURCE_DIR in absolute path. If not specified, 3rdparty/tvm will be used by default: "  # noqa: E501
     )
     if len(tvm_home) == 0:
-        tvm_home = "3rdparty/tvm"  # pylint: disable=invalid-name
+        tvm_home = "3rdparty/tvm"
 
     cmake_config_str = f"set(TVM_SOURCE_DIR {tvm_home})\n"
     cmake_config_str += "set(CMAKE_BUILD_TYPE RelWithDebInfo)\n"
@@ -50,7 +50,7 @@ if __name__ == "__main__":
                     print(f"Invalid input: {use_backend}. Please input again.")
 
     if "CUDA" in enabled_backends:
-        cmake_config_str += f"set(USE_THRUST ON)\n"
+        cmake_config_str += "set(USE_THRUST ON)\n"
 
     print("\nWriting the following configuration to config.cmake...")
     print(cmake_config_str)

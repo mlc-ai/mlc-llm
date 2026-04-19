@@ -1,7 +1,7 @@
 """Parameter mapping for converting different LLM implementations to MLC LLM."""
 
 import dataclasses
-from typing import Callable, Dict, List, Set, Union
+from typing import Callable, Dict, List, Set, Union  # noqa: UP035
 
 import numpy as np
 from tvm.runtime import Tensor
@@ -41,14 +41,14 @@ class ExternMapping:
         Parameter names in the source weights that are not used in the MLC LLM model definition.
     """
 
-    param_map: Dict[str, List[str]] = dataclasses.field(default_factory=dict)
-    map_func: Dict[str, MapFuncVariadic] = dataclasses.field(default_factory=dict)
-    unused_params: Set[str] = dataclasses.field(default_factory=set)
+    param_map: Dict[str, List[str]] = dataclasses.field(default_factory=dict)  # noqa: UP006
+    map_func: Dict[str, MapFuncVariadic] = dataclasses.field(default_factory=dict)  # noqa: UP006
+    unused_params: Set[str] = dataclasses.field(default_factory=set)  # noqa: UP006
 
     def add_mapping(
         self,
         map_from: str,
-        map_to: List[str],
+        map_to: List[str],  # noqa: UP006
         func: MapFuncVariadic,
     ) -> None:
         """Add a mapping from MLC parameters to source parametes as well as a mapping function."""
@@ -95,8 +95,8 @@ class QuantizeMapping:
     used to convert the quantized parameters into the desired form.
     """
 
-    param_map: Dict[str, List[str]]
-    map_func: Dict[str, Callable[[Tensor], List[Tensor]]]
+    param_map: Dict[str, List[str]]  # noqa: UP006
+    map_func: Dict[str, Callable[[Tensor], List[Tensor]]]  # noqa: UP006
 
 
 __all__ = ["ExternMapping", "QuantizeMapping"]

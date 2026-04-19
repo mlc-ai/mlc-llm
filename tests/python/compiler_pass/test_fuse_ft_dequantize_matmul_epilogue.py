@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name,missing-docstring,too-few-public-methods
 import tvm
 from tvm.ir import assert_structural_equal
 from tvm.script import ir as I

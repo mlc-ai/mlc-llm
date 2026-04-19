@@ -1,14 +1,12 @@
-# pylint: disable=line-too-long
 """
 Test script for function call in chat completion. To run this script, use the following command:
 MLC_SERVE_MODEL_LIB=dist/gorilla-openfunctions-v1-q4f16_1_MLC/gorilla-openfunctions-v1-q4f16_1-cuda.so
 MLC_SERVE_MODEL_LIB=${MLC_SERVE_MODEL_LIB} python -m pytest -x tests/python/serve/server/test_server_function_call.py
-"""
+"""  # noqa: E501
 
-# pylint: disable=missing-function-docstring,too-many-arguments,too-many-locals,too-many-branches
 import json
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple  # noqa: UP035
 
 import pytest
 import requests
@@ -17,12 +15,12 @@ OPENAI_V1_CHAT_COMPLETION_URL = "http://127.0.0.1:8000/v1/chat/completions"
 
 
 def check_openai_nonstream_response(
-    response: Dict,
+    response: Dict,  # noqa: UP006
     *,
     model: str,
     object_str: str,
     num_choices: int,
-    finish_reason: List[str],
+    finish_reason: List[str],  # noqa: UP006
     completion_tokens: Optional[int] = None,
 ):
     print(response)
@@ -56,7 +54,7 @@ def check_openai_nonstream_response(
 
 
 def check_openai_stream_response(
-    responses: List[Dict],
+    responses: List[Dict],  # noqa: UP006
     *,
     model: str,
     object_str: str,
@@ -64,8 +62,8 @@ def check_openai_stream_response(
     finish_reason: str,
     echo_prompt: Optional[str] = None,
     suffix: Optional[str] = None,
-    stop: Optional[List[str]] = None,
-    require_substr: Optional[List[str]] = None,
+    stop: Optional[List[str]] = None,  # noqa: UP006
+    require_substr: Optional[List[str]] = None,  # noqa: UP006
 ):
     assert len(responses) > 0
 
@@ -155,10 +153,10 @@ CHAT_COMPLETION_MESSAGES = [
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("messages", CHAT_COMPLETION_MESSAGES)
 def test_openai_v1_chat_completion_function_call(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, str]],  # noqa: UP006
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
@@ -200,7 +198,7 @@ if __name__ == "__main__":
         raise ValueError(
             'Environment variable "MLC_SERVE_MODEL_LIB" not found. '
             "Please set it to model lib compiled by MLC LLM "
-            "(e.g., `./dist/gorilla-openfunctions-v1-q4f16_1_MLC/gorilla-openfunctions-v1-q4f16_1-cuda.so`) "
+            "(e.g., `./dist/gorilla-openfunctions-v1-q4f16_1_MLC/gorilla-openfunctions-v1-q4f16_1-cuda.so`) "  # noqa: E501
             "which supports function calls."
         )
     MODEL = (os.path.dirname(model_lib), model_lib)

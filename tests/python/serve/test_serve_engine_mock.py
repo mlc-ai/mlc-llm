@@ -26,7 +26,7 @@ def test_completion_api(model: str):
         "presence_penalty": 0.1,
         "n": 2,
     }
-    response = engine.chat.completions.create(  # type: ignore
+    response = engine.chat.completions.create(
         messages=[{"role": "user", "content": "hello"}],
         **param_dict,
     )

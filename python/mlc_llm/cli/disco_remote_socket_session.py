@@ -5,9 +5,7 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-#
 #   http://www.apache.org/licenses/LICENSE-2.0
-#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,10 +16,10 @@
 
 import sys
 
-from tvm import runtime as _  # pylint: disable=unused-import
+from tvm import runtime as _  # noqa: F401
 from tvm_ffi import get_global_func
 
-from .. import base  # pylint: disable=unused-import, no-name-in-module
+from .. import base  # noqa: F401
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:

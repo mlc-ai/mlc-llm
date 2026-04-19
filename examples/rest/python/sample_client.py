@@ -24,7 +24,7 @@ payload = {
 }
 r = requests.post("http://127.0.0.1:8000/v1/chat/completions", json=payload)
 print(
-    f"{color.BOLD}Without streaming:{color.END}\n{color.GREEN}{r.json()['choices'][0]['message']['content']}{color.END}\n"
+    f"{color.BOLD}Without streaming:{color.END}\n{color.GREEN}{r.json()['choices'][0]['message']['content']}{color.END}\n"  # noqa: E501
 )
 
 # Reset the chat

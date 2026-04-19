@@ -5,7 +5,7 @@ Implementation for Minicpm architecture.
 import dataclasses
 import math
 from functools import partial
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class MiniCPMConfig(ConfigBase):
     """Configuration of the MiniCPM model."""
 
     vocab_size: int
@@ -50,7 +50,7 @@ class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     max_batch_size: int = 1
     num_experts_per_tok: int = 0
     num_experts: int = 0
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.context_window_size == 0:
@@ -90,10 +90,7 @@ class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = min(self.context_window_size, 8192)
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
-class MiniCPMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class MiniCPMAttention(nn.Module):
     def __init__(self, config: MiniCPMConfig):
         super().__init__()  # Make sure to call the parent class constructor
         self.hidden_size = config.hidden_size
@@ -195,7 +192,7 @@ class MiniCPMMoE(nn.Module):
         )
         self.dtype = "float32"
 
-    def forward(self, x: Tensor):  # pylint: disable=too-many-locals
+    def forward(self, x: Tensor):
         def _expert_forward(x: Tensor, indptr: Tensor):
             x1_x3 = self.e1_e3(x, indptr)
             x1, x3 = op.split(x1_x3, indices_or_sections=2, axis=-1)
@@ -242,18 +239,16 @@ class MiniCPMMoE(nn.Module):
             x = _expert_forward(x, indptr)
             x = op_ext.moe_misc.scatter_output(x, reverse_indices)
         # x: [num_tokens, experts_per_tok, hidden_size]
-        x = x.reshape(  # pylint: disable=too-many-function-args
-            num_tokens, experts_per_tok, hidden_size
-        ) * expert_weights.reshape(  # pylint: disable=too-many-function-args
+        x = x.reshape(num_tokens, experts_per_tok, hidden_size) * expert_weights.reshape(
             num_tokens, experts_per_tok, 1
         )
         # x: [num_tokens, hidden_size]
         x = op_ext.moe_misc.moe_sum(x, dim=1)
-        x = x.reshape(batch_size, seq_len, hidden_size)  # pylint: disable=too-many-function-args
+        x = x.reshape(batch_size, seq_len, hidden_size)
         return x
 
 
-class MiniCPMDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attributes
+class MiniCPMDecoderLayer(nn.Module):
     def __init__(self, config: MiniCPMConfig):
         self.scale_depth = config.scale_depth
         self.hidden_size = config.hidden_size
@@ -342,7 +337,7 @@ class MiniCPMModel(nn.Module):
         return hidden_states
 
 
-class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class MiniCPMForCausalLM(nn.Module):
     def __init__(self, config: MiniCPMConfig):
         self.model = MiniCPMModel(config)
         self.tie_word_embeddings = config.tie_word_embeddings
@@ -434,7 +429,7 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

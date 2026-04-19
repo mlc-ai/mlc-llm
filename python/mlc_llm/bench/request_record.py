@@ -1,8 +1,8 @@
 """MLC LLM Bench Request"""
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union  # noqa: UP035
 
-import pandas as pd  # pylint: disable=import-error
+import pandas as pd
 from pydantic import BaseModel
 
 from mlc_llm.protocol.openai_api_protocol import ChatCompletionRequest
@@ -39,7 +39,7 @@ class Metrics(BaseModel):
     time_to_first_token_s: Optional[float] = None
     server_metrics: Optional[ServerMetrics] = None
 
-    exec_feature: Optional[Dict[str, Any]] = None
+    exec_feature: Optional[Dict[str, Any]] = None  # noqa: UP006
 
 
 class RequestRecord(BaseModel):
@@ -61,14 +61,14 @@ class GroupedRequestRecord(RequestRecord):
     at the beginning.
     """
 
-    records: List[RequestRecord]
+    records: List[RequestRecord]  # noqa: UP006
 
 
 def generate_metrics_summary(
-    request_records: List[RequestRecord],
+    request_records: List[RequestRecord],  # noqa: UP006
     num_total_requests: int,
     num_gpus: int,
-) -> Dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Computes summary statistics across all metrics collected.
     Return a dictionary as the report.
     """
@@ -114,8 +114,8 @@ def generate_metrics_summary(
 
 
 def _compute_metrics_statistics(
-    metrics: List[Union[Metrics, ServerMetrics]],
-) -> Dict[str, Any]:
+    metrics: List[Union[Metrics, ServerMetrics]],  # noqa: UP006
+) -> Dict[str, Any]:  # noqa: UP006
     """
     Compute the statistics of the metrics.
 
@@ -132,7 +132,7 @@ def _compute_metrics_statistics(
     if not metrics:
         return {}
 
-    report: Dict = {}
+    report: Dict = {}  # noqa: UP006
     df = pd.DataFrame([metric.model_dump() for metric in metrics])
     for key, _ in metrics[0].model_fields.items():
         if key in [
@@ -158,11 +158,11 @@ def _compute_metrics_statistics(
     return report
 
 
-def convert_reports_to_df(reports: List[Dict[str, Any]]) -> pd.DataFrame:
+def convert_reports_to_df(reports: List[Dict[str, Any]]) -> pd.DataFrame:  # noqa: UP006
     """Convert benchmark reports to pandas DataFrame."""
 
-    def _flatten_dict(d: Dict[str, Any], parent_key: str = "") -> Dict[str, Any]:
-        items: List[Tuple[str, Any]] = []
+    def _flatten_dict(d: Dict[str, Any], parent_key: str = "") -> Dict[str, Any]:  # noqa: UP006
+        items: List[Tuple[str, Any]] = []  # noqa: UP006
         for key, value in d.items():
             new_key = f"{parent_key}.{key}" if parent_key != "" else key
             if isinstance(value, dict):
@@ -174,11 +174,10 @@ def convert_reports_to_df(reports: List[Dict[str, Any]]) -> pd.DataFrame:
     return pd.DataFrame([_flatten_dict(report) for report in reports])
 
 
-def pretty_print_report(report: Dict[str, Any]) -> None:  # pylint: disable=too-many-statements
+def pretty_print_report(report: Dict[str, Any]) -> None:  # noqa: UP006
     """Pretty print the metrics report."""
 
-    def _print(report: Dict[str, Any], server_metrics: bool):  # pylint: disable=too-many-statements
-        # pylint: disable=line-too-long
+    def _print(report: Dict[str, Any], server_metrics: bool):  # noqa: UP006
         # fmt: off
         title = "Benchmark Result"
         if server_metrics:
@@ -192,10 +191,10 @@ def pretty_print_report(report: Dict[str, Any]) -> None:  # pylint: disable=too-
             print(f"{'Total input tokens:':<40} {report['total_input_tokens']:<10}")
             print(f"{'Total output tokens:':<40} {report['total_output_tokens']:<10}")
             print(f"{'Request throughput (req/s):':<40} {report['request_throughput']:<10.2f}")
-            print(f"{'Input token throughput (tok/s):':<40} {report['input_token_throughput']:<10.2f}")
-            print(f"{'Input token throughput per GPU (tok/s):':<40} {report['input_token_throughput_per_gpu']:<10.2f}")
-            print(f"{'Output token throughput (tok/s):':<40} {report['output_token_throughput']:<10.2f}")
-            print(f"{'Output token throughput per GPU (tok/s):':<40} {report['output_token_throughput_per_gpu']:<10.2f}")
+            print(f"{'Input token throughput (tok/s):':<40} {report['input_token_throughput']:<10.2f}")  # noqa: E501
+            print(f"{'Input token throughput per GPU (tok/s):':<40} {report['input_token_throughput_per_gpu']:<10.2f}")  # noqa: E501
+            print(f"{'Output token throughput (tok/s):':<40} {report['output_token_throughput']:<10.2f}")  # noqa: E501
+            print(f"{'Output token throughput per GPU (tok/s):':<40} {report['output_token_throughput_per_gpu']:<10.2f}")  # noqa: E501
 
         if report["num_completed_requests"] == 0:
             return
@@ -274,7 +273,6 @@ def pretty_print_report(report: Dict[str, Any]) -> None:  # pylint: disable=too-
         print("=" * 50)
 
     # fmt: on
-    # pylint: enable=line-too-long
     _print(report, server_metrics=False)
     if "server_metrics" in report:
         _print(report["server_metrics"], server_metrics=True)

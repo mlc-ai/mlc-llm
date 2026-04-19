@@ -4,7 +4,7 @@ Implements the CLIP Vision Encoder.
 
 import dataclasses
 import logging
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple  # noqa: UP035
 
 from tvm import relax
 from tvm.relax.frontend import nn
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class CLIPVisionConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class CLIPVisionConfig(ConfigBase):
     """
     Config for the vision encoder
     """
@@ -42,11 +42,10 @@ class CLIPVisionConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     vocab_size: int
     num_channels: int = 3
     layer_norm_eps: float = 1e-06
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
 
-# pylint: disable=invalid-name,missing-docstring
-class CLIPVisionEmbeddings(Module):  # pylint: disable=too-many-instance-attributes
+class CLIPVisionEmbeddings(Module):
     def __init__(self, config: CLIPVisionConfig):
         super().__init__()
         self.config = config
@@ -90,7 +89,6 @@ class CLIPVisionEmbeddings(Module):  # pylint: disable=too-many-instance-attribu
         return embeddings
 
 
-# pylint: disable=missing-docstring
 def sigmoid(x: Tensor, name: str = "sigmoid") -> Tensor:
     """Sigmoid of a Tensor
 
@@ -106,7 +104,7 @@ def sigmoid(x: Tensor, name: str = "sigmoid") -> Tensor:
     result : Tensor
         Sigmoid result.
     """
-    return wrap_nested(relax.op.sigmoid(x._expr), name)  # pylint: disable=protected-access
+    return wrap_nested(relax.op.sigmoid(x._expr), name)
 
 
 class QuickGELU(Module):
@@ -128,7 +126,7 @@ class CLIPMLP(Module):
         return hidden_states
 
 
-class CLIPAttention(Module):  # pylint: disable=too-many-instance-attributes
+class CLIPAttention(Module):
     def __init__(self, config: CLIPVisionConfig):
         super().__init__()
         self.embed_dim = config.hidden_size
@@ -193,12 +191,12 @@ class CLIPEncoder(Module):
 
     def forward(self, inputs_embeds: Tensor) -> Tensor:
         hidden_states = inputs_embeds
-        encoder_states: Tuple[Any, ...] = ()
+        encoder_states: Tuple[Any, ...] = ()  # noqa: UP006
         for _, encoder_layer in enumerate(self.layers):
-            encoder_states = encoder_states + (hidden_states,)
+            encoder_states = (*encoder_states, hidden_states)
             layer_outputs = encoder_layer(hidden_states)
             hidden_states = layer_outputs[0]
-        encoder_states = encoder_states + (hidden_states,)
+        encoder_states = (*encoder_states, hidden_states)
         return encoder_states
 
 
@@ -219,7 +217,7 @@ class CLIPVisionTransformer(Module):
         # the HuggingFace CLIPVisionTransformer which returns post-normed
         # last_hidden_state. Intermediate states remain unnormalized.
         last_hidden_state = self.post_layernorm(encoder_outputs[-1])
-        return encoder_outputs[:-1] + (last_hidden_state,)
+        return (*encoder_outputs[:-1], last_hidden_state)
 
 
 class CLIPVisionModel(Module):

@@ -6,10 +6,9 @@ Implementation for Qwen3.5 GatedDeltaNet hybrid architecture.
 import dataclasses
 import math
 from functools import partial
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
-import tvm
 from tvm import relax as R
 from tvm import te, tirx
 from tvm.relax.frontend import nn
@@ -17,7 +16,6 @@ from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tirx as T
 
 from mlc_llm import op as op_ext
-from mlc_llm.model.model_utils import index_last_token
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.nn.rnn_state import RNNState
 from mlc_llm.support import logging
@@ -28,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class Qwen35Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class Qwen35Config(ConfigBase):
     """Configuration of the Qwen3.5 model."""
 
     hidden_size: int = 0
@@ -57,7 +55,7 @@ class Qwen35Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     tensor_parallel_shards: int = 1
     dtype: str = "float32"
     max_batch_size: int = 1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         # Handle VLM wrapper: Qwen3.5 HF config has all text params inside text_config
@@ -119,7 +117,7 @@ class Qwen35Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
         """Number of full attention layers."""
         return self.num_hidden_layers // self.full_attention_interval
 
-    def layer_types(self) -> List[str]:
+    def layer_types(self) -> List[str]:  # noqa: UP006
         """Returns list of layer types: 'linear_attention' or 'full_attention'."""
         types = []
         for i in range(self.num_hidden_layers):
@@ -128,9 +126,6 @@ class Qwen35Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
             else:
                 types.append("linear_attention")
         return types
-
-
-# pylint: disable=invalid-name,missing-docstring,too-many-locals
 
 
 ACT2FN = {
@@ -421,7 +416,7 @@ class Qwen35GatedDeltaNet(nn.Module):
         # Output gating norm — per-head RMSNorm (shared weight across heads)
         self.norm = nn.RMSNorm(self.value_head_dim, -1, config.rms_norm_eps, bias=False)
 
-    def forward(self, hidden_states: Tensor, state: RNNState) -> Tuple[Tensor, RNNState]:
+    def forward(self, hidden_states: Tensor, state: RNNState) -> Tuple[Tensor, RNNState]:  # noqa: UP006
         """Forward using RNNState (for MLCEngine batch methods)."""
         b, s, _ = hidden_states.shape
         K = self.key_head_dim
@@ -500,7 +495,7 @@ class Qwen35GatedDeltaNet(nn.Module):
         out_gated = out_flat * op.silu(z)
         return self.out_proj(out_gated), state
 
-    def _causal_conv1d_with_state(self, qkv: Tensor, conv_state: Tensor) -> Tuple[Tensor, Tensor]:
+    def _causal_conv1d_with_state(self, qkv: Tensor, conv_state: Tensor) -> Tuple[Tensor, Tensor]:  # noqa: UP006
         """Causal Conv1D using a pre-extracted conv_state tensor (for RNNState path)."""
         b, s, d = qkv.shape
         kernel_size = self.config.linear_conv_kernel_dim
@@ -680,7 +675,7 @@ class Qwen35Model(nn.Module):
         return hidden_states, state
 
 
-class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Qwen35LMHeadModel(nn.Module):
     def __init__(self, config: Qwen35Config):
         self.config = config
         self.model = Qwen35Model(config)
@@ -814,13 +809,6 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         )
 
     def get_default_spec(self):
-        K = self.linear_key_head_dim
-        V = self.linear_value_head_dim
-        n_vh = self.linear_num_value_heads
-        n_lin = self.num_linear_layers
-        conv_dim = self.config.linear_conv_kernel_dim
-        # QKV dim for conv state
-        qkv_dim = self.config.linear_num_key_heads * K * 2 + n_vh * V
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor(["seq_len"], "int32"),

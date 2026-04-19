@@ -11,7 +11,7 @@ from ..support.max_thread_check import (
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachLogitProcessFunc")
-class AttachLogitProcessFunc:  # pylint: disable=too-few-public-methods
+class AttachLogitProcessFunc:
     """Attach logit processing TIR functions to IRModule."""
 
     def __init__(self, target: tvm.target.Target):
@@ -111,7 +111,7 @@ def _get_apply_logit_bias_inplace(target: tvm.target.Target):
 
 def _get_apply_penalty_inplace_cpu():
     @T.prim_func
-    def _apply_penalty_inplace(  # pylint: disable=too-many-arguments,too-many-locals
+    def _apply_penalty_inplace(
         var_logits: T.handle,
         var_seq_ids: T.handle,
         var_pos2seq_id: T.handle,
@@ -160,7 +160,7 @@ def _get_apply_penalty_inplace(target: tvm.target.Target):
     check_thread_limits(target, bdx=tx, bdy=1, bdz=1, gdz=1)
 
     @T.prim_func
-    def _apply_penalty_inplace(  # pylint: disable=too-many-arguments,too-many-locals
+    def _apply_penalty_inplace(
         var_logits: T.handle,
         var_seq_ids: T.handle,
         var_pos2seq_id: T.handle,

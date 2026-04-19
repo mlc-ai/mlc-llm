@@ -28,7 +28,7 @@ def check_error_handling(engine, expect_str, **params):
 
     if expect_str not in response.choices[0].delta.content:
         raise RuntimeError(
-            f"expect '{expect_str}' in error msg, " f"but get '{response.choices[0].delta.content}'"
+            f"expect '{expect_str}' in error msg, but get '{response.choices[0].delta.content}'"
         )
 
 
@@ -66,7 +66,7 @@ def check_normal_param_passing(engine):
         stream=True,
         stream_options={"include_usage": True},
         response_format={"type": "json_object", "schema": json_schema},
-        **param_dict,  # type: ignore
+        **param_dict,
     ):
         if response.usage is not None:
             usage = response.usage

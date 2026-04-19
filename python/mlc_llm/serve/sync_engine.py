@@ -9,7 +9,8 @@ the test and debug purpose because of its simplicity.
 """
 
 import json
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union  # noqa: UP035
 
 import tvm
 
@@ -33,8 +34,10 @@ logger = logging.getLogger(__name__)
 
 
 def _create_tvm_module(
-    creator: str, ffi_funcs: Sequence[str], creator_args: Optional[List[Any]] = None
-) -> Dict[str, Callable]:
+    creator: str,
+    ffi_funcs: Sequence[str],
+    creator_args: Optional[List[Any]] = None,  # noqa: UP006
+) -> Dict[str, Callable]:  # noqa: UP006
     """Internal method to create a module."""
     if creator_args is None:
         creator_args = []
@@ -82,7 +85,7 @@ class SyncMLCEngine:
         exception.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
+    def __init__(
         self,
         model: str,
         device: Union[str, tvm.runtime.Device] = "auto",
@@ -91,7 +94,7 @@ class SyncMLCEngine:
         mode: Literal["local", "interactive", "server"] = "local",
         engine_config: Optional[EngineConfig] = None,
         enable_tracing: bool = False,
-        request_stream_callback: Optional[Callable[[List[data.RequestStreamOutput]], None]] = None,
+        request_stream_callback: Optional[Callable[[List[data.RequestStreamOutput]], None]] = None,  # noqa: UP006
     ):
         # - Check the fields fields of `engine_config`.
         if engine_config is None:
@@ -118,7 +121,7 @@ class SyncMLCEngine:
         self.model_config_dicts = []
         for i, model_info in enumerate(models):
             model_info.model_lib = model_args[i][1]
-            with open(model_config_paths[i], "r", encoding="utf-8") as file:
+            with open(model_config_paths[i], encoding="utf-8") as file:
                 self.model_config_dicts.append(json.load(file))
 
         # - Print logging info for regarding the mode selection.
@@ -143,7 +146,7 @@ class SyncMLCEngine:
 
         engine_config.model = model_args[0][0]
         engine_config.model_lib = model_args[0][1]
-        engine_config.additional_models = model_args[1:]  # type: ignore
+        engine_config.additional_models = model_args[1:]
         engine_config.mode = mode
         self._ffi["init"](
             engine_config.asjson(),
@@ -153,11 +156,11 @@ class SyncMLCEngine:
         )
         self.tokenizer = Tokenizer(model_args[0][0])
 
-    def generate(  # pylint: disable=too-many-locals
+    def generate(
         self,
-        prompts: Union[str, List[str], List[int], List[List[int]], List[List[data.Data]]],
-        generation_config: Union[GenerationConfig, List[GenerationConfig]],
-    ) -> Tuple[List[List[str]], List[Optional[List[List[str]]]]]:
+        prompts: Union[str, List[str], List[int], List[List[int]], List[List[data.Data]]],  # noqa: UP006
+        generation_config: Union[GenerationConfig, List[GenerationConfig]],  # noqa: UP006
+    ) -> Tuple[List[List[str]], List[Optional[List[List[str]]]]]:  # noqa: UP006
         """Generate texts for a list of input prompts.
         Each prompt can be a string or a list of token ids.
         The generation for each prompt is independent.
@@ -199,20 +202,20 @@ class SyncMLCEngine:
                 return [], []
             if isinstance(prompts[0], int):
                 # `prompts` is a list of token ids
-                prompts = [prompts]  # type: ignore
+                prompts = [prompts]
 
         num_requests = len(prompts)
         if not isinstance(generation_config, list):
             generation_config = [generation_config] * num_requests
 
-        assert (
-            len(generation_config) == num_requests
-        ), "Number of generation config and number of prompts mismatch"
+        assert len(generation_config) == num_requests, (
+            "Number of generation config and number of prompts mismatch"
+        )
 
         num_finished_generations = 0
-        output_texts: List[List[str]] = []
-        output_logprobs_str: List[Optional[List[List[str]]]] = []
-        text_streamers: List[List[TextStreamer]] = []
+        output_texts: List[List[str]] = []  # noqa: UP006
+        output_logprobs_str: List[Optional[List[List[str]]]] = []  # noqa: UP006
+        text_streamers: List[List[TextStreamer]] = []  # noqa: UP006
         for i in range(num_requests):
             output_texts.append([])
             output_logprobs_str.append([] if generation_config[i].logprobs else None)
@@ -231,13 +234,13 @@ class SyncMLCEngine:
         original_callback = self._ffi["get_request_stream_callback"]()
 
         # Define the callback function for request generation results
-        def request_stream_callback(delta_outputs: List[data.RequestStreamOutput]):
+        def request_stream_callback(delta_outputs: List[data.RequestStreamOutput]):  # noqa: UP006
             nonlocal num_finished_generations
             for delta_output in delta_outputs:
                 request_id, stream_outputs = delta_output.unpack()
                 rid = int(request_id)
 
-                assert len(stream_outputs) == generation_config[rid].n  # type: ignore
+                assert len(stream_outputs) == generation_config[rid].n
                 for i, (stream_output, text_streamer) in enumerate(
                     zip(stream_outputs, text_streamers[rid])
                 ):
@@ -261,17 +264,17 @@ class SyncMLCEngine:
         self._ffi["set_request_stream_callback"](request_stream_callback)
 
         def convert_to_data(
-            prompt: Union[str, List[int], List[data.Data]],
-        ) -> List[data.Data]:
+            prompt: Union[str, List[int], List[data.Data]],  # noqa: UP006
+        ) -> List[data.Data]:  # noqa: UP006
             if isinstance(prompt, str):
                 return [data.TextData(prompt)]
             if isinstance(prompt[0], int):
-                return [data.TokenData(prompt)]  # type: ignore
-            return prompt  # type: ignore
+                return [data.TokenData(prompt)]
+            return prompt
 
         # Add requests to engine.
         for req_id, (prompt, generation_cfg) in enumerate(zip(prompts, generation_config)):
-            input_data = convert_to_data(prompt)  # type: ignore
+            input_data = convert_to_data(prompt)
             self.add_request(
                 self.create_request(
                     request_id=str(req_id),
@@ -290,7 +293,7 @@ class SyncMLCEngine:
     def create_request(
         self,
         request_id: str,
-        inputs: Union[data.Data, List[data.Data]],
+        inputs: Union[data.Data, List[data.Data]],  # noqa: UP006
         generation_config: GenerationConfig,
     ):
         """Create a new request that can be added to engine.

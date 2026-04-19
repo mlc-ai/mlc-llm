@@ -1,4 +1,3 @@
-# pylint: disable=missing-docstring,protected-access
 import contextlib
 import json
 import tempfile

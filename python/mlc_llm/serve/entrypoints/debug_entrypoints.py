@@ -64,9 +64,7 @@ async def debug_cuda_profiler_start(_request: fastapi.Request):
     # Since the CUDA profiler is process-wise, call the function for one model is sufficient.
     for model in server_context.get_model_list():
         async_engine = server_context.get_engine(model)
-        async_engine._debug_call_func_on_all_worker(  # pylint: disable=protected-access
-            "mlc.debug_cuda_profiler_start"
-        )
+        async_engine._debug_call_func_on_all_worker("mlc.debug_cuda_profiler_start")
         break
 
 
@@ -77,9 +75,7 @@ async def debug_cuda_profiler_stop(_request: fastapi.Request):
     # Since the CUDA profiler is process-wise, call the function for one model is sufficient.
     for model in server_context.get_model_list():
         async_engine = server_context.get_engine(model)
-        async_engine._debug_call_func_on_all_worker(  # pylint: disable=protected-access
-            "mlc.debug_cuda_profiler_stop"
-        )
+        async_engine._debug_call_func_on_all_worker("mlc.debug_cuda_profiler_stop")
         break
 
 

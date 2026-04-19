@@ -1,5 +1,7 @@
 """Operators enabled by external modules."""
 
+from typing import Optional
+
 import tvm
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
@@ -15,13 +17,13 @@ WARN_FLASHINFER_GROUP_SIZE = False
 WARN_FLASHINFER_HEAD_DIM = False
 
 
-def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statements,too-many-arguments, unused-argument
+def attention(
     q: nn.Tensor,
     k: nn.Tensor,
     v: nn.Tensor,
     casual_mask: nn.Tensor,
     attn_score_scaling_factor: float = 1.0,
-    qk_dtype: str = None,
+    qk_dtype: Optional[str] = None,
 ) -> nn.Tensor:
     """Attention with casual mask.
 
@@ -63,7 +65,7 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
     group_size = h_q // h_kv
 
     def _fallback():
-        from tvm.relax.frontend.nn.llm.kv_cache import (  # pylint: disable=import-outside-toplevel
+        from tvm.relax.frontend.nn.llm.kv_cache import (
             _attention_sequence_prefill,
         )
 
@@ -78,7 +80,7 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
 
         target = tvm.target.Target("cuda")
         attn_output, _ = op.tensor_ir_op(
-            _attention_sequence_prefill(  # pylint: disable=no-value-for-parameter
+            _attention_sequence_prefill(
                 h_kv=h_kv,
                 h_q=h_q,
                 d=d,
@@ -106,7 +108,7 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         and v.dtype == "float16"
     ):
         if group_size not in [1, 4, 6, 8]:
-            global WARN_FLASHINFER_GROUP_SIZE  # pylint: disable=global-statement
+            global WARN_FLASHINFER_GROUP_SIZE
             if not WARN_FLASHINFER_GROUP_SIZE:
                 WARN_FLASHINFER_GROUP_SIZE = True
                 logger.warning(
@@ -116,7 +118,7 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
                 )
             return _fallback()
         if d not in [128]:
-            global WARN_FLASHINFER_HEAD_DIM  # pylint: disable=global-statement
+            global WARN_FLASHINFER_HEAD_DIM
             if not WARN_FLASHINFER_HEAD_DIM:
                 WARN_FLASHINFER_HEAD_DIM = True
                 logger.warning(
@@ -135,7 +137,7 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
             fp16_qk = 0  # False
 
         # 32MB scratchpad
-        scratch = op.empty([8192 * 1024], dtype="float32")  # pylint: disable=no-member
+        scratch = op.empty([8192 * 1024], dtype="float32")
 
         def _decode():
             return op.extern(
