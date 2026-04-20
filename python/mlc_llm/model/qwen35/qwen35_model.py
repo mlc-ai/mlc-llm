@@ -466,57 +466,66 @@ def create_gated_delta_net_chunked_func(
         return op.tensor_expr_op(_te, name, [x], attrs={"op_pattern": 8})
 
     def _create_associative_scan_primfunc():
+        _chunk_size = chunk_size
         @T.prim_func
         def associative_scan(attn_mm: T.handle, g_cumsum: T.handle, attn_out: T.handle):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             batch_size = T.int64()
             num_heads = T.int64()
             num_chunks = T.int64()
-
             attn_mm_buf = T.match_buffer(
                 attn_mm,
-                (batch_size, num_heads, num_chunks, T.int64(chunk_size), T.int64(chunk_size)),
-                dtype="float32",
+                (batch_size, num_heads, num_chunks, T.int64(_chunk_size), T.int64(_chunk_size)),
+                "float32",
             )
             g_cumsum_buf = T.match_buffer(
                 g_cumsum,
-                (batch_size, num_heads, num_chunks, T.int64(chunk_size)),
-                dtype="float32",
+                (batch_size, num_heads, num_chunks, T.int64(_chunk_size)),
+                "float32",
             )
             attn_out_buf = T.match_buffer(
                 attn_out,
-                (batch_size, num_heads, num_chunks, T.int64(chunk_size), T.int64(chunk_size)),
-                dtype="float32",
+                (batch_size, num_heads, num_chunks, T.int64(_chunk_size), T.int64(_chunk_size)),
+                "float32",
             )
+            scan_buf = T.alloc_buffer((T.int64(_chunk_size), T.int64(_chunk_size)), "float32", scope="shared")
 
             with T.sblock("root"):
                 for b in T.thread_binding(batch_size, thread="blockIdx.x"):
                     for h in T.thread_binding(num_heads, thread="blockIdx.y"):
                         for c in T.thread_binding(num_chunks, thread="blockIdx.z"):
-                            for i in T.serial(chunk_size):
-                                for j in T.serial(i, chunk_size):
-                                    attn_out_buf[b, h, c, i, j] = T.float32(0.0)
+                            for tx in T.thread_binding(_chunk_size, thread="threadIdx.x"):
+                                # init phase: start from all zeros (diag must stay 0 during recurrence)
+                                for i in T.serial(_chunk_size):
+                                    scan_buf[i, tx] = T.float32(0.0)
 
-                            for i in T.serial(1, chunk_size):
-                                g_i = g_cumsum_buf[b, h, c, i]
-                                for j in T.serial(0, i):
-                                    decayed_lower_attn_ij = (
-                                        -attn_mm_buf[b, h, c, i, j]
-                                        * T.exp(g_i - g_cumsum_buf[b, h, c, j])
+                                T.tvm_storage_sync("shared")
+
+                                # recurrence
+                                for i in T.serial(1, _chunk_size):
+                                    g_i = g_cumsum_buf[b, h, c, i]
+                                    scan_buf[i, tx] = T.if_then_else(
+                                        tx < i,
+                                        -attn_mm_buf[b, h, c, i, tx]
+                                        * T.exp(g_i - g_cumsum_buf[b, h, c, tx]),
+                                        scan_buf[i, tx],
                                     )
-                                    attn_out_buf[b, h, c, i, j] = decayed_lower_attn_ij
-                                    for k_idx in T.serial(0, i):
-                                        decayed_lower_attn_ik = (
-                                            -attn_mm_buf[b, h, c, i, k_idx]
-                                            * T.exp(g_i - g_cumsum_buf[b, h, c, k_idx])
-                                        )
-                                        attn_out_buf[b, h, c, i, j] += (
-                                            decayed_lower_attn_ik * attn_out_buf[b, h, c, k_idx, j]
-                                        )
+                                    for k in T.serial(i):
+                                        if tx < i:
+                                            decayed = (
+                                                -attn_mm_buf[b, h, c, i, k]
+                                                * T.exp(g_i - g_cumsum_buf[b, h, c, k])
+                                            )
+                                            scan_buf[i, tx]  = scan_buf[i, tx] + decayed * scan_buf[k, tx]
+                                    T.tvm_storage_sync("shared")
 
-                            for i in T.serial(chunk_size):
-                                attn_out_buf[b, h, c, i, i] = T.float32(1.0)
-
+                                # writeback
+                                for i in T.serial(_chunk_size):
+                                    attn_out_buf[b, h, c, i, tx] = T.if_then_else(
+                                        tx < i,
+                                        scan_buf[i, tx],
+                                        T.if_then_else(tx == i, T.float32(1.0), T.float32(0.0)),
+                                    )
         return associative_scan
 
     def _create_inter_chunk_recurrent_primfunc():
