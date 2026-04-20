@@ -354,6 +354,7 @@ CONV_TEMPLATES = {
     "olmo2",
     "nemotron",
     "llm-jp",
+    "qwen3",
     "qwen3_5",
     "qwen3_5_nothink",
 }
