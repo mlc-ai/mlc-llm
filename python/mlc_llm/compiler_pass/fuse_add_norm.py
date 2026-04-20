@@ -210,12 +210,30 @@ class _FuseAddRMSNormRewriter(PyExprMutator):  # pylint: disable=abstract-method
         x1 = y.args[0]
         x2 = y.args[1]
         # Extra check
-        n, _, h = x1.struct_info.shape
+        n, s, h = x1.struct_info.shape
         h = int(h)
         if h % self.TX != 0:
             return call
 
-        is_prefill = n == 1
+        def _is_one(dim) -> bool:
+            return isinstance(dim, tvm.tirx.IntImm) and int(dim) == 1
+
+        # This pass only has two specialized kernels:
+        # - prefill: [1, seq, hidden]
+        # - decode:  [batch, 1, hidden]
+        #
+        # Decoder-only embedding prefill runs on [batch, seq, hidden] with both
+        # batch and seq potentially dynamic. Routing that shape into the decode
+        # kernel would bake an incorrect middle dimension of 1 and fail at
+        # runtime shape checks. When neither axis is statically 1, skip fusion
+        # and keep the original add + rms_norm.
+        if _is_one(n):
+            is_prefill = True
+        elif _is_one(s):
+            is_prefill = False
+        else:
+            return call
+
         func_gv = self.prefill_norm_gv if is_prefill else self.decode_norm_gv
         if func_gv is None:
             if is_prefill:

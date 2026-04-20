@@ -202,6 +202,44 @@ def encoder_attention(
     Uses the tiled sequence prefill kernel and applies per-batch valid lengths
     inside the kernel so encoder batches stay memory-efficient.
     """
+    return _masked_sequence_attention(q, k, v, valid_lens, mask_mode="padded")
+
+
+def decoder_embedding_attention(
+    q: nn.Tensor,
+    k: nn.Tensor,
+    v: nn.Tensor,
+    valid_lens: nn.Tensor,
+) -> nn.Tensor:
+    """Decoder-embedding self-attention with left-padding lengths and causal mask.
+
+    Counterpart of :func:`encoder_attention` for decoder-only embedding models
+    (e.g. Qwen3-Embedding). Real tokens occupy ``[seq_len - valid_lens[b], seq_len)``
+    and the causal mask additionally keeps ``col <= row`` within the valid range,
+    so the last real token always sits at buffer position ``seq_len - 1`` and
+    last-token pooling is a cheap stride slice.
+
+    Rotary embeddings, if required by the model, must be applied to ``q``/``k``
+    by the caller before invoking this op; the masked prefill kernel treats its
+    inputs as raw Q/K/V.
+    """
+    return _masked_sequence_attention(q, k, v, valid_lens, mask_mode="causal_padded_left")
+
+
+def _masked_sequence_attention(
+    q: nn.Tensor,
+    k: nn.Tensor,
+    v: nn.Tensor,
+    valid_lens: nn.Tensor,
+    *,
+    mask_mode: str,
+) -> nn.Tensor:
+    """Shared backend for right-pad and left-pad-causal masked prefill.
+
+    Both encoder and decoder-embedding lanes lower to the same tiled kernel in
+    TVM (``_attention_sequence_prefill_with_mask``), selecting the padding /
+    causality regime through ``mask_mode``.
+    """
     b, s, h, d = q.shape
     t, h_kv, _ = k.shape[-3:]
 
@@ -211,15 +249,19 @@ def encoder_attention(
 
     if valid_lens.ndim != 1:
         raise ValueError(
-            f"encoder_attention expects a 1D valid_lens tensor, but got ndim={valid_lens.ndim}"
+            f"masked sequence attention expects a 1D valid_lens tensor, "
+            f"but got ndim={valid_lens.ndim}"
         )
     if k.ndim == 3:
         k = op.reshape(k, [b, t, h_kv, d])
     if v.ndim == 3:
         v = op.reshape(v, [b, t, h_kv, d])
-    if h_kv != h:
-        k = k.repeat(h // h_kv, axis=2)
-        v = v.repeat(h // h_kv, axis=2)
+
+    # NOTE: the masked prefill TIR kernel is GQA-native (takes h_q and h_kv
+    # separately and handles group_size internally), so K/V must keep their
+    # native ``h_kv`` count here. Do NOT pre-repeat K/V to ``h_q`` — that
+    # caused a shape mismatch vs the TIR signature for Qwen3-Embedding
+    # (h_q=16, h_kv=8).
 
     target = _get_attention_target()
     attn_output, _ = op.tensor_ir_op(
@@ -230,6 +272,7 @@ def encoder_attention(
             dtype=q.dtype,
             target=target,
             sm_scale=1.0 / (d**0.5),
+            mask_mode=mask_mode,
         ),
         "sequence_prefill_masked",
         [q, k, v, valid_lens],

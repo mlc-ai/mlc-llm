@@ -24,7 +24,7 @@ from mlc_llm.tokenizers import Tokenizer
 logger = logging.getLogger(__name__)
 
 # ====================================================================
-# Shared encoder canonicalization helpers
+# Shared canonicalization helpers (encoder + decoder lanes)
 # ====================================================================
 
 
@@ -113,6 +113,101 @@ def _canonicalize_encoder_inputs(
             tokens = tokens[:prefill_chunk_size]
             if sep_token_id is not None:
                 tokens[-1] = sep_token_id
+        result.append(tokens)
+    return result
+
+
+def _get_decoder_special_tokens(
+    tokenizer: Tokenizer, model_path: str
+) -> Tuple[bool, Optional[int]]:
+    """Read decoder-embedding EOS handling for a Qwen3-Embedding-style model.
+
+    Mirrors the Phase 2 TVMNativeEmbeddingRuntime._init_decoder logic exactly.
+    Extracted so both the legacy TVM-native runtime and the Phase-4 threaded
+    runtime agree on when to append EOS during canonicalization.
+
+    Returns
+    -------
+    tokenizer_appends_eos : bool
+        ``True`` when the HF ``tokenizer.json`` already appends a special token
+        (e.g. via ``TemplateProcessing`` with ``$A <|endoftext|>``). If true, the
+        caller must NOT append EOS manually.
+    eos_token_id : Optional[int]
+        Model's EOS token id read from ``mlc-chat-config.json``'s
+        ``eos_token_id`` field. ``None`` if absent; caller should skip manual
+        EOS append in that case.
+    """
+    tokenizer_appends_eos = False
+    tokenizer_json_path = os.path.join(model_path, "tokenizer.json")
+    if os.path.exists(tokenizer_json_path):
+        with open(tokenizer_json_path, encoding="utf-8") as f:
+            tokenizer_json = json.load(f)
+        post_proc = tokenizer_json.get("post_processor")
+        if post_proc is not None:
+            test_tokens = list(tokenizer.encode("test"))
+            if len(test_tokens) > 0:
+                vocab = tokenizer_json.get("added_tokens", [])
+                special_ids = {t["id"] for t in vocab if t.get("special", False)}
+                if test_tokens[-1] in special_ids:
+                    tokenizer_appends_eos = True
+
+    eos_token_id: Optional[int] = None
+    config_path = os.path.join(model_path, "mlc-chat-config.json")
+    if os.path.exists(config_path):
+        with open(config_path, encoding="utf-8") as f:
+            chat_config = json.load(f)
+        eos = chat_config.get("eos_token_id")
+        if isinstance(eos, list):
+            eos_token_id = eos[0]
+        elif isinstance(eos, int):
+            eos_token_id = eos
+
+    return tokenizer_appends_eos, eos_token_id
+
+
+def _canonicalize_decoder_inputs(
+    inputs: List[str],
+    tokenizer: Tokenizer,
+    tokenizer_appends_eos: bool,
+    eos_token_id: Optional[int],
+    max_seq_len: int,
+) -> List[List[int]]:
+    """Canonicalize decoder-embedding inputs: tokenize, conditionally append EOS, truncate.
+
+    Shared source of truth for decoder preprocessing between
+    :class:`TVMNativeEmbeddingRuntime._embed_decoder` and the Phase-4 threaded
+    runtime decoder lane.
+
+    Parameters
+    ----------
+    inputs : List[str]
+        Raw text inputs.
+    tokenizer : Tokenizer
+        The tokenizer instance.
+    tokenizer_appends_eos : bool
+        If ``True``, the tokenizer already appends EOS via its post-processor,
+        so this helper skips manual append.
+    eos_token_id : Optional[int]
+        EOS token id. ``None`` disables manual append.
+    max_seq_len : int
+        Maximum sequence length; inputs are truncated to this length.
+
+    Returns
+    -------
+    List[List[int]]
+        Canonicalized token ID sequences (one per input).
+    """
+    result: List[List[int]] = []
+    for text in inputs:
+        tokens = list(tokenizer.encode(text))
+        if (
+            not tokenizer_appends_eos
+            and eos_token_id is not None
+            and (len(tokens) == 0 or tokens[-1] != eos_token_id)
+        ):
+            tokens.append(eos_token_id)
+        if len(tokens) > max_seq_len:
+            tokens = tokens[:max_seq_len]
         result.append(tokens)
     return result
 
@@ -573,7 +668,7 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
 
 
 # ====================================================================
-# ThreadEncoderRuntime — C++ threaded encoder backend
+# ThreadedEmbeddingRuntime — C++ threaded embedding backend (encoder + decoder)
 # ====================================================================
 
 # Pooling strategy name -> C++ int mapping
@@ -581,14 +676,18 @@ _POOLING_STRATEGY_MAP = {"cls": 0, "mean": 1, "last": 2}
 _THREAD_WAIT_POLL_SEC = 0.1
 
 
-class ThreadEncoderRuntime(EmbeddingRuntime):
-    """C++ threaded encoder embedding runtime using the Phase 3a embedding lane.
+class ThreadedEmbeddingRuntime(EmbeddingRuntime):
+    """C++ threaded embedding runtime using the first-class embedding lane.
 
-    This runtime delegates encoder embedding to the C++ threaded engine,
-    following the same two-thread pattern as AsyncMLCEngine for chat.
-    Phase 4 will add ThreadDecoderRuntime for decoder-only embedding models.
+    Covers both encoder models (Phase 3, right-pad bidirectional) and
+    decoder-only models (Phase 4, left-pad causal). Lane selection is driven
+    by ``embedding_metadata.model_type`` in ``mlc-chat-config.json``; the C++
+    engine's ``InitEmbeddingLane`` picks the matching
+    ``BatchEmbeddingPrefillAction`` / ``BatchDecoderEmbeddingPrefillAction``.
 
-    Only supports model_type == "encoder".
+    The threaded runtime itself uses the same two-thread pattern as
+    ``AsyncMLCEngine`` for chat. Only the token canonicalization step differs
+    per model_type (CLS/SEP append for encoder, EOS append for decoder).
     """
 
     def __init__(
@@ -623,10 +722,10 @@ class ThreadEncoderRuntime(EmbeddingRuntime):
             raise ValueError("Model does not have embedding_metadata in mlc-chat-config.json")
 
         self._model_type = self._embedding_metadata["model_type"]
-        if self._model_type != "encoder":
+        if self._model_type not in ("encoder", "decoder"):
             raise ValueError(
-                f"ThreadEncoderRuntime only supports encoder models, "
-                f"got model_type={self._model_type!r}"
+                f"ThreadedEmbeddingRuntime supports model_type in "
+                f"{{'encoder', 'decoder'}}; got {self._model_type!r}"
             )
 
         self._pooling_strategy = self._embedding_metadata["pooling_strategy"]
@@ -634,12 +733,34 @@ class ThreadEncoderRuntime(EmbeddingRuntime):
         if pooling_strategy:
             self._pooling_strategy = pooling_strategy
 
+        # Lane-specific canonicalization state.
+        # Encoder lane: CLS/SEP pre/post append, truncate to prefill_chunk_size.
+        # Decoder lane: conditional EOS append, truncate to max_seq_len.
+        self._cls_token_id: Optional[int] = None
+        self._sep_token_id: Optional[int] = None
+        self._decoder_tokenizer_appends_eos: bool = False
+        self._decoder_eos_token_id: Optional[int] = None
         self._prefill_chunk_size = self._raw_metadata.get("prefill_chunk_size", 512)
+        self._max_seq_len = 0  # Decoder only; see below.
 
-        # Encoder special tokens (shared helper)
-        self._cls_token_id, self._sep_token_id = _get_encoder_special_token_ids(
-            self._tokenizer, model
-        )
+        if self._model_type == "encoder":
+            self._cls_token_id, self._sep_token_id = _get_encoder_special_token_ids(
+                self._tokenizer, model
+            )
+        else:
+            self._decoder_tokenizer_appends_eos, self._decoder_eos_token_id = (
+                _get_decoder_special_tokens(self._tokenizer, model)
+            )
+            # Decoder lane truncates to the model's context window rather than the
+            # compiled prefill chunk (the C++ action re-checks batch*seq vs chunk).
+            self._max_seq_len = self._raw_metadata.get("context_window_size", 32768)
+            if self._max_seq_len == -1:
+                self._max_seq_len = self._raw_metadata.get("sliding_window_size", -1)
+            if self._max_seq_len <= 0:
+                raise ValueError(
+                    f"Decoder embedding model must have a positive context/sliding window; "
+                    f"got max_seq_len={self._max_seq_len}"
+                )
 
         # FFI functions
         self._f_embedding_request = tvm.get_global_func("mlc.serve.EmbeddingRequest")
@@ -796,11 +917,8 @@ class ThreadEncoderRuntime(EmbeddingRuntime):
 
         request_id = str(uuid.uuid4())
 
-        # Canonicalize inputs
-        token_lists = _canonicalize_encoder_inputs(
-            inputs, self._tokenizer, self._cls_token_id, self._sep_token_id,
-            self._prefill_chunk_size,
-        )
+        # Canonicalize inputs per lane.
+        token_lists = self._canonicalize_inputs(inputs)
 
         # Create pending entry with sync event
         entry = _PendingEntry()
@@ -840,11 +958,8 @@ class ThreadEncoderRuntime(EmbeddingRuntime):
 
         request_id = str(uuid.uuid4())
 
-        # Canonicalize inputs
-        token_lists = _canonicalize_encoder_inputs(
-            inputs, self._tokenizer, self._cls_token_id, self._sep_token_id,
-            self._prefill_chunk_size,
-        )
+        # Canonicalize inputs per lane.
+        token_lists = self._canonicalize_inputs(inputs)
 
         # Create pending entry with async future
         loop = asyncio.get_running_loop()
@@ -878,6 +993,28 @@ class ThreadEncoderRuntime(EmbeddingRuntime):
                 raise RuntimeError(failure_message)
 
     # ---- Internal helpers ----
+
+    def _canonicalize_inputs(self, inputs: List[str]) -> List[List[int]]:
+        """Dispatch canonicalization to the right lane helper.
+
+        Encoder: CLS/SEP pre/post append + truncate to ``prefill_chunk_size``.
+        Decoder: conditional EOS append + truncate to model context window.
+        """
+        if self._model_type == "encoder":
+            return _canonicalize_encoder_inputs(
+                inputs,
+                self._tokenizer,
+                self._cls_token_id,
+                self._sep_token_id,
+                self._prefill_chunk_size,
+            )
+        return _canonicalize_decoder_inputs(
+            inputs,
+            self._tokenizer,
+            self._decoder_tokenizer_appends_eos,
+            self._decoder_eos_token_id,
+            self._max_seq_len,
+        )
 
     def _submit_embedding_request(
         self, request_id: str, token_lists: List[List[int]]
@@ -974,13 +1111,12 @@ class AsyncMLCEmbeddingEngine:
     and exposes sync/async embed methods.
 
     Backend selection (via env var MLC_SERVE_EMBEDDING_BACKEND):
-    - "auto" (default): encoder models try ThreadEncoderRuntime first,
-      fallback to TVMNativeEmbeddingRuntime.
-    - "cpp": force ThreadEncoderRuntime; fail if not available.
+    - "auto" (default): both encoder and decoder models try
+      ThreadedEmbeddingRuntime first, fall back to TVMNativeEmbeddingRuntime
+      if threaded init fails (e.g. missing prefill function in the compiled
+      lib).
+    - "cpp": force ThreadedEmbeddingRuntime; fail if not available.
     - "tvm_native": force TVMNativeEmbeddingRuntime.
-
-    Decoder models always use TVMNativeEmbeddingRuntime regardless of
-    backend setting. Phase 4 will add ThreadDecoderRuntime.
 
     Parameters
     ----------
@@ -1052,7 +1188,7 @@ class AsyncMLCEmbeddingEngine:
             if emb_meta:
                 model_type = emb_meta.get("model_type")
 
-        is_encoder = model_type == "encoder"
+        supports_threaded = model_type in ("encoder", "decoder")
 
         if backend == "tvm_native":
             logger.info("Embedding backend: tvm_native (forced)")
@@ -1061,28 +1197,34 @@ class AsyncMLCEmbeddingEngine:
             )
 
         if backend == "cpp":
-            if not is_encoder:
+            if not supports_threaded:
                 raise ValueError(
-                    f"ThreadEncoderRuntime requires encoder model, "
-                    f"got model_type={model_type!r}. "
-                    f"Set {_EMBEDDING_BACKEND_ENV}=tvm_native for decoder models."
+                    f"ThreadedEmbeddingRuntime requires model_type in "
+                    f"{{'encoder', 'decoder'}}; got model_type={model_type!r}. "
+                    f"Set {_EMBEDDING_BACKEND_ENV}=tvm_native for unsupported model types."
                 )
-            logger.info("Embedding backend: ThreadEncoderRuntime (forced)")
-            return ThreadEncoderRuntime(
+            logger.info(
+                "Embedding backend: ThreadedEmbeddingRuntime (forced, model_type=%s)",
+                model_type,
+            )
+            return ThreadedEmbeddingRuntime(
                 model, model_lib, device, pooling_strategy=pooling_strategy
             )
 
         # backend == "auto"
-        if is_encoder:
+        if supports_threaded:
             try:
-                runtime = ThreadEncoderRuntime(
+                runtime = ThreadedEmbeddingRuntime(
                     model, model_lib, device, pooling_strategy=pooling_strategy
                 )
-                logger.info("Embedding backend: ThreadEncoderRuntime (auto, encoder model)")
+                logger.info(
+                    "Embedding backend: ThreadedEmbeddingRuntime (auto, model_type=%s)",
+                    model_type,
+                )
                 return runtime
             except Exception as e:  # pylint: disable=broad-except
                 logger.warning(
-                    "ThreadEncoderRuntime failed to initialize, "
+                    "ThreadedEmbeddingRuntime failed to initialize, "
                     "falling back to TVMNativeEmbeddingRuntime. Error: %s",
                     e,
                 )
@@ -1130,5 +1272,8 @@ class AsyncMLCEmbeddingEngine:
         self.terminate()
 
 
-# Backward-compat alias for code that still imports the old name.
+# Backward-compat aliases for code that still imports the old names.
 AsyncEmbeddingEngine = AsyncMLCEmbeddingEngine
+# Phase 3 name kept for downstream tests / notebooks. ThreadedEmbeddingRuntime
+# handles both encoder and decoder lanes now.
+ThreadEncoderRuntime = ThreadedEmbeddingRuntime

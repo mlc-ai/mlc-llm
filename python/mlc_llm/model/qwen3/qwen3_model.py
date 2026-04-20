@@ -6,9 +6,10 @@ import dataclasses
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
-from tvm import tirx
+from tvm import te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm.relax.frontend.nn.llm import position_embedding
 
 from mlc_llm import op as op_ext
 from mlc_llm.model.model_utils import index_last_token
@@ -150,6 +151,77 @@ class Qwen3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
         attn_output = self.o_proj(output)
         return attn_output
 
+    def forward_embedding(self, hidden_states: Tensor, valid_lens: Tensor):
+        """Embedding-mode attention: no KV cache, left-pad + causal mask.
+
+        Parallel to :meth:`forward` but drops :class:`PagedKVCache` and applies
+        RoPE via :func:`position_embedding.llama_rope_with_position_map` before
+        invoking :func:`op_ext.decoder_embedding_attention`. All weights
+        (``c_attn``, ``q_norm``, ``k_norm``, ``o_proj``) are shared with the
+        chat forward path, so switching lanes requires no separate params.
+        """
+        d, h_q, h_kv = self.head_dim, self.num_attention_heads, self.num_key_value_heads
+        b, s, _ = hidden_states.shape
+
+        qkv = self.c_attn(hidden_states)
+        qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
+        q, k, v = op.split(qkv, [h_q, h_q + h_kv], axis=2)
+        q = self.q_norm(q)
+        k = self.k_norm(k)
+        qkv = op.concat([q, k, v], dim=2)
+
+        # llama_rope_with_position_map takes fused QKV in shape (seq_len, fused_heads, head_dim),
+        # with a per-element int32 position_map of length seq_len. Flatten batch*seq so a single
+        # RoPE call covers the whole batch; positions wrap as [0..s-1] per sample (batch-flat
+        # index mod s), which keeps Q/K relative-position differences identical to the chat
+        # path — the only thing attention / RoPE actually depend on.
+        fused_heads = h_q + 2 * h_kv
+        qkv_flat = op.reshape(qkv, (b * s, fused_heads, d))
+
+        def _position_map(_seq: te.Tensor):
+            bs = _seq.shape[0]
+            s_dim = _seq.shape[1]
+            return te.compute(
+                (bs * s_dim,),
+                lambda i: (i % s_dim).astype("int32"),
+                name="embedding_position_map",
+            )
+
+        position_map = op.tensor_expr_op(
+            _position_map,
+            name_hint="embedding_position_map",
+            args=[hidden_states],
+        )
+
+        apply_rope_flag = tirx.IntImm("int32", 1)
+        rotary_emb = position_embedding.llama_rope_with_position_map(
+            theta=self.rope_theta,
+            scale=1.0,
+            head_dim=d,
+            num_q_heads=h_q,
+            num_kv_heads=h_kv,
+            dtype=qkv.dtype,
+            rope_scaling={},
+        )
+
+        q_rot, k_rot, v_out = op.tensor_ir_op(
+            rotary_emb,
+            "llama_rope_with_position_map",
+            args=[qkv_flat, position_map, apply_rope_flag],
+            out=(
+                Tensor.placeholder((b * s, h_q, d), qkv.dtype),
+                Tensor.placeholder((b * s, h_kv, d), qkv.dtype),
+                Tensor.placeholder((b * s, h_kv, d), qkv.dtype),
+            ),
+        )
+
+        q_rot = op.reshape(q_rot, (b, s, h_q, d))
+        k_rot = op.reshape(k_rot, (b, s, h_kv, d))
+        v_out = op.reshape(v_out, (b, s, h_kv, d))
+
+        attn_output = op_ext.decoder_embedding_attention(q_rot, k_rot, v_out, valid_lens)
+        return self.o_proj(attn_output)
+
 
 ACT2FN = {
     "gelu": partial(nn.gelu, approximate=False),
@@ -237,6 +309,17 @@ class Qwen3DecoderLayer(nn.Module):
         hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
 
+    def forward_embedding(self, hidden_states: Tensor, valid_lens: Tensor):
+        """Embedding-mode decoder layer: parallels :meth:`forward` but routes
+        attention through :meth:`Qwen3Attention.forward_embedding` (no KV cache)."""
+        out = self.input_layernorm(hidden_states)
+        out = self.self_attn.forward_embedding(out, valid_lens)
+        hidden_states = self._apply_residual(out, residual=hidden_states)
+        out = self.post_attention_layernorm(hidden_states)
+        out = self.mlp(out)
+        hidden_states = self._apply_residual(out, residual=hidden_states)
+        return hidden_states
+
     def _apply_residual(self, out, residual):
         if self.tensor_parallel_shards > 1:
             return op.ccl_allreduce(out, "sum") + residual
@@ -255,6 +338,16 @@ class Qwen3Model(nn.Module):
         hidden_states = inputs
         for layer_id, layer in enumerate(self.layers):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
+        hidden_states = self.norm(hidden_states)
+        return hidden_states
+
+    def forward_embedding(self, inputs: Tensor, valid_lens: Tensor):
+        """Embedding-mode model forward: skips :class:`PagedKVCache` entirely
+        and forwards through :meth:`Qwen3DecoderLayer.forward_embedding` at
+        each layer. Returns last hidden states (no lm_head / logits)."""
+        hidden_states = inputs
+        for layer in self.layers:
+            hidden_states = layer.forward_embedding(hidden_states, valid_lens)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
@@ -475,10 +568,52 @@ class Qwen3EmbeddingModel(Qwen3LMHeadModel):
         hidden_states = self.model(input_embeds, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
+    def prefill_embedding(self, input_ids: Tensor, attention_mask: Tensor):
+        """First-class decoder embedding prefill.
+
+        Takes left-padded ``input_ids`` / ``attention_mask`` (real tokens at
+        ``[seq - valid_len, seq)``, padding on the left) and returns last-layer
+        hidden states ``[batch, seq, hidden]``. The chat-lane autoregressive
+        ``prefill`` function (logits + PagedKVCache) is intentionally not used
+        here; the whole forward runs without any KV cache so the embedding lane
+        does not contend for chat's KV budget.
+        """
+        op_ext.configure()
+
+        # Embed tokens: [batch, seq] int32 -> [batch, seq, hidden]
+        hidden_states = self.model.embed_tokens(input_ids)
+
+        # Derive per-sample valid_lens from the attention mask. Shared with the
+        # encoder lane (BertModel.prefill) — any 0/1 mask sums to the real length.
+        def _valid_lens(mask: te.Tensor):
+            batch_size, seq_len = mask.shape
+            k = te.reduce_axis((0, seq_len), name="k")
+            return te.compute(
+                (batch_size,),
+                lambda b: te.sum(mask[b, k].astype("int32"), axis=k),
+                name="valid_lens",
+            )
+
+        valid_lens = op.tensor_expr_op(
+            _valid_lens,
+            name_hint="valid_lens",
+            args=[attention_mask],
+        )
+
+        return self.model.forward_embedding(hidden_states, valid_lens)
+
     def get_default_spec(self):
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "prefill_embedding": {
+                "input_ids": nn.spec.Tensor(["batch_size", "seq_len"], "int32"),
+                "attention_mask": nn.spec.Tensor(["batch_size", "seq_len"], "int32"),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",

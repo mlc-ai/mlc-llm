@@ -298,6 +298,14 @@ void FunctionTable::_InitFunctions() {
   // For encoder models (BERT), "prefill" takes (input_ids, attention_mask, params).
   // We store it separately from the chat prefill functions.
   this->encoder_prefill_func_ = mod_get_func("prefill");
+
+  // Decoder-only embedding support: try to load "prefill_embedding" as the
+  // left-pad / causal-mask prefill function for decoder embedding models
+  // (e.g. Qwen3-Embedding). It takes (input_ids, attention_mask, params) and
+  // returns last-layer hidden states [batch, seq, hidden]. The name is kept
+  // distinct from the encoder-lane "prefill" so embedding libs can declare
+  // either (or neither) without collision with chat "prefill".
+  this->decoder_embedding_prefill_func_ = mod_get_func("prefill_embedding");
 }
 
 ObjectRef FunctionTable::Empty(Shape shape, DataType dtype, Device device,

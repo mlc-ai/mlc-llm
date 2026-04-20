@@ -262,6 +262,17 @@ class EngineAction : public ObjectRef {
    */
   static EngineAction BatchEmbeddingPrefill(Model model, EngineConfig engine_config);
 
+  /*!
+   * \brief Create the action that runs decoder-only embedding prefill for
+   * requests in the embedding waiting queue. Input batches are left-padded;
+   * the kernel applies causal + padding mask internally. No KV cache, no
+   * speculative decoding, no grammar.
+   * \param model The decoder-only embedding model.
+   * \param engine_config The engine config for batching constraints.
+   * \return The created action object.
+   */
+  static EngineAction BatchDecoderEmbeddingPrefill(Model model, EngineConfig engine_config);
+
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(EngineAction, ObjectRef, EngineActionObj);
 };
 

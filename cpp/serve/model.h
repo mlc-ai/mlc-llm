@@ -364,7 +364,7 @@ class ModelObj : public Object {
   virtual void ScatterDraftProbs(const Tensor& input, const std::vector<int>& indices,
                                  Tensor* dst) = 0;
 
-  /*********************** Encoder Embedding Support ***********************/
+  /*********************** Embedding Support ***********************/
 
   /*!
    * \brief Check if the model is an encoder embedding model.
@@ -372,6 +372,13 @@ class ModelObj : public Object {
    * AND the encoder prefill function is available.
    */
   virtual bool HasEncoderPrefill() const = 0;
+
+  /*!
+   * \brief Check if the model is a decoder-only embedding model.
+   * Returns true only when model_task=="embedding" AND embedding_model_type=="decoder"
+   * AND the decoder embedding prefill function is available.
+   */
+  virtual bool HasDecoderEmbeddingPrefill() const = 0;
 
   /*!
    * \brief Get the hidden size of the model. Available after model init.
@@ -392,20 +399,40 @@ class ModelObj : public Object {
                                    int batch_size, int max_len) = 0;
 
   /*!
-   * \brief Pool the encoder hidden states and return a CPU float32 tensor.
+   * \brief Run decoder-only embedding prefill for a batch of left-padded sequences.
+   * Calls the model's prefill_embedding(input_ids, attention_mask, params). Real
+   * tokens occupy positions ``[max_len - valid_len, max_len)``; padding sits on
+   * the left. The kernel applies causal-with-left-padding masking internally, so
+   * no explicit KV cache is allocated for this path.
+   * \param input_ids_nd CPU tensor of shape [batch_size, max_len], int32.
+   * \param attention_mask_nd CPU tensor of shape [batch_size, max_len], int32.
+   * \param batch_size Number of sequences in the batch.
+   * \param max_len Maximum sequence length (with padding).
+   * \return The full hidden states tensor on device, shape [batch_size, max_len, hidden].
+   */
+  virtual ObjectRef DecoderEmbeddingPrefill(const Tensor& input_ids_nd,
+                                            const Tensor& attention_mask_nd, int batch_size,
+                                            int max_len) = 0;
+
+  /*!
+   * \brief Pool a batch of embedding hidden states and return a CPU float32 tensor.
    * Supports CLS (first token), Mean (masked average), and Last (last real token).
+   * Shared by both the encoder lane (right-padded) and the decoder-embedding lane
+   * (left-padded, last-token pool): for the left-padded case the caller passes
+   * ``lengths[i] = max_len`` so ``kLast`` lands on the final buffer row, which is
+   * the actual last real token.
    * Hidden states are gathered from device (and from worker 0 under Disco) and
    * pooled directly on CPU, so the caller never needs to round-trip through device.
-   * \param hidden_states The full hidden states from encoder (device or DRef).
-   * \param lengths The real (unpadded) length of each sequence.
+   * \param hidden_states The full hidden states from prefill (device or DRef).
+   * \param lengths Per-sequence index of the last row to include (1-based).
    * \param batch_size Number of sequences.
    * \param max_len The padded sequence length.
    * \param strategy The pooling strategy (0=CLS, 1=Mean, 2=Last).
    * \return Pooled embeddings on CPU, float32, shape [batch, hidden].
    */
-  virtual Tensor PoolEncoderHiddenStates(const ObjectRef& hidden_states,
-                                         const std::vector<int>& lengths, int batch_size,
-                                         int max_len, int strategy) = 0;
+  virtual Tensor PoolEmbeddingHiddenStates(const ObjectRef& hidden_states,
+                                           const std::vector<int>& lengths, int batch_size,
+                                           int max_len, int strategy) = 0;
 
   /************** Debug/Profile **************/
 

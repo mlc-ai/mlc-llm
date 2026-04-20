@@ -1,14 +1,24 @@
 /*!
  *  Copyright (c) 2023-2025 by Contributors
- * \file serve/engine_actions/batch_embedding_prefill.cc
- * \brief The batch embedding prefill action for encoder models.
+ * \file serve/engine_actions/batch_decoder_embedding_prefill.cc
+ * \brief The batch embedding prefill action for decoder-only models.
  *
- * This action implements the encoder embedding lane:
- * - FIFO scan of the embedding waiting queue (not unordered_map)
- * - Batch-local dynamic padding
- * - Encoder prefill (no KV cache, no TokenEmbed)
- * - Device-side pooling (CLS / Mean / Last)
+ * This action implements the decoder embedding lane:
+ * - FIFO scan of the embedding waiting queue
+ * - Batch-local dynamic left-padding
+ * - Decoder embedding prefill (no KV cache, no TokenEmbed)
+ * - Device-side last-token pool at buffer row [max_len - 1]
  * - Request-level aggregation and callback
+ *
+ * Structurally parallel to BatchEmbeddingPrefillAction (encoder lane). The
+ * only semantic differences are:
+ *  - Inputs are left-padded rather than right-padded. Real tokens occupy
+ *    ``[max_len - seq_len, max_len)``; padding sits on the left.
+ *  - Pooling is always kLast. Under left padding the last real token sits
+ *    at buffer row ``max_len - 1`` for every item in the batch, so we pass
+ *    ``lengths[i] == max_len`` to PoolEmbeddingHiddenStates and let it pick
+ *    that final row uniformly.
+ *  - Calls Model::DecoderEmbeddingPrefill instead of Model::EncoderPrefill.
  */
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
@@ -32,21 +42,24 @@ namespace serve {
 using namespace tvm::runtime;
 
 /*!
- * \brief The action that processes embedding requests from the embedding waiting queue.
+ * \brief The action that processes embedding requests from the embedding waiting queue
+ * for decoder-only embedding models (e.g. Qwen3-Embedding).
  *
  * Design:
- * - Scheduling granularity is per-item (not per-request).
- * - Batching: FIFO scan of embedding_waiting_queue (the source of truth for order).
- * - Admit condition: batch_size <= max_num_sequence AND batch_size * max_len <= prefill_chunk_size.
- * - Encoder execution: directly calls prefill(input_ids, attention_mask, params).
- *   input_ids: [batch, max_len], attention_mask: [batch, max_len] — both int32, 2D.
- * - No KV cache, no TokenEmbed, no speculative/prefix-cache/grammar/disagg.
- * - Pooling on device, only pooled [batch, hidden] copied to host as float32.
- * - Callback sends request-level aggregated EmbeddingResult.
+ *  - Scheduling granularity is per-item, matching the encoder lane.
+ *  - Batching: FIFO scan of embedding_waiting_queue (the source of truth for order).
+ *  - Admit condition: batch_size <= max_num_sequence AND
+ *                     batch_size * max_len <= prefill_chunk_size.
+ *  - Decoder execution: calls Model::DecoderEmbeddingPrefill, which wraps the compiled
+ *    ``prefill_embedding(input_ids, attention_mask, params)`` function. No KV cache,
+ *    no TokenEmbed, no speculative / prefix-cache / grammar / disagg.
+ *  - Pooling runs inside Model::PoolEmbeddingHiddenStates (kLast strategy); only the
+ *    pooled ``[batch, hidden]`` buffer is materialized on host as float32.
+ *  - Callback sends request-level aggregated EmbeddingResult, identical to encoder.
  */
-class BatchEmbeddingPrefillActionObj : public EngineActionObj {
+class BatchDecoderEmbeddingPrefillActionObj : public EngineActionObj {
  public:
-  explicit BatchEmbeddingPrefillActionObj(Model model, EngineConfig engine_config)
+  explicit BatchDecoderEmbeddingPrefillActionObj(Model model, EngineConfig engine_config)
       : model_(std::move(model)), engine_config_(std::move(engine_config)) {}
 
   Array<Request> Step(EngineState estate) final {
@@ -58,7 +71,7 @@ class BatchEmbeddingPrefillActionObj : public EngineActionObj {
       return {};
     }
 
-    NVTXScopedRange nvtx_scope("BatchEmbeddingPrefill");
+    NVTXScopedRange nvtx_scope("BatchDecoderEmbeddingPrefill");
 
     int max_batch = engine_config_->max_num_sequence;
     int64_t max_total_tokens = engine_config_->prefill_chunk_size;
@@ -111,8 +124,17 @@ class BatchEmbeddingPrefillActionObj : public EngineActionObj {
     int batch_size = static_cast<int>(batch_items.size());
     int max_len = candidate_max_len;
 
-    // Build padded input_ids and attention_mask on host.
-    // BERT contract: input_ids [batch_size, max_len] int32, attention_mask [batch_size, max_len] int32.
+    // Decoder-embedding lane is kLast-only by design: left-padding makes the
+    // last real token land at buffer row max_len - 1 for every item, so no
+    // per-sample gather is needed. Any other strategy would have to resolve
+    // to a per-item index and defeats the purpose of left-padding here.
+    PoolingStrategy head_strategy = batch_items[0].state->request->pooling_strategy;
+    TVM_FFI_ICHECK_EQ(static_cast<int>(head_strategy), static_cast<int>(PoolingStrategy::kLast))
+        << "Decoder embedding lane requires pooling_strategy=last; got "
+        << static_cast<int>(head_strategy);
+
+    // Build LEFT-padded input_ids and attention_mask on host.
+    // Real tokens occupy [max_len - seq_len, max_len); padding sits on the left.
     Tensor input_ids_host =
         Tensor::Empty({batch_size, max_len}, DataType::Int(32), Device{DLDeviceType::kDLCPU, 0});
     Tensor attention_mask_host =
@@ -127,30 +149,29 @@ class BatchEmbeddingPrefillActionObj : public EngineActionObj {
       const auto& item = batch_items[b].state->request->items[batch_items[b].item_idx];
       int seq_len = static_cast<int>(item.token_ids.size());
       real_lengths[b] = seq_len;
+      int pad = max_len - seq_len;
 
-      // Fill token IDs (right-padded with 0).
-      for (int s = 0; s < seq_len; ++s) {
-        ids_ptr[b * max_len + s] = item.token_ids[s];
-      }
-      for (int s = seq_len; s < max_len; ++s) {
+      // Left-pad: zeros for [0, pad), tokens for [pad, max_len).
+      for (int s = 0; s < pad; ++s) {
         ids_ptr[b * max_len + s] = 0;
-      }
-
-      // Fill attention mask (1 for real tokens, 0 for padding).
-      for (int s = 0; s < seq_len; ++s) {
-        mask_ptr[b * max_len + s] = 1;
-      }
-      for (int s = seq_len; s < max_len; ++s) {
         mask_ptr[b * max_len + s] = 0;
+      }
+      for (int s = 0; s < seq_len; ++s) {
+        ids_ptr[b * max_len + pad + s] = item.token_ids[s];
+        mask_ptr[b * max_len + pad + s] = 1;
       }
     }
 
-    // Run encoder prefill, then pool directly into a CPU float32 buffer.
-    int pooling_strategy = static_cast<int>(batch_items[0].state->request->pooling_strategy);
+    // Run decoder embedding prefill, then pool directly into a CPU float32 buffer.
+    // Under left padding the last real token is at buffer row max_len - 1 for
+    // every item, so we pass lengths=[max_len]*batch and let kLast pick that
+    // final row uniformly — no per-sample gather needed.
     ObjectRef hidden_states =
-        model_->EncoderPrefill(input_ids_host, attention_mask_host, batch_size, max_len);
+        model_->DecoderEmbeddingPrefill(input_ids_host, attention_mask_host, batch_size, max_len);
+    std::vector<int> pool_lengths(batch_size, max_len);
     Tensor pooled_cpu = model_->PoolEmbeddingHiddenStates(
-        hidden_states, real_lengths, batch_size, max_len, pooling_strategy);
+        hidden_states, pool_lengths, batch_size, max_len,
+        static_cast<int>(PoolingStrategy::kLast));
     int hidden_dim = static_cast<int>(pooled_cpu->shape[1]);
 
     // L2 normalize on the CPU float32 buffer if requested.
@@ -225,28 +246,28 @@ class BatchEmbeddingPrefillActionObj : public EngineActionObj {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BatchEmbeddingPrefillActionObj>();
+    refl::ObjectDef<BatchDecoderEmbeddingPrefillActionObj>();
   }
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.BatchEmbeddingPrefillAction",
-                              BatchEmbeddingPrefillActionObj, EngineActionObj);
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.BatchDecoderEmbeddingPrefillAction",
+                              BatchDecoderEmbeddingPrefillActionObj, EngineActionObj);
 
  private:
-  /*! \brief The encoder model. */
+  /*! \brief The decoder-only embedding model. */
   Model model_;
   /*! \brief Engine config for batching constraints. */
   EngineConfig engine_config_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK() { BatchEmbeddingPrefillActionObj::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { BatchDecoderEmbeddingPrefillActionObj::RegisterReflection(); }
 
-EngineAction EngineAction::BatchEmbeddingPrefill(Model model, EngineConfig engine_config) {
+EngineAction EngineAction::BatchDecoderEmbeddingPrefill(Model model, EngineConfig engine_config) {
   return EngineAction(
-      tvm::ffi::make_object<BatchEmbeddingPrefillActionObj>(std::move(model),
-                                                            std::move(engine_config)));
+      tvm::ffi::make_object<BatchDecoderEmbeddingPrefillActionObj>(std::move(model),
+                                                                   std::move(engine_config)));
 }
 
 }  // namespace serve

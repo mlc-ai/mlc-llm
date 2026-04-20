@@ -1063,28 +1063,39 @@ class EngineImpl : public Engine {
   }
 
   /*!
-   * \brief Initialize the embedding lane: the BatchEmbeddingPrefill action
-   * and the result hidden dim. Called from Create() when task_mode_ is
-   * kEmbedding. Asserts that the primary model actually exposes encoder
-   * prefill — embedding_model_type == "decoder" is explicitly rejected
-   * here until decoder-embedding support lands. Reads engine_config_, which
-   * must already be set.
+   * \brief Initialize the embedding lane: the BatchEmbeddingPrefill /
+   * BatchDecoderEmbeddingPrefill action and the result hidden dim. Called
+   * from Create() when task_mode_ is kEmbedding. Dispatches on the primary
+   * model's ``embedding_model_type`` metadata: "encoder" models go through
+   * the right-padded bidirectional path, "decoder" models through the
+   * left-padded causal path. Reads engine_config_, which must already be
+   * set.
    */
   void InitEmbeddingLane() {
     const ModelMetadata& metadata = models_[0]->GetMetadata();
-    TVM_FFI_ICHECK_EQ(metadata.embedding_model_type, "encoder")
-        << "Engine embedding lane currently only supports "
-           "embedding_model_type=\"encoder\". Got: \""
-        << metadata.embedding_model_type << "\". decoder-embedding is not yet implemented.";
-    TVM_FFI_ICHECK(models_[0]->HasEncoderPrefill())
-        << "Model declares model_task=\"embedding\" with embedding_model_type=\"encoder\", "
-           "but the compiled model does not expose an encoder prefill function. "
-           "Check that the model was compiled with encoder prefill support enabled.";
+    const std::string& embedding_model_type = metadata.embedding_model_type;
+    if (embedding_model_type == "encoder") {
+      TVM_FFI_ICHECK(models_[0]->HasEncoderPrefill())
+          << "Model declares model_task=\"embedding\" with embedding_model_type=\"encoder\", "
+             "but the compiled model does not expose an encoder prefill function. "
+             "Check that the model was compiled with encoder prefill support enabled.";
+      embedding_lane_.action = EngineAction::BatchEmbeddingPrefill(models_[0], engine_config_);
+    } else if (embedding_model_type == "decoder") {
+      TVM_FFI_ICHECK(models_[0]->HasDecoderEmbeddingPrefill())
+          << "Model declares model_task=\"embedding\" with embedding_model_type=\"decoder\", "
+             "but the compiled model does not expose a decoder embedding prefill function. "
+             "Check that the model was compiled with decoder embedding prefill support enabled.";
+      embedding_lane_.action =
+          EngineAction::BatchDecoderEmbeddingPrefill(models_[0], engine_config_);
+    } else {
+      LOG(FATAL) << "Engine embedding lane supports embedding_model_type in "
+                    "{\"encoder\", \"decoder\"}. Got: \""
+                 << embedding_model_type << "\".";
+    }
 
-    embedding_lane_.action = EngineAction::BatchEmbeddingPrefill(models_[0], engine_config_);
     embedding_lane_.hidden_dim = models_[0]->GetHiddenSize();
     TVM_FFI_ICHECK_GT(embedding_lane_.hidden_dim, 0)
-        << "Encoder embedding model must have a known hidden_size after initialization.";
+        << "Embedding model must have a known hidden_size after initialization.";
   }
 
   /*! \brief Set the maximum threading backend concurrency. */

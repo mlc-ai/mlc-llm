@@ -145,6 +145,13 @@ struct FunctionTable {
   // Encoder embedding support.
   // The encoder prefill function: prefill(input_ids, attention_mask, params) -> [1, seq, hidden].
   Function encoder_prefill_func_;
+
+  // Decoder-only embedding support.
+  // The decoder embedding prefill function:
+  //   prefill_embedding(input_ids, attention_mask, params) -> [batch, seq, hidden].
+  // Expected to consume left-padded input_ids and return raw last hidden states
+  // (no lm_head, no logits). The caller handles pooling and normalization.
+  Function decoder_embedding_prefill_func_;
 };
 
 }  // namespace serve

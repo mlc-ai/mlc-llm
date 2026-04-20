@@ -1188,13 +1188,22 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
-  /*********************** Encoder Embedding Support ***********************/
+  /*********************** Embedding Support ***********************/
 
   bool HasEncoderPrefill() const final {
     // Gated by metadata: only embedding + encoder models.
     const ModelMetadata& meta = ft_.model_metadata_;
     return ft_.encoder_prefill_func_.defined() && meta.model_task == "embedding" &&
            meta.embedding_model_type == "encoder";
+  }
+
+  bool HasDecoderEmbeddingPrefill() const final {
+    // Gated by metadata: only embedding + decoder models with the dedicated
+    // prefill_embedding export. Chat-lane prefill is intentionally not treated
+    // as a decoder-embedding entry point.
+    const ModelMetadata& meta = ft_.model_metadata_;
+    return ft_.decoder_embedding_prefill_func_.defined() && meta.model_task == "embedding" &&
+           meta.embedding_model_type == "decoder";
   }
 
   int GetHiddenSize() const final { return hidden_size_; }
@@ -1205,6 +1214,28 @@ class ModelImpl : public ModelObj {
                                " max_len=" + std::to_string(max_len));
     TVM_FFI_ICHECK(ft_.encoder_prefill_func_.defined())
         << "Encoder prefill function is not available in this model.";
+    return RunEmbeddingPrefill(ft_.encoder_prefill_func_, input_ids_nd, attention_mask_nd);
+  }
+
+  ObjectRef DecoderEmbeddingPrefill(const Tensor& input_ids_nd, const Tensor& attention_mask_nd,
+                                    int batch_size, int max_len) final {
+    NVTXScopedRange nvtx_scope("DecoderEmbeddingPrefill batch=" + std::to_string(batch_size) +
+                               " max_len=" + std::to_string(max_len));
+    TVM_FFI_ICHECK(ft_.decoder_embedding_prefill_func_.defined())
+        << "Decoder embedding prefill function is not available in this model.";
+    return RunEmbeddingPrefill(ft_.decoder_embedding_prefill_func_, input_ids_nd,
+                               attention_mask_nd);
+  }
+
+  /*!
+   * \brief Shared implementation for encoder and decoder-only embedding prefill.
+   * Both lanes compile a function with signature
+   * ``f(input_ids, attention_mask, params) -> hidden_states`` (optionally wrapped
+   * in a 1-tuple). Buffer copy to device, return-unwrap, and trace sync are
+   * identical; the only difference is which Function pointer is invoked.
+   */
+  ObjectRef RunEmbeddingPrefill(const Function& prefill_func, const Tensor& input_ids_nd,
+                                const Tensor& attention_mask_nd) {
     // input_ids_nd: CPU [batch_size, max_len] int32
     // attention_mask_nd: CPU [batch_size, max_len] int32
     TVM_FFI_ICHECK_EQ(input_ids_nd->ndim, 2);
@@ -1227,18 +1258,18 @@ class ModelImpl : public ModelObj {
       Tensor::CopyFromTo(&src, &dst);
     }
 
-    // Call encoder prefill: prefill(input_ids, attention_mask, params)
-    // BERT returns a Tensor directly, not a tuple.
+    // Call the embedding prefill: f(input_ids, attention_mask, params).
+    // BERT returns a Tensor directly; Qwen3-Embedding (and others) may return a
+    // tuple depending on how the forward was compiled.
     ObjectRef result =
-        ft_.encoder_prefill_func_(input_ids_device, attention_mask_device, params_)
-            .cast<ObjectRef>();
+        prefill_func(input_ids_device, attention_mask_device, params_).cast<ObjectRef>();
 
     // Handle return: BERT returns Tensor directly; some models may return a tuple.
     // Both disco and non-disco paths use the same logic:
     // - In disco mode, the result is always a DRef. The disco VM wraps all returns,
     //   so tuple_getitem(0) is always needed — this matches every other disco path
     //   in this file (BatchPrefill, BatchPrefillToLastHidden, BatchDecodeToLastHidden, etc.).
-    // - In non-disco mode, BERT returns a raw Tensor. Other encoder models might
+    // - In non-disco mode, BERT returns a raw Tensor. Other embedding models might
     //   return a tuple. We check IsInstance<TensorObj> to distinguish.
     ObjectRef hidden_states{nullptr};
     if (ft_.use_disco) {
@@ -1258,10 +1289,10 @@ class ModelImpl : public ModelObj {
     return hidden_states;
   }
 
-  Tensor PoolEncoderHiddenStates(const ObjectRef& hidden_states,
-                                 const std::vector<int>& lengths, int batch_size, int max_len,
-                                 int strategy) final {
-    NVTXScopedRange nvtx_scope("PoolEncoderHiddenStates");
+  Tensor PoolEmbeddingHiddenStates(const ObjectRef& hidden_states,
+                                   const std::vector<int>& lengths, int batch_size, int max_len,
+                                   int strategy) final {
+    NVTXScopedRange nvtx_scope("PoolEmbeddingHiddenStates");
 
     Tensor hs_nd{nullptr};
     if (ft_.use_disco) {
