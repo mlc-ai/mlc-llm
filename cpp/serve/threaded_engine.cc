@@ -34,6 +34,7 @@ enum class InstructionKind : int {
   kReloadEngine = 3,
   kResetEngine = 4,
   kDebugCallFuncOnAllAllWorker = 5,
+  kAddEmbeddingRequest = 6,
 };
 
 /*! \brief The implementation of ThreadedEngine. */
@@ -119,6 +120,41 @@ class ThreadedEngineImpl : public ThreadedEngine {
     }
   }
 
+  void AddEmbeddingRequest(EmbeddingRequest request) final {
+    bool need_notify = false;
+    {
+      std::lock_guard<std::mutex> lock(background_loop_mutex_);
+      instruction_queue_.emplace_back(InstructionKind::kAddEmbeddingRequest, request);
+      ++pending_request_operation_cnt_;
+      need_notify = engine_waiting_;
+    }
+    if (need_notify) {
+      background_loop_cv_.notify_one();
+    }
+  }
+
+  void SetEmbeddingRequestCallback(Function embedding_callback) final {
+    embedding_request_callback_ = std::move(embedding_callback);
+    // If the background engine is already loaded, install the wrapper immediately.
+    // This mirrors how chat callback is installed — we don't require reload.
+    if (background_engine_ != nullptr && embedding_request_callback_.defined()) {
+      auto fembedding_callback_wrapper = [this](Array<EmbeddingResult> results) {
+        bool need_notify = false;
+        {
+          std::lock_guard<std::mutex> lock(request_stream_callback_mutex_);
+          embedding_request_callback_inputs_.push_back(std::move(results));
+          ++pending_request_stream_callback_cnt_;
+          need_notify = stream_callback_waiting_;
+        }
+        if (need_notify) {
+          request_stream_callback_cv_.notify_one();
+        }
+      };
+      background_engine_->SetEmbeddingRequestCallback(
+          FEmbeddingRequestCallback(fembedding_callback_wrapper));
+    }
+  }
+
   void AbortRequest(const String& request_id) final {
     bool need_notify = false;
     {
@@ -172,6 +208,9 @@ class ThreadedEngineImpl : public ThreadedEngine {
           if (background_engine_ != nullptr) {
             background_engine_->Reset();
           }
+        } else if (kind == InstructionKind::kAddEmbeddingRequest) {
+          TVM_FFI_ICHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
+          background_engine_->AddEmbeddingRequest(Downcast<EmbeddingRequest>(arg));
         } else if (kind == InstructionKind::kDebugCallFuncOnAllAllWorker) {
           TVM_FFI_ICHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
           Array<Any> packed_args = Downcast<Array<Any>>(arg);
@@ -191,6 +230,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
     // The local vectors that load the request stream callback inputs from critical regions.
     std::vector<Array<RequestStreamOutput>> local_request_stream_callback_inputs;
     std::vector<RequestStreamOutput> flattened_callback_inputs;
+    std::vector<Array<EmbeddingResult>> local_embedding_callback_inputs;
+    std::vector<EmbeddingResult> flattened_embedding_inputs;
 
     while (!exit_now_.load(std::memory_order_relaxed)) {
       {
@@ -204,8 +245,12 @@ class ThreadedEngineImpl : public ThreadedEngine {
 
         local_request_stream_callback_inputs = request_stream_callback_inputs_;
         request_stream_callback_inputs_.clear();
+        local_embedding_callback_inputs = embedding_request_callback_inputs_;
+        embedding_request_callback_inputs_.clear();
         pending_request_stream_callback_cnt_ = 0;
       }
+
+      // Process chat callbacks.
       for (const Array<RequestStreamOutput>& callback_inputs :
            local_request_stream_callback_inputs) {
         for (const RequestStreamOutput& callback_input : callback_inputs) {
@@ -216,6 +261,21 @@ class ThreadedEngineImpl : public ThreadedEngine {
         request_stream_callback_(Array<RequestStreamOutput>(flattened_callback_inputs));
       }
       flattened_callback_inputs.clear();
+      local_request_stream_callback_inputs.clear();
+
+      // Process embedding callbacks (separate from chat).
+      if (embedding_request_callback_.defined()) {
+        for (const Array<EmbeddingResult>& emb_inputs : local_embedding_callback_inputs) {
+          for (const EmbeddingResult& emb_input : emb_inputs) {
+            flattened_embedding_inputs.push_back(emb_input);
+          }
+        }
+        if (!flattened_embedding_inputs.empty()) {
+          embedding_request_callback_(Array<EmbeddingResult>(flattened_embedding_inputs));
+        }
+        flattened_embedding_inputs.clear();
+      }
+      local_embedding_callback_inputs.clear();
     }
   }
 
@@ -289,6 +349,25 @@ class ThreadedEngineImpl : public ThreadedEngine {
     background_engine_ = std::move(output.reloaded_engine);
     default_generation_config_ = output.default_generation_cfg;
     complete_engine_config_ = output.completed_engine_config;
+
+    // Install embedding callback wrapper if an embedding callback is registered.
+    if (embedding_request_callback_.defined()) {
+      auto fembedding_callback_wrapper = [this](Array<EmbeddingResult> results) {
+        bool need_notify = false;
+        {
+          std::lock_guard<std::mutex> lock(request_stream_callback_mutex_);
+          embedding_request_callback_inputs_.push_back(std::move(results));
+          ++pending_request_stream_callback_cnt_;
+          need_notify = stream_callback_waiting_;
+        }
+        if (need_notify) {
+          request_stream_callback_cv_.notify_one();
+        }
+      };
+      background_engine_->SetEmbeddingRequestCallback(
+          FEmbeddingRequestCallback(fembedding_callback_wrapper));
+    }
+
     {
       // Wake up the thread waiting for reload finish.
       std::lock_guard<std::mutex> lock(reload_unload_mutex_);
@@ -322,6 +401,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
   std::unique_ptr<Engine> background_engine_;
   /*! \brief The request stream callback. */
   Function request_stream_callback_;
+  /*! \brief The embedding request callback (set by Python via SetEmbeddingRequestCallback). */
+  Function embedding_request_callback_{nullptr};
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
 
@@ -359,6 +440,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
    * consumed by the foreground thread.
    */
   std::vector<Array<RequestStreamOutput>> request_stream_callback_inputs_;
+  /*! \brief The embedding result outputs to pass through callback. */
+  std::vector<Array<EmbeddingResult>> embedding_request_callback_inputs_;
   /*!
    * \brief Number of pending request operations, should be the size of
    * `requests_to_add_` and `requests_to_abort_`.
@@ -386,6 +469,9 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ffi::ModuleObj {
   TVM_MODULE_VTABLE_ENTRY("init_threaded_engine", &ThreadedEngineImpl::InitThreadedEngine);
   TVM_MODULE_VTABLE_ENTRY("reload", &ThreadedEngineImpl::Reload);
   TVM_MODULE_VTABLE_ENTRY("add_request", &ThreadedEngineImpl::AddRequest);
+  TVM_MODULE_VTABLE_ENTRY("add_embedding_request", &ThreadedEngineImpl::AddEmbeddingRequest);
+  TVM_MODULE_VTABLE_ENTRY("set_embedding_request_callback",
+                          &ThreadedEngineImpl::SetEmbeddingRequestCallback);
   TVM_MODULE_VTABLE_ENTRY("create_request", &ThreadedEngineImpl::CreateRequest);
   TVM_MODULE_VTABLE_ENTRY("abort_request", &ThreadedEngineImpl::AbortRequest);
   TVM_MODULE_VTABLE_ENTRY("run_background_loop", &ThreadedEngineImpl::RunBackgroundLoop);

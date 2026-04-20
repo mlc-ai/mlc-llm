@@ -15,6 +15,13 @@ WARN_FLASHINFER_GROUP_SIZE = False
 WARN_FLASHINFER_HEAD_DIM = False
 
 
+def _get_attention_target() -> tvm.target.Target:
+    current = tvm.target.Target.current(allow_none=True)
+    if current is not None:
+        return current
+    return tvm.target.Target("cuda")
+
+
 def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statements,too-many-arguments, unused-argument
     q: nn.Tensor,
     k: nn.Tensor,
@@ -182,3 +189,53 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
 
     # Fallback Implementation
     return _fallback()
+
+
+def encoder_attention(
+    q: nn.Tensor,
+    k: nn.Tensor,
+    v: nn.Tensor,
+    valid_lens: nn.Tensor,
+) -> nn.Tensor:
+    """Encoder self-attention with right-padding lengths.
+
+    Uses the tiled sequence prefill kernel and applies per-batch valid lengths
+    inside the kernel so encoder batches stay memory-efficient.
+    """
+    b, s, h, d = q.shape
+    t, h_kv, _ = k.shape[-3:]
+
+    from tvm.relax.frontend.nn.llm.kv_cache import (  # pylint: disable=import-outside-toplevel
+        _attention_sequence_prefill_with_mask,
+    )
+
+    if valid_lens.ndim != 1:
+        raise ValueError(
+            f"encoder_attention expects a 1D valid_lens tensor, but got ndim={valid_lens.ndim}"
+        )
+    if k.ndim == 3:
+        k = op.reshape(k, [b, t, h_kv, d])
+    if v.ndim == 3:
+        v = op.reshape(v, [b, t, h_kv, d])
+    if h_kv != h:
+        k = k.repeat(h // h_kv, axis=2)
+        v = v.repeat(h // h_kv, axis=2)
+
+    target = _get_attention_target()
+    attn_output, _ = op.tensor_ir_op(
+        _attention_sequence_prefill_with_mask(  # pylint: disable=no-value-for-parameter
+            h_kv=h_kv,
+            h_q=h,
+            d=d,
+            dtype=q.dtype,
+            target=target,
+            sm_scale=1.0 / (d**0.5),
+        ),
+        "sequence_prefill_masked",
+        [q, k, v, valid_lens],
+        [
+            Tensor.placeholder([b, s, h, d], q.dtype),
+            Tensor.placeholder([b, s, h], q.dtype),
+        ],
+    )
+    return op.reshape(attn_output, shape=(b, s, h * d))

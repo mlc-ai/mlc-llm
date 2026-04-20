@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+import sys
 from io import StringIO
 from typing import Literal, Optional
 
@@ -103,6 +104,64 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         )
 
 
+def _detect_model_task(model: str) -> str:
+    """Detect the model_task field from the main model's mlc-chat-config.json."""
+    from mlc_llm.support.auto_config import (  # pylint: disable=import-outside-toplevel
+        detect_model_task,
+    )
+
+    return detect_model_task(model)
+
+
+def _argv_has_option(argv, option_name: str) -> bool:
+    """Check whether *option_name* (e.g. ``--mode``) was explicitly supplied in *argv*.
+
+    This inspects the raw argv list so that even ``--mode local`` (which equals the
+    default) is detected as "explicitly passed".
+    """
+    for arg in argv:
+        if arg == option_name or arg.startswith(option_name + "="):
+            return True
+    return False
+
+
+# Options that are forbidden when the main model is an embedding model.
+_EMBEDDING_FORBIDDEN_OPTIONS = (
+    "--additional-models",
+    "--mode",
+    "--speculative-mode",
+    "--prefix-cache-mode",
+    "--prefill-mode",
+    "--overrides",
+    "--enable-tracing",
+    "--enable-debug",
+)
+
+
+def _validate_embedding_model_args(argv, parsed) -> None:
+    """Validate CLI arguments when the main model has model_task == 'embedding'.
+
+    Raises ``SystemExit`` (via ``parser.error``-style messages) on violations.
+    """
+    # --model-lib is mandatory for embedding models
+    if parsed.model_lib is None:
+        print(
+            "error: --model-lib is required when the main model is an embedding model.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    # Reject forbidden options that were explicitly passed
+    explicitly_passed = [opt for opt in _EMBEDDING_FORBIDDEN_OPTIONS if _argv_has_option(argv, opt)]
+    if explicitly_passed:
+        print(
+            "error: the following options are not allowed for embedding models: "
+            + ", ".join(explicitly_passed),
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+
 def main(argv):
     """Parse command line arguments and call `mlc_llm.interface.serve`."""
     parser = ArgumentParser("MLC LLM Serve CLI")
@@ -138,18 +197,6 @@ def main(argv):
     )
     parser.add_argument(
         "--additional-models", type=str, nargs="*", help=HELP["additional_models_serve"]
-    )
-    parser.add_argument(
-        "--embedding-model",
-        type=str,
-        default=None,
-        help="Path to the embedding model weight directory (enables /v1/embeddings endpoint)",
-    )
-    parser.add_argument(
-        "--embedding-model-lib",
-        type=str,
-        default=None,
-        help="Path to the compiled embedding model library (.so/.dylib file)",
     )
     parser.add_argument(
         "--speculative-mode",
@@ -218,6 +265,11 @@ def main(argv):
     )
     parsed = parser.parse_args(argv)
 
+    # Detect model task and validate arguments for embedding models
+    model_task = _detect_model_task(parsed.model)
+    if model_task == "embedding":
+        _validate_embedding_model_args(argv, parsed)
+
     additional_models = []
     if parsed.additional_models is not None:
         for additional_model in parsed.additional_models:
@@ -234,8 +286,6 @@ def main(argv):
         mode=parsed.mode,
         enable_debug=parsed.enable_debug,
         additional_models=additional_models,
-        embedding_model=parsed.embedding_model,
-        embedding_model_lib=parsed.embedding_model_lib,
         tensor_parallel_shards=parsed.overrides.tensor_parallel_shards,
         pipeline_parallel_stages=parsed.overrides.pipeline_parallel_stages,
         opt=parsed.overrides.opt,

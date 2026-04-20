@@ -364,6 +364,49 @@ class ModelObj : public Object {
   virtual void ScatterDraftProbs(const Tensor& input, const std::vector<int>& indices,
                                  Tensor* dst) = 0;
 
+  /*********************** Encoder Embedding Support ***********************/
+
+  /*!
+   * \brief Check if the model is an encoder embedding model.
+   * Returns true only when model_task=="embedding" AND embedding_model_type=="encoder"
+   * AND the encoder prefill function is available.
+   */
+  virtual bool HasEncoderPrefill() const = 0;
+
+  /*!
+   * \brief Get the hidden size of the model. Available after model init.
+   * \return The hidden dimension, or -1 if not yet initialized.
+   */
+  virtual int GetHiddenSize() const = 0;
+
+  /*!
+   * \brief Run encoder prefill for a batch of padded sequences.
+   * Calls the model's prefill(input_ids, attention_mask, params).
+   * \param input_ids_nd CPU tensor of shape [batch_size, max_len], int32.
+   * \param attention_mask_nd CPU tensor of shape [batch_size, max_len], int32.
+   * \param batch_size Number of sequences in the batch.
+   * \param max_len Maximum sequence length (with padding).
+   * \return The full hidden states tensor on device, shape [batch_size, max_len, hidden].
+   */
+  virtual ObjectRef EncoderPrefill(const Tensor& input_ids_nd, const Tensor& attention_mask_nd,
+                                   int batch_size, int max_len) = 0;
+
+  /*!
+   * \brief Pool the encoder hidden states and return a CPU float32 tensor.
+   * Supports CLS (first token), Mean (masked average), and Last (last real token).
+   * Hidden states are gathered from device (and from worker 0 under Disco) and
+   * pooled directly on CPU, so the caller never needs to round-trip through device.
+   * \param hidden_states The full hidden states from encoder (device or DRef).
+   * \param lengths The real (unpadded) length of each sequence.
+   * \param batch_size Number of sequences.
+   * \param max_len The padded sequence length.
+   * \param strategy The pooling strategy (0=CLS, 1=Mean, 2=Last).
+   * \return Pooled embeddings on CPU, float32, shape [batch, hidden].
+   */
+  virtual Tensor PoolEncoderHiddenStates(const ObjectRef& hidden_states,
+                                         const std::vector<int>& lengths, int batch_size,
+                                         int max_len, int strategy) = 0;
+
   /************** Debug/Profile **************/
 
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
