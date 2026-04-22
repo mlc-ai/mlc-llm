@@ -506,6 +506,10 @@ PRESET = {
     "webgpu:generic": {
         "target": {
             "kind": "webgpu",
+            # WebGPU spec mandates maxComputeWorkgroupStorageSize = 16384,
+            # but Chrome/Dawn exposes 32768.  Use 128 threads so that
+            # Dlight-generated kernels stay within the 32 KB budget.
+            "max_num_threads": 128,
             "host": {
                 "kind": "llvm",
                 "mtriple": "wasm32-unknown-unknown-wasm",
