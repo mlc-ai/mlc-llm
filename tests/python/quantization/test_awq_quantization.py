@@ -1,5 +1,4 @@
-# pylint: disable=invalid-name,missing-docstring
-from typing import List
+from typing import List  # noqa: UP035
 
 import numpy as np
 import pytest
@@ -49,7 +48,7 @@ def dequantize_np(
         ("q4f16_awq", [2, 4096], "float16"),
     ],
 )
-def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
+def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):  # noqa: UP006
     class Test(nn.Module):
         def __init__(self) -> None:
             super().__init__()
@@ -78,9 +77,7 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
     mod.linear.qzeros.data = zeros_np
     mod.linear.scales.data = scale_np
     model = mod.jit(spec={"forward": {"x": nn.spec.Tensor((shape[1], shape[1]), dtype)}})
-    out = model["forward"](
-        torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype)))  # pylint: disable=no-member
-    )
+    out = model["forward"](torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype))))
     ref = dequantize_np(config, weight_np, zeros_np, scale_np).T
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 

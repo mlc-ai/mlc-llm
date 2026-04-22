@@ -1,7 +1,7 @@
 """AWQ Quantization"""
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional  # noqa: UP035
 
 from tvm import DataType, DataTypeCode, te, tirx, topi
 from tvm.relax.frontend import nn
@@ -12,7 +12,7 @@ from mlc_llm.loader import QuantizeMapping
 from .utils import convert_uint_to_float, is_final_fc, is_moe_gate
 
 
-def _make_divisible(c, divisor):  # pylint: disable=invalid-name
+def _make_divisible(c, divisor):
     return (c + divisor - 1) // divisor
 
 
@@ -32,7 +32,7 @@ def _calculate_zeros_width(in_features, group_size=128, pack_num=8):
 
 
 @dataclass
-class AWQQuantize:  # pylint: disable=too-many-instance-attributes
+class AWQQuantize:
     """Configuration for AWQ quantization"""
 
     name: str
@@ -46,7 +46,7 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
     num_storage_per_group: int = 0
     max_int_value: int = 0
 
-    prebuilt_quantize_func: Dict[str, Callable[[Tensor], Tensor]] = field(
+    prebuilt_quantize_func: Dict[str, Callable[[Tensor], Tensor]] = field(  # noqa: UP006
         default_factory=lambda: {}
     )
 
@@ -135,7 +135,7 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
         weight: te.Tensor,
         zeros: te.Tensor,
         scale: te.Tensor,
-        out_shape: Optional[List[tirx.PrimExpr]] = None,
+        out_shape: Optional[List[tirx.PrimExpr]] = None,  # noqa: UP006
     ):
         float_weight = convert_uint_to_float(
             weight,
@@ -172,10 +172,10 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
         )
 
 
-class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attributes
+class AWQQuantizeLinear(nn.Module):
     """An nn.Linear module with AWQ quantization"""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         in_features: int,
         out_features: int,
@@ -235,7 +235,7 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
             out_dtype=linear.out_dtype,
         )
 
-    def forward(self, x: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
+    def forward(self, x: nn.Tensor) -> nn.Tensor:
         """
         Forward method for awq quantized linear layer
 
@@ -249,8 +249,8 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
         ret : nn.Tensor
             The output tensor for the group quantized linear layer.
         """
-        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, zeros, scale: self.config._dequantize(  # pylint: disable=protected-access
+        w = nn.op.tensor_expr_op(
+            lambda weight, zeros, scale: self.config._dequantize(
                 weight,
                 zeros,
                 scale,
@@ -262,7 +262,7 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
             name_hint="dequantize",
             args=[self.qweight, self.qzeros, self.scales],
         )
-        w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
+        w = nn.op.permute_dims(w)
         x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
         if self.bias is not None:
             x = x + self.bias
@@ -279,4 +279,4 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
         if self.bias is not None and self.out_dtype is None:
             self.bias.to(dtype=dtype)
         if dtype is not None and isinstance(getattr(self, "dtype", None), str):
-            self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
+            self.dtype = dtype

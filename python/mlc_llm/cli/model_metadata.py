@@ -4,7 +4,7 @@ import json
 import math
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union  # noqa: UP035
 
 from tvm.runtime import DataType
 
@@ -16,17 +16,14 @@ from mlc_llm.support.style import green, red
 logger = logging.getLogger(__name__)
 
 
-def _extract_metadata(model_lib: Path) -> Dict[str, Any]:
-    # pylint: disable=import-outside-toplevel
+def _extract_metadata(model_lib: Path) -> Dict[str, Any]:  # noqa: UP006
     from tvm.runtime import device, load_module
     from tvm.runtime.vm import VirtualMachine
-
-    # pylint: enable=import-outside-toplevel
 
     return json.loads(VirtualMachine(load_module(model_lib), device("cpu"))["_metadata"]())
 
 
-def _report_all(metadata: Dict[str, Any]) -> None:
+def _report_all(metadata: Dict[str, Any]) -> None:  # noqa: UP006
     # Print JSON with aesthetic values that packs each parameter into one line,
     # while keeping the rest indented.
     indent = 2
@@ -43,7 +40,7 @@ def _report_all(metadata: Dict[str, Any]) -> None:
     print(beautified_json)
 
 
-def _read_dynamic_shape(shape: List[Union[int, str]], config: Union[Dict, ConfigBase]) -> List[int]:
+def _read_dynamic_shape(shape: List[Union[int, str]], config: Union[Dict, ConfigBase]) -> List[int]:  # noqa: UP006
     if isinstance(config, ConfigBase):
         config = asdict(config)
     param_shape = []
@@ -59,7 +56,7 @@ def _read_dynamic_shape(shape: List[Union[int, str]], config: Union[Dict, Config
                     red(s),
                 )
                 raise AttributeError
-            if not s in config:
+            if s not in config:
                 logger.error(
                     "%s to retrieve concrete %s for dynamic shape from %s.",
                     red("FAILED"),
@@ -71,7 +68,7 @@ def _read_dynamic_shape(shape: List[Union[int, str]], config: Union[Dict, Config
     return param_shape
 
 
-def _compute_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBase]):
+def _compute_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBase]):  # noqa: UP006
     params_bytes = 0.0
     for param in metadata["params"]:
         if all(isinstance(v, int) for v in param["shape"]):
@@ -88,7 +85,7 @@ def _compute_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBa
     return params_bytes, temp_func_bytes
 
 
-def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBase]) -> None:
+def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBase]) -> None:  # noqa: UP006
     params_bytes, temp_func_bytes = _compute_memory_usage(metadata, config)
     total_size = params_bytes + temp_func_bytes
     logger.info(
@@ -116,7 +113,7 @@ def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBas
             dtype_bytes = 2
         elif "f16" in quantization_type:
             dtype_bytes = 2
-        # TODO: If support quantized KV in future, need to change this  # pylint: disable=fixme
+        # TODO: If support quantized KV in future, need to change this
         if dtype_bytes is not None:
             bytes_per_token = (
                 config["head_dim"]
@@ -175,7 +172,7 @@ def main():
     # Load metadata from model lib
     try:
         metadata = _extract_metadata(parsed.model_lib)
-    except:  # pylint: disable=bare-except
+    except Exception:
         logger.exception("%s to read metadata section in legacy model lib.", red("FAILED"))
         return
     # Load mlc_chat_config if provided
@@ -184,7 +181,7 @@ def main():
         mlc_chat_config_path = Path(parsed.mlc_chat_config)
         if not mlc_chat_config_path.exists():
             raise ValueError(f"{mlc_chat_config_path} does not exist.")
-        with open(mlc_chat_config_path, "r", encoding="utf-8") as config_file:
+        with open(mlc_chat_config_path, encoding="utf-8") as config_file:
             cfg = json.load(config_file)
     # Main body
     if parsed.memory_only:

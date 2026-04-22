@@ -1,4 +1,3 @@
-# pylint: disable=missing-docstring
 import json
 import os
 import tempfile

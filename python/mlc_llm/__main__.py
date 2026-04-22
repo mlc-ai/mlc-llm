@@ -27,7 +27,6 @@ def main():
         help="Subcommand to to run. (choices: %(choices)s)",
     )
     parsed = parser.parse_args(sys.argv[1:2])
-    # pylint: disable=import-outside-toplevel
     if parsed.subcommand == "compile":
         from mlc_llm.cli import compile as cli
 
@@ -62,7 +61,6 @@ def main():
         cli.main(sys.argv[2:])
     else:
         raise ValueError(f"Unknown subcommand {parsed.subcommand}")
-    # pylint: enable=import-outside-toplevel
 
 
 if __name__ == "__main__":

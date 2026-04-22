@@ -7,7 +7,7 @@ import random
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional  # noqa: UP035
 
 import tqdm
 
@@ -25,7 +25,7 @@ def extract_answer(text: str, regex: re.Pattern, select_index: int) -> str:
         return INVALID_ANS
     match = match_all[select_index]
     if isinstance(match, tuple):
-        match = [m for m in match if m][0]
+        match = next(m for m in match if m)
     match_str: str = match.strip()
     match_str = match_str.lstrip("$").rstrip(".").replace(",", "")
     return match_str
@@ -172,7 +172,7 @@ def parse_args():
     parser.add_argument(
         "--dataset", type=Path, required=True, help="Path to GSM8K test dataset home."
     )
-    parser.add_argument("--device", type=str, choices=["auto"] + DEVICES, default="auto")
+    parser.add_argument("--device", type=str, choices=["auto", *DEVICES], default="auto")
     parser.add_argument("--model-lib", type=str, default=None)
     parser.add_argument("--n-shot", type=int, default=8)
     parser.add_argument("--disable_cot", action="store_true", default=False)
@@ -183,7 +183,7 @@ def parse_args():
 
 async def send_request(
     async_engine: AsyncMLCEngine,
-    prompts: List[str],
+    prompts: List[str],  # noqa: UP006
     semaphore: asyncio.Semaphore,
 ):
     """Send the calibration requests to the engine."""
@@ -206,7 +206,7 @@ async def send_request(
     return await tqdm.asyncio.tqdm.gather(*tasks)
 
 
-async def evaluate(  # pylint: disable=too-many-arguments, too-many-locals
+async def evaluate(
     model: str,
     device: str,
     dataset: Path,
@@ -214,7 +214,7 @@ async def evaluate(  # pylint: disable=too-many-arguments, too-many-locals
     n_shot: int,
     use_cot: bool,
     batch_size: int,
-    log_dir: Optional[Path],  # pylint: disable=redefined-outer-name
+    log_dir: Optional[Path],
 ):
     """Evaluate GSM8K for the model."""
     mode: Literal["local", "interactive", "server"] = (
@@ -222,7 +222,7 @@ async def evaluate(  # pylint: disable=too-many-arguments, too-many-locals
     )
     async_engine = AsyncMLCEngine(model, device=device, model_lib=model_lib, mode=mode)
 
-    with open(dataset / "test.jsonl", "r", encoding="utf-8") as file:
+    with open(dataset / "test.jsonl", encoding="utf-8") as file:
         tests = [json.loads(line) for line in file]
 
     prompts = [create_prompt(test["question"], n_shot, use_cot) for test in tests]
@@ -277,11 +277,11 @@ async def evaluate(  # pylint: disable=too-many-arguments, too-many-locals
     }
     print(
         f"Strict Matching Accuracy: {num_strict_correct} / {num_tests} = "
-        f"{num_strict_correct /num_tests * 100:.2f}%"
+        f"{num_strict_correct / num_tests * 100:.2f}%"
     )
     print(
         f"Flexible Matching Accuracy: {num_flexible_correct} / {num_tests} = "
-        f"{num_flexible_correct /num_tests * 100:.2f}%"
+        f"{num_flexible_correct / num_tests * 100:.2f}%"
     )
 
     if log_dir:

@@ -6,15 +6,13 @@ from tvm.runtime import Object
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("mlc.serve.EventTraceRecorder")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.EventTraceRecorder")
 class EventTraceRecorder(Object):
     """The event trace recorder for requests."""
 
-    def __init__(self) -> None:  # pylint: disable=super-init-not-called
+    def __init__(self) -> None:
         """Initialize a trace recorder."""
-        self.__init_handle_by_constructor__(
-            _ffi_api.EventTraceRecorder  # type: ignore  # pylint: disable=no-member
-        )
+        self.__init_handle_by_constructor__(_ffi_api.EventTraceRecorder)
 
     def add_event(self, request_id: str, event: str) -> None:
         """Record a event for the input request in the trace recorder.
@@ -32,10 +30,8 @@ class EventTraceRecorder(Object):
             - "yyy", which marks the instant event "yyy".
             The "starts" and "finishes" will be automatically paired in the trace recorder.
         """
-        return _ffi_api.EventTraceRecorderAddEvent(  # type: ignore  # pylint: disable=no-member
-            self, request_id, event
-        )
+        return _ffi_api.EventTraceRecorderAddEvent(self, request_id, event)
 
     def dump_json(self) -> str:
         """Dump the logged events in Chrome Trace Event Format in JSON string."""
-        return _ffi_api.EventTraceRecorderDumpJSON(self)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.EventTraceRecorderDumpJSON(self)

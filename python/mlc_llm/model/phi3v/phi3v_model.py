@@ -3,7 +3,7 @@ Implementation for Phi architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import relax, target, tirx
 from tvm.relax.frontend import nn
@@ -36,7 +36,7 @@ CLIPVISION_DEFAULT_CONFIG = {
 
 
 @dataclasses.dataclass
-class Phi3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class Phi3VConfig(ConfigBase):
     """Configuration of the Phi-3 Vision model."""
 
     model_type: str
@@ -49,20 +49,19 @@ class Phi3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     num_key_value_heads: int
     max_position_embeddings: int
     vision_config: CLIPVisionConfig = None
-    img_processor: Optional[Dict[str, Any]] = None
+    img_processor: Optional[Dict[str, Any]] = None  # noqa: UP006
     position_embedding_base: int = 0
-    rope_scaling: Optional[Dict[str, Any]] = None
+    rope_scaling: Optional[Dict[str, Any]] = None  # noqa: UP006
     original_max_position_embeddings: int = 0
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     head_dim: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
-    # pylint: disable=too-many-branches, consider-using-min-builtin
     def __post_init__(self):
-        vision_config_dict: Dict[str, Any]
+        vision_config_dict: Dict[str, Any]  # noqa: UP006
         if isinstance(self.vision_config, CLIPVisionConfig):
             vision_config_dict = dataclasses.asdict(self.vision_config)
         else:
@@ -85,9 +84,9 @@ class Phi3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 if self.rope_scaling["type"] == "su":
                     self.rope_scaling["type"] = "longrope"
 
-                assert (
-                    self.rope_scaling["type"] == "longrope"
-                ), f"Unsupported RoPE scaling type {self.rope_scaling['rope_type']} for Phi3"
+                assert self.rope_scaling["type"] == "longrope", (
+                    f"Unsupported RoPE scaling type {self.rope_scaling['rope_type']} for Phi3"
+                )
                 self.rope_scaling["rope_type"] = self.rope_scaling["type"]
                 (
                     self.rope_scaling["max_position_embeddings"],
@@ -124,12 +123,8 @@ class Phi3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         assert self.num_attention_heads % self.num_key_value_heads == 0
 
 
-# pylint: disable=invalid-name,missing-docstring, too-many-branches
-
-
 # mypy: disable-error-code="arg-type,annotation-unchecked"
 class Phi3VForCausalLM(nn.Module):
-    # pylint: disable=too-many-instance-attributes
     def __init__(self, config: Phi3VConfig) -> None:
         super().__init__()
 
@@ -226,7 +221,6 @@ class Phi3VForCausalLM(nn.Module):
         embeds = self.model.embd(input_ids)
         return embeds
 
-    # pylint: disable=protected-access
     def image_preprocess(
         self, pixel_values: Tensor, resized_height, resized_width, num_crops=16
     ) -> Tensor:
@@ -253,7 +247,7 @@ class Phi3VForCausalLM(nn.Module):
             "global_image",
         )
 
-        n, c, h, w = pixel_values.shape  # pylint: disable=unused-variable
+        n, c, h, w = pixel_values.shape
         assert isinstance(h, tirx.Mul) and isinstance(h.b, tirx.IntImm) and h.b.value == 336
         pixel_values = op.reshape(pixel_values, shape=(1, 3, h.a, 336, w // 336, 336))
         pixel_values = op.permute_dims(pixel_values, axes=(0, 2, 4, 1, 3, 5))
@@ -277,7 +271,7 @@ class Phi3VForCausalLM(nn.Module):
 
         return combined_image
 
-    def image_embed(  # pylint: disable=too-many-arguments
+    def image_embed(
         self,
         pixel_values: Tensor,
         resized_height,
@@ -285,12 +279,12 @@ class Phi3VForCausalLM(nn.Module):
         crop_height,
         crop_width,
     ) -> Tensor:
-        n, h, w, c = pixel_values.shape  # pylint: disable=unused-variable
+        n, h, w, c = pixel_values.shape
         pixel_values = self.image_preprocess(pixel_values, resized_height, resized_width)
         pixel_values = pixel_values.astype(self.dtype)
         return self.vision_embed_tokens(pixel_values, crop_height, crop_width)
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

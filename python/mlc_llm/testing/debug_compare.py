@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple  # noqa: UP035
 
 import tvm
 from tvm import rpc, runtime
@@ -63,7 +63,7 @@ class LibCompare(LibCompareVMInstrument):
         atol used in validation
     """
 
-    def __init__(  # pylint: disable=too-many-arguments, unused-argument
+    def __init__(
         self,
         mod: runtime.Module,
         device: runtime.Device,
@@ -76,13 +76,13 @@ class LibCompare(LibCompareVMInstrument):
         super().__init__(mod, device, True, rtol, atol)
         self.debug_out = debug_out
         self.time_eval = time_eval
-        self.time_eval_results: Dict[str, Tuple[float, int]] = {}
-        self.visited: Set[str] = set([])
+        self.time_eval_results: Dict[str, Tuple[float, int]] = {}  # noqa: UP006
+        self.visited: Set[str] = set([])  # noqa: UP006
         self.skip_rounds = skip_rounds
         self.counter = 0
         debug_out.mkdir(exist_ok=True, parents=True)
 
-    def reset(self, debug_out: Path):  # pylint: disable=unused-argument
+    def reset(self, debug_out: Path):
         """Reset the state of the Instrument class
 
         Note
@@ -124,9 +124,9 @@ class LibCompare(LibCompareVMInstrument):
     def compare(
         self,
         name: str,
-        ref_args: List[tvm.runtime.Tensor],
-        new_args: List[tvm.runtime.Tensor],
-        ret_indices: List[int],
+        ref_args: List[tvm.runtime.Tensor],  # noqa: UP006
+        new_args: List[tvm.runtime.Tensor],  # noqa: UP006
+        ret_indices: List[int],  # noqa: UP006
     ):
         super().compare(name, ref_args, new_args, ret_indices)
 

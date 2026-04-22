@@ -18,11 +18,10 @@ two steps:
   MLC_SERVE_MODEL_LIB="YOUR_MODEL_LIB" python tests/python/serve/server/test_server.py
 """
 
-# pylint: disable=missing-function-docstring,too-many-arguments,too-many-locals,too-many-branches
 import json
 import os
 from http import HTTPStatus
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple  # noqa: UP035
 
 import pytest
 import regex
@@ -74,18 +73,18 @@ def is_json_prefix(s: str) -> bool:
 
 
 def check_openai_nonstream_response(
-    response: Dict,
+    response: Dict,  # noqa: UP006
     *,
     is_chat_completion: bool,
     model: str,
     object_str: str,
     num_choices: int,
-    finish_reasons: List[str],
+    finish_reasons: List[str],  # noqa: UP006
     completion_tokens: Optional[int] = None,
     echo_prompt: Optional[str] = None,
     suffix: Optional[str] = None,
-    stop: Optional[List[str]] = None,
-    require_substr: Optional[List[str]] = None,
+    stop: Optional[List[str]] = None,  # noqa: UP006
+    require_substr: Optional[List[str]] = None,  # noqa: UP006
     check_json_output: bool = False,
 ):
     assert response["model"] == model
@@ -94,7 +93,7 @@ def check_openai_nonstream_response(
     choices = response["choices"]
     assert isinstance(choices, list)
     assert len(choices) <= num_choices
-    texts: List[str] = ["" for _ in range(num_choices)]
+    texts: List[str] = ["" for _ in range(num_choices)]  # noqa: UP006
     for choice in choices:
         idx = choice["index"]
         assert choice["finish_reason"] in finish_reasons
@@ -138,18 +137,18 @@ def check_openai_nonstream_response(
 
 
 def check_openai_stream_response(
-    responses: List[Dict],
+    responses: List[Dict],  # noqa: UP006
     *,
     is_chat_completion: bool,
     model: str,
     object_str: str,
     num_choices: int,
-    finish_reasons: List[str],
+    finish_reasons: List[str],  # noqa: UP006
     completion_tokens: Optional[int] = None,
     echo_prompt: Optional[str] = None,
     suffix: Optional[str] = None,
-    stop: Optional[List[str]] = None,
-    require_substr: Optional[List[str]] = None,
+    stop: Optional[List[str]] = None,  # noqa: UP006
+    require_substr: Optional[List[str]] = None,  # noqa: UP006
     check_json_output: bool = False,
 ):
     assert len(responses) > 0
@@ -228,8 +227,8 @@ def expect_error(response_str: str, msg_prefix: Optional[str] = None):
 
 
 def test_openai_v1_models(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
@@ -249,8 +248,8 @@ def test_openai_v1_models(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -296,8 +295,8 @@ def test_openai_v1_completions(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_openai_package(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -324,7 +323,7 @@ def test_openai_v1_completions_openai_package(
         )
     else:
         responses = []
-        for chunk in response:  # pylint: disable=not-an-iterable
+        for chunk in response:
             responses.append(chunk.model_dump())
         check_openai_stream_response(
             responses,
@@ -339,8 +338,8 @@ def test_openai_v1_completions_openai_package(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_echo(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -389,8 +388,8 @@ def test_openai_v1_completions_echo(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_suffix(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -440,8 +439,8 @@ def test_openai_v1_completions_suffix(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_stop_str(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -490,8 +489,8 @@ def test_openai_v1_completions_stop_str(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_temperature(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -536,8 +535,8 @@ def test_openai_v1_completions_temperature(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_json(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -583,8 +582,8 @@ def test_openai_v1_completions_json(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_json_schema(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -641,8 +640,8 @@ def test_openai_v1_completions_json_schema(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_logit_bias(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -690,8 +689,8 @@ def test_openai_v1_completions_logit_bias(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_presence_frequency_penalty(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -736,8 +735,8 @@ def test_openai_v1_completions_presence_frequency_penalty(
 
 
 def test_openai_v1_completions_seed(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
@@ -772,8 +771,8 @@ def test_openai_v1_completions_seed(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_prompt_overlong(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -806,8 +805,8 @@ def test_openai_v1_completions_prompt_overlong(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_invalid_logprobs(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -831,8 +830,8 @@ def test_openai_v1_completions_invalid_logprobs(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_chat_completions_invalid_logprobs(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -865,8 +864,8 @@ def test_openai_v1_chat_completions_invalid_logprobs(
 
 
 def test_openai_v1_completions_unsupported_args(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
@@ -886,8 +885,8 @@ def test_openai_v1_completions_unsupported_args(
 
 
 def test_openai_v1_completions_request_cancellation(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
@@ -945,10 +944,10 @@ CHAT_COMPLETION_MESSAGES = [
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("messages", CHAT_COMPLETION_MESSAGES)
 def test_openai_v1_chat_completions(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, str]],  # noqa: UP006
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
@@ -988,10 +987,10 @@ def test_openai_v1_chat_completions(
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("messages", CHAT_COMPLETION_MESSAGES)
 def test_openai_v1_chat_completions_n(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, str]],  # noqa: UP006
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
@@ -1034,10 +1033,10 @@ def test_openai_v1_chat_completions_n(
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("messages", CHAT_COMPLETION_MESSAGES)
 def test_openai_v1_chat_completions_openai_package(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, str]],  # noqa: UP006
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
@@ -1061,7 +1060,7 @@ def test_openai_v1_chat_completions_openai_package(
         )
     else:
         responses = []
-        for chunk in response:  # pylint: disable=not-an-iterable
+        for chunk in response:
             responses.append(chunk.model_dump())
         check_openai_stream_response(
             responses,
@@ -1075,8 +1074,8 @@ def test_openai_v1_chat_completions_openai_package(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_chat_completions_max_tokens(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -1121,8 +1120,8 @@ def test_openai_v1_chat_completions_max_tokens(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_chat_completions_json(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -1168,8 +1167,8 @@ def test_openai_v1_chat_completions_json(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_chat_completions_json_schema(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -1227,8 +1226,8 @@ def test_openai_v1_chat_completions_json_schema(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_chat_completions_ignore_eos(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -1274,8 +1273,8 @@ def test_openai_v1_chat_completions_ignore_eos(
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_chat_completions_system_prompt_wrong_pos(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
 ):
     # `served_model` and `launch_server` are pytest fixtures
@@ -1310,8 +1309,8 @@ def test_openai_v1_chat_completions_system_prompt_wrong_pos(
 
 
 def test_debug_dump_event_trace(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
@@ -1322,8 +1321,8 @@ def test_debug_dump_event_trace(
 
 
 def test_metrics(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.

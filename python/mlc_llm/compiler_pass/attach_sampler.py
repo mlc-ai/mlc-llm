@@ -1,6 +1,6 @@
 """The pass that attaches GPU sampler functions to the IRModule."""
 
-from typing import Dict
+from typing import Dict  # noqa: UP035
 
 import tvm
 from tvm import IRModule, relax, te, tirx
@@ -12,10 +12,10 @@ from mlc_llm.op.top_p_pivot import top_p_pivot, top_p_renorm
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachGPUSamplingFunc")
-class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
+class AttachGPUSamplingFunc:
     """Attach GPU sampling functions to IRModule."""
 
-    def __init__(self, target: tvm.target.Target, variable_bounds: Dict[str, int]):
+    def __init__(self, target: tvm.target.Target, variable_bounds: Dict[str, int]):  # noqa: UP006
         # Specifically for RWKV workloads, which contains -1 max_seq_len
         max_batch_size = variable_bounds["batch_size"]
         self.variable_bounds = {
@@ -97,7 +97,7 @@ def _attach_multinomial_sampling_func(bb: relax.BlockBuilder):
                 ),
                 name="sample_indices",
             )
-            result_tensor = nn.multinomial_from_uniform(  # pylint:disable=too-many-function-args
+            result_tensor = nn.multinomial_from_uniform(
                 probs_tensor,
                 uniform_samples_tensor,
                 sample_indices_tensor,
@@ -107,9 +107,9 @@ def _attach_multinomial_sampling_func(bb: relax.BlockBuilder):
             result = bb.emit(
                 relax.call_pure_packed(
                     "vm.builtin.reshape",
-                    result_tensor._expr,  # pylint: disable=protected-access
-                    sample_indices.struct_info.shape,  # pylint: disable=no-member
-                    sinfo_args=sample_indices.struct_info,  # pylint: disable=no-member
+                    result_tensor._expr,
+                    sample_indices.struct_info.shape,
+                    sinfo_args=sample_indices.struct_info,
                 )
             )
             output = bb.emit_output(result)
@@ -150,7 +150,7 @@ def full(var_result: T.handle, value: T.int32):
             result[vi, 0] = value
 
 
-def _attach_sample_with_top_p(bb: relax.BlockBuilder):  # pylint: disable=too-many-locals
+def _attach_sample_with_top_p(bb: relax.BlockBuilder):
     batch_size = tirx.SizeVar("batch_size", "int64")
     num_samples = tirx.SizeVar("num_samples", "int64")
     vocab_size = tirx.SizeVar("vocab_size", "int64")
@@ -212,22 +212,20 @@ def _attach_sample_with_top_p(bb: relax.BlockBuilder):  # pylint: disable=too-ma
                 ),
             )
 
-            result_tensor = (
-                nn.sample_top_p_top_k_from_sorted_prob(  # pylint:disable=too-many-function-args
-                    sorted_probs_tensor,
-                    sorted_indices_tensor,
-                    top_p_tensor,
-                    top_k_tensor,
-                    uniform_samples_tensor,
-                    sample_indices_tensor,
-                )
+            result_tensor = nn.sample_top_p_top_k_from_sorted_prob(
+                sorted_probs_tensor,
+                sorted_indices_tensor,
+                top_p_tensor,
+                top_k_tensor,
+                uniform_samples_tensor,
+                sample_indices_tensor,
             )
             result = bb.emit_output(
                 relax.call_pure_packed(
                     "vm.builtin.reshape",
-                    result_tensor._expr,  # pylint: disable=protected-access
-                    sample_indices.struct_info.shape,  # pylint: disable=no-member
-                    sinfo_args=sample_indices.struct_info,  # pylint: disable=no-member
+                    result_tensor._expr,
+                    sample_indices.struct_info.shape,
+                    sinfo_args=sample_indices.struct_info,
                 )
             )
         gv = bb.emit_func_output(result)
@@ -249,7 +247,7 @@ def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Targ
                 relax.call_tir(
                     bb.add_func(top_p_pivot(num_pivots, target), "top_p_pivot_cutoff"),
                     args=[probs, top_p, init_pivots],
-                    out_sinfo=[top_p.struct_info, top_p.struct_info],  # pylint: disable=no-member
+                    out_sinfo=[top_p.struct_info, top_p.struct_info],
                 )
             )
             final_pivot = cutoff_output[0]
@@ -258,7 +256,7 @@ def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Targ
                 relax.call_tir(
                     bb.add_func(top_p_renorm(target), "top_p_renorm_after_cutoff"),
                     args=[probs, final_pivot, renorm_sum],
-                    out_sinfo=probs.struct_info,  # pylint: disable=no-member
+                    out_sinfo=probs.struct_info,
                 )
             )
         gv = bb.emit_func_output(renormalized_probs)
@@ -283,7 +281,7 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
     )
 
     @T.prim_func
-    def sampler_take_probs_tir(  # pylint: disable=too-many-locals,too-many-arguments
+    def sampler_take_probs_tir(
         var_unsorted_probs: T.handle,
         var_sorted_indices: T.handle,
         var_sample_indices: T.handle,
@@ -385,8 +383,8 @@ def _attach_batch_verifier(bb: relax.BlockBuilder):
                         args.index(token_tree_parent_ptr),
                     ],
                     out_sinfo=[
-                        model_probs.struct_info,  # pylint: disable=no-member
-                        token_tree_parent_ptr.struct_info,  # pylint: disable=no-member
+                        model_probs.struct_info,
+                        token_tree_parent_ptr.struct_info,
                     ],
                 )
             )

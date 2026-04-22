@@ -1,17 +1,24 @@
 """The MLC LLM Serving engine base class."""
 
-# pylint: disable=too-many-lines
-
 import ast
 import asyncio
 import json
 import numbers
 import queue
-import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import (  # noqa: UP035
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import tvm
 from tvm.runtime import Device
@@ -95,8 +102,8 @@ def _check_engine_config(
 def _parse_models(
     model: str,
     model_lib: Optional[str],
-    additional_models: List[Union[str, Tuple[str, str]]],
-) -> List[ModelInfo]:
+    additional_models: List[Union[str, Tuple[str, str]]],  # noqa: UP006
+) -> List[ModelInfo]:  # noqa: UP006
     """Parse the specified model paths and model libs.
     Return a list of ModelInfo, which is a wrapper class of the model path + lib path.
     """
@@ -110,22 +117,22 @@ def _parse_models(
 
 
 def _process_model_args(
-    models: List[ModelInfo],
+    models: List[ModelInfo],  # noqa: UP006
     device: tvm.runtime.Device,
     engine_config: EngineConfig,
-) -> Tuple[List[Tuple[str, str]], List[str], Conversation]:
+) -> Tuple[List[Tuple[str, str]], List[str], Conversation]:  # noqa: UP006
     """Process the input ModelInfo to get the engine initialization arguments."""
     conversation: Optional[Conversation] = None
-    config_file_paths: List[str] = []
+    config_file_paths: List[str] = []  # noqa: UP006
 
-    def _convert_model_info(model: ModelInfo) -> Tuple[str, str]:
+    def _convert_model_info(model: ModelInfo) -> Tuple[str, str]:  # noqa: UP006
         nonlocal conversation
 
         model_path = download_cache.get_or_download_model(model.model)
         mlc_config_path = model_path / "mlc-chat-config.json"
         config_file_paths.append(str(mlc_config_path))
 
-        with open(mlc_config_path, mode="rt", encoding="utf-8") as file:
+        with open(mlc_config_path, encoding="utf-8") as file:
             mlc_chat_config = MLCChatConfig.model_validate_json(file.read())
 
         if conversation is None:
@@ -148,7 +155,7 @@ def _process_model_args(
             # Run jit if model_lib is not provided
             # NOTE: we only import jit when necessary
             # so the engine do not have to depend on compilation
-            from mlc_llm.interface import jit  # pylint: disable=import-outside-toplevel
+            from mlc_llm.interface import jit
 
             model_compile_overrides = {
                 "context_window_size": engine_config.max_single_sequence_length,
@@ -168,7 +175,7 @@ def _process_model_args(
             ).model_lib_path
         return str(model_path), model_lib
 
-    model_args: List[Tuple[str, str]] = [_convert_model_info(model) for model in models]
+    model_args: List[Tuple[str, str]] = [_convert_model_info(model) for model in models]  # noqa: UP006
 
     assert conversation is not None
     return model_args, config_file_paths, conversation
@@ -320,7 +327,7 @@ class CallbackStreamOutput:
     """
 
     delta_text: str
-    delta_logprob_json_strs: Optional[List[str]]
+    delta_logprob_json_strs: Optional[List[str]]  # noqa: UP006
     finish_reason: Optional[str]
     request_final_usage_json_str: Optional[str]
 
@@ -339,12 +346,9 @@ class AsyncRequestStream:
 
     # The asynchronous queue to hold elements of either a list of
     # CallbackStreamOutput or an exception.
-    if sys.version_info >= (3, 9):
-        _queue: asyncio.Queue[  # pylint: disable=unsubscriptable-object
-            Union[List[CallbackStreamOutput], Exception]
-        ]
-    else:
-        _queue: asyncio.Queue
+    _queue: asyncio.Queue[
+        Union[List[CallbackStreamOutput], Exception]  # noqa: UP006
+    ]
     # The finish flag.
     _finished: bool
 
@@ -352,7 +356,7 @@ class AsyncRequestStream:
         self._queue = asyncio.Queue()
         self._finished = False
 
-    def push(self, item_or_exception: Union[List[CallbackStreamOutput], Exception]) -> None:
+    def push(self, item_or_exception: Union[List[CallbackStreamOutput], Exception]) -> None:  # noqa: UP006
         """Push a new token to the stream."""
         if self._finished:
             # No new item is expected after finish.
@@ -373,7 +377,7 @@ class AsyncRequestStream:
     def __aiter__(self):
         return self
 
-    async def __anext__(self) -> List[CallbackStreamOutput]:
+    async def __anext__(self) -> List[CallbackStreamOutput]:  # noqa: UP006
         result = await self._queue.get()
         if isinstance(result, StopIteration):
             raise StopAsyncIteration
@@ -405,10 +409,10 @@ class EngineState:
     trace_recorder = None
     # States used for AsyncMLCEngine
     async_event_loop: Optional[asyncio.AbstractEventLoop] = None
-    async_streamers: Dict[str, Tuple[AsyncRequestStream, List[TextStreamer]]] = {}
+    async_streamers: ClassVar[Dict[str, Tuple[AsyncRequestStream, List[TextStreamer]]]] = {}  # noqa: UP006
     # States used for MLCEngine
     sync_output_queue: queue.Queue = queue.Queue()
-    sync_text_streamers: List[TextStreamer] = []
+    sync_text_streamers: ClassVar[List[TextStreamer]] = []  # noqa: UP006
 
     def __init__(self, enable_tracing: bool) -> None:
         """Constructor."""
@@ -438,7 +442,7 @@ class EngineState:
 
     def get_request_stream_callback(
         self, kind: Literal["async", "sync"]
-    ) -> Callable[[List[data.RequestStreamOutput]], None]:
+    ) -> Callable[[List[data.RequestStreamOutput]], None]:  # noqa: UP006
         """Construct a callback function and return.
 
         The callback function has signature
@@ -454,7 +458,7 @@ class EngineState:
             else self._sync_request_stream_callback
         )
 
-        def _callback(delta_outputs: List[data.RequestStreamOutput]) -> None:
+        def _callback(delta_outputs: List[data.RequestStreamOutput]) -> None:  # noqa: UP006
             f_callback(delta_outputs)
 
         return _callback
@@ -466,7 +470,7 @@ class EngineState:
         if self.async_event_loop is None:
             self.async_event_loop = asyncio.get_event_loop()
 
-    def _async_request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
+    def _async_request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:  # noqa: UP006
         """The request stream callback function for AsyncMLCEngine to stream back
         the request generation results.
 
@@ -485,7 +489,8 @@ class EngineState:
         )
 
     def _async_request_stream_callback_impl(
-        self, delta_outputs: List[data.RequestStreamOutput]
+        self,
+        delta_outputs: List[data.RequestStreamOutput],  # noqa: UP006
     ) -> None:
         """The underlying implementation of request stream callback for AsyncMLCEngine."""
         for delta_output in delta_outputs:
@@ -540,7 +545,7 @@ class EngineState:
             stream.push(outputs)
             self.record_event(request_id, event="finish callback")
 
-    def _sync_request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
+    def _sync_request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:  # noqa: UP006
         """The request stream callback function for MLCEngine to stream back
         the request generation results.
         """
@@ -548,7 +553,7 @@ class EngineState:
         self.sync_output_queue.put_nowait(delta_outputs)
 
 
-class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
+class MLCEngineBase:
     """The base engine class, which implements common functions that
     are shared by MLCEngine and AsyncMLCEngine.
 
@@ -565,7 +570,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
     Checkout subclasses AsyncMLCEngine/MLCEngine for the docstring of constructor parameters.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
+    def __init__(
         self,
         kind: Literal["async", "sync"],
         model: str,
@@ -595,7 +600,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         self.model_config_dicts = []
         for i, model_info in enumerate(models):
             model_info.model_lib = model_args[i][1]
-            with open(model_config_paths[i], "r", encoding="utf-8") as file:
+            with open(model_config_paths[i], encoding="utf-8") as file:
                 self.model_config_dicts.append(json.load(file))
 
         # - Print logging info for regarding the mode selection.
@@ -642,7 +647,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
 
         engine_config.model = model_args[0][0]
         engine_config.model_lib = model_args[0][1]
-        engine_config.additional_models = model_args[1:]  # type: ignore
+        engine_config.additional_models = model_args[1:]
         engine_config.mode = mode
         self._ffi["reload"](engine_config.asjson())
         self.engine_config = EngineConfig.from_json(self._ffi["get_complete_engine_config"]())
@@ -679,15 +684,15 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         return self._ffi["reset"]()
 
 
-def process_chat_completion_request(  # pylint: disable=too-many-arguments
+def process_chat_completion_request(
     request: openai_api_protocol.ChatCompletionRequest,
     request_id: str,
     engine_state: EngineState,
-    model_config: Dict[str, Any],
-    f_tokenize: Callable[[str], List[int]],
+    model_config: Dict[str, Any],  # noqa: UP006
+    f_tokenize: Callable[[str], List[int]],  # noqa: UP006
     max_input_sequence_length: int,
     conv_template: Conversation,
-) -> Tuple[List[Union[List[int], data.Data]], GenerationConfig, bool, int]:
+) -> Tuple[List[Union[List[int], data.Data]], GenerationConfig, bool, int]:  # noqa: UP006
     """Process the given ChatCompletionRequest, apply request validity
     checks, and return the processed prompts, and other info.
 
@@ -754,9 +759,7 @@ def process_chat_completion_request(  # pylint: disable=too-many-arguments
     # - Get the prompt from template, and encode to token ids.
     # - Check prompt length
     engine_state.record_event(request_id, event="start tokenization")
-    prompts = engine_utils.process_prompts(  # type: ignore
-        conv_template.as_prompt(model_config), f_tokenize
-    )
+    prompts = engine_utils.process_prompts(conv_template.as_prompt(model_config), f_tokenize)
     engine_state.record_event(request_id, event="finish tokenization")
 
     if conv_template.system_prefix_token_ids is not None:
@@ -775,13 +778,13 @@ def process_chat_completion_request(  # pylint: disable=too-many-arguments
     return prompts, generation_cfg, conv_template.use_function_calling, prompt_length
 
 
-def process_chat_completion_stream_output(  # pylint: disable=too-many-arguments
-    delta_outputs: List[CallbackStreamOutput],
+def process_chat_completion_stream_output(
+    delta_outputs: List[CallbackStreamOutput],  # noqa: UP006
     request: openai_api_protocol.ChatCompletionRequest,
     request_id: str,
     engine_state: EngineState,
     use_function_calling: bool,
-    finish_reasons: List[Optional[str]],
+    finish_reasons: List[Optional[str]],  # noqa: UP006
 ) -> Optional[openai_api_protocol.ChatCompletionStreamResponse]:
     """Process the delta outputs of a single request of ChatCompletion,
     convert the delta output to ChatCompletionStreamResponse and return.
@@ -884,14 +887,14 @@ def process_chat_completion_stream_output(  # pylint: disable=too-many-arguments
     return response
 
 
-def process_completion_request(  # pylint: disable=too-many-arguments
+def process_completion_request(
     request: openai_api_protocol.CompletionRequest,
     request_id: str,
     engine_state: EngineState,
     tokenizer: Tokenizer,
     max_input_sequence_length: int,
     conv_template: Conversation,
-) -> Tuple[List[int], GenerationConfig, int, Optional[openai_api_protocol.CompletionResponse]]:
+) -> Tuple[List[int], GenerationConfig, int, Optional[openai_api_protocol.CompletionResponse]]:  # noqa: UP006
     """Process the given CompletionRequest, apply request validity
     checks, and return the processed prompts, and other info.
 
@@ -967,7 +970,7 @@ def process_completion_request(  # pylint: disable=too-many-arguments
 
 
 def get_logprobs_from_delta(
-    delta_logprob_json_strs: List[str],
+    delta_logprob_json_strs: List[str],  # noqa: UP006
 ) -> openai_api_protocol.CompletionLogProbs:
     """Convert json strings containing logprobs information to
     completion response format (OpenAI API compatible)
@@ -1003,12 +1006,12 @@ def get_logprobs_from_delta(
     )
 
 
-def process_completion_stream_output(  # pylint: disable=too-many-arguments
-    delta_outputs: List[CallbackStreamOutput],
+def process_completion_stream_output(
+    delta_outputs: List[CallbackStreamOutput],  # noqa: UP006
     request: openai_api_protocol.CompletionRequest,
     request_id: str,
     engine_state: EngineState,
-    finish_reasons: List[Optional[str]],
+    finish_reasons: List[Optional[str]],  # noqa: UP006
 ) -> Optional[openai_api_protocol.CompletionResponse]:
     """Process the delta outputs of a single request of Completion,
     convert the delta output to CompletionResponse and return.
@@ -1104,7 +1107,7 @@ def process_completion_stream_output(  # pylint: disable=too-many-arguments
 def create_completion_suffix_response(
     request: openai_api_protocol.CompletionRequest,
     request_id: str,
-    finish_reasons: List[Optional[str]],
+    finish_reasons: List[Optional[str]],  # noqa: UP006
 ) -> Optional[openai_api_protocol.CompletionResponse]:
     """Create the suffix response of Completion request
     when the request requires suffix.
@@ -1148,7 +1151,7 @@ def create_completion_suffix_response(
     return response
 
 
-def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, None]]:
+def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, None]]:  # noqa: UP006
     """Convert a (possibly list) of function call string to a list of json objects.
     Return None for invalid function call string."""
 
@@ -1174,14 +1177,15 @@ def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, Non
 
 
 def process_function_call_output(
-    output_texts: List[str], finish_reasons: List[str]
-) -> Tuple[bool, List[List[openai_api_protocol.ChatToolCall]]]:
+    output_texts: List[str],  # noqa: UP006
+    finish_reasons: List[str],  # noqa: UP006
+) -> Tuple[bool, List[List[openai_api_protocol.ChatToolCall]]]:  # noqa: UP006
     """Process the potential function call results outputted by model,
     according to the finish reasons.
     Return whether the output has function call, and the list of tool calls.
     """
     n = len(output_texts)
-    tool_calls_list: List[List[openai_api_protocol.ChatToolCall]] = [[] for _ in range(n)]
+    tool_calls_list: List[List[openai_api_protocol.ChatToolCall]] = [[] for _ in range(n)]  # noqa: UP006
     use_function_calling = any(finish_reason == "tool_calls" for finish_reason in finish_reasons)
     if use_function_calling:
         for i, output_text in enumerate(output_texts):
@@ -1209,15 +1213,15 @@ def process_function_call_output(
     return use_function_calling, tool_calls_list
 
 
-def wrap_chat_completion_response(  # pylint: disable=too-many-arguments
+def wrap_chat_completion_response(
     request_id: str,
     model: str,
-    output_texts: List[str],
-    finish_reasons: List[str],
-    tool_calls_list: List[List[openai_api_protocol.ChatToolCall]],
-    logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]],
+    output_texts: List[str],  # noqa: UP006
+    finish_reasons: List[str],  # noqa: UP006
+    tool_calls_list: List[List[openai_api_protocol.ChatToolCall]],  # noqa: UP006
+    logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]],  # noqa: UP006
     use_function_calling: bool,
-    usage: Optional[Dict[str, Any]],
+    usage: Optional[Dict[str, Any]],  # noqa: UP006
 ) -> openai_api_protocol.ChatCompletionResponse:
     """Wrap the non-streaming chat completion results to ChatCompletionResponse instance."""
     return openai_api_protocol.ChatCompletionResponse(
@@ -1249,12 +1253,12 @@ def wrap_chat_completion_response(  # pylint: disable=too-many-arguments
     )
 
 
-def wrap_completion_response(  # pylint: disable=too-many-arguments
+def wrap_completion_response(
     request_id: str,
     model: str,
-    output_texts: List[str],
-    finish_reasons: List[str],
-    logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]],
+    output_texts: List[str],  # noqa: UP006
+    finish_reasons: List[str],  # noqa: UP006
+    logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]],  # noqa: UP006
     usage: openai_api_protocol.CompletionUsage,
 ) -> openai_api_protocol.CompletionResponse:
     """Wrap the non-streaming completion results to CompletionResponse instance."""

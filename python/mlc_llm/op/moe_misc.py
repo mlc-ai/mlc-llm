@@ -1,7 +1,7 @@
 """Mixture of Experts operators"""
 
 from functools import reduce
-from typing import Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Tuple, Union  # noqa: UP035
 
 import numpy as np
 from tvm import te, tirx
@@ -9,7 +9,6 @@ from tvm.relax.frontend.nn import IntExpr, Tensor, op
 from tvm.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,name-defined"
-# pylint: disable=line-too-long,too-many-locals,invalid-name
 
 
 def moe_sum(x: Tensor, dim: int) -> Tensor:
@@ -40,14 +39,12 @@ def _gating_topk_init_local_top_k(k_val, dtype, local_top_k, local_top_k_index):
         T.buffer_store(local_top_k_index, t, indices=[-1])
 
 
-def _gating_topk_process_value(  # pylint: disable=too-many-arguments
-    k_val, x, local_top_k, local_top_k_index, vi, vk
-):
+def _gating_topk_process_value(k_val, x, local_top_k, local_top_k_index, vi, vk):
     if_frames = [T.If(x[vi, vk] > local_top_k[i]) for i in range(k_val)]
     then_frames = [T.Then() for _ in range(k_val)]
     else_frames = [T.Else() for _ in range(k_val - 1)]
     for i in range(k_val):
-        if_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
+        if_frames[i].__enter__()
         with then_frames[i]:
             for j in range(k_val - 1, i, -1):
                 T.buffer_store(local_top_k, local_top_k[j - 1], indices=[j])
@@ -55,7 +52,7 @@ def _gating_topk_process_value(  # pylint: disable=too-many-arguments
             T.buffer_store(local_top_k, x[vi, vk], indices=[i])
             T.buffer_store(local_top_k_index, vk, indices=[i])
         if i != k_val - 1:
-            else_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
+            else_frames[i].__enter__()
 
     for i in range(k_val - 1, -1, -1):
         if i != k_val - 1:
@@ -63,7 +60,7 @@ def _gating_topk_process_value(  # pylint: disable=too-many-arguments
         if_frames[i].__exit__(None, None, None)
 
 
-def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:
+def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:  # noqa: UP006
     """Compute the top-k experts and their scores.
 
     Parameters
@@ -135,9 +132,7 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:
     )
 
 
-def gating_softmax_topk(  # pylint: disable=too-many-statements
-    x: Tensor, k: int, norm_topk_prob=True
-) -> Tuple[Tensor, Tensor]:
+def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor, Tensor]:  # noqa: UP006
     """Compute the softmax score, choose the top-k experts, and returns selected scores.
 
     Parameters
@@ -240,7 +235,7 @@ def gating_softmax_topk(  # pylint: disable=too-many-statements
     return gating_topk(expert_score, k)
 
 
-def group_limited_greedy_topk(  # pylint: disable=too-many-arguments
+def group_limited_greedy_topk(
     scores: Tensor,  # (num_tokens, num_routed_experts)
     top_k: int,
     num_routed_experts: int,
@@ -249,7 +244,7 @@ def group_limited_greedy_topk(  # pylint: disable=too-many-arguments
     topk_method: Literal["group_limited_greedy", "noaux_tc"],
     num_tokens: IntExpr,
     e_score_correction_bias: Optional[Tensor],
-) -> Tuple[Tensor, Tensor]:
+) -> Tuple[Tensor, Tensor]:  # noqa: UP006
     """Group-limited greedy top-k expert selection.
 
     Parameters
@@ -433,7 +428,7 @@ def moe_cumsum(expert_indices: Tensor, num_local_experts: int) -> Tensor:
     """
     batch_size, experts_per_tok = expert_indices.shape
     expert_mask = (
-        op.tensor_expr_op(  # pylint: disable=too-many-function-args
+        op.tensor_expr_op(
             lambda expert_indices: te.compute(
                 (batch_size, num_local_experts),
                 lambda i, j: tirx.expr.Select(
@@ -455,7 +450,7 @@ def moe_cumsum(expert_indices: Tensor, num_local_experts: int) -> Tensor:
     return op.cumsum(expert_mask, axis=0, exclusive=False, dtype="int32")
 
 
-def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]:
+def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]:  # noqa: UP006
     """Returns a 1D tensor of indices that represents the shuffling plan for each instance in a
     batch, so that the inputs to each experts are contiguous and the indices for reverse permutation
     (scatter) to the original order.
@@ -490,7 +485,7 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]
 
     token_indices : Tensor
         The indices for shuffling with shape [batch_size * experts_per_tok].
-    """
+    """  # noqa: E501
     TX = 1024
     batch_size, experts_per_tok = expert_indices.shape
 
@@ -605,7 +600,7 @@ def get_indptr(
     return op.tensor_ir_op(
         _func_inclusive if inclusive else _func_exclusive,
         "get_expert_instance_indptr",
-        args=[cumsum, batch_size],  # type: ignore[list-item]
+        args=[cumsum, batch_size],
         out=Tensor.placeholder(out_shape, out_dtype),
     )
 

@@ -3,7 +3,7 @@ Implementation for Llama2 architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class LlamaConfig(ConfigBase):
     """Configuration of the Llama model."""
 
     hidden_size: int
@@ -32,7 +32,7 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     vocab_size: int
     tie_word_embeddings: bool = False
     position_embedding_base: int = 0
-    rope_scaling: Optional[Dict[str, Any]] = None
+    rope_scaling: Optional[Dict[str, Any]] = None  # noqa: UP006
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     num_key_value_heads: int = 0
@@ -41,9 +41,9 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     pipeline_parallel_stages: int = 1
     max_batch_size: int = 1
     disaggregation: bool = False
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
-    def __post_init__(self):  # pylint: disable=too-many-branches
+    def __post_init__(self):
         if self.position_embedding_base == 0:
             if "rope_theta" in self.kwargs:
                 self.position_embedding_base = self.kwargs.pop("rope_theta")
@@ -53,9 +53,9 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             if "rope_type" not in self.rope_scaling:
                 self.rope_scaling = None
             else:
-                assert (
-                    self.rope_scaling["rope_type"] == "llama3"
-                ), f"Unsupported RoPE scaling type {self.rope_scaling['rope_type']} for Llama"
+                assert self.rope_scaling["rope_type"] == "llama3", (
+                    f"Unsupported RoPE scaling type {self.rope_scaling['rope_type']} for Llama"
+                )
 
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
@@ -103,9 +103,6 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = min(self.context_window_size, 8192)
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
 class LlamaFFN(nn.Module):
     def __init__(self, config: LlamaConfig):
         super().__init__()
@@ -139,16 +136,16 @@ class LlamaEmbedding(nn.Embedding):
         return nn.op.matmul(x, weight, out_dtype="float32")
 
 
-class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class LlamaAttention(nn.Module):
     def __init__(self, config: LlamaConfig):
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
-        assert (
-            config.num_key_value_heads % config.tensor_parallel_shards == 0
-        ), f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
-        assert (
-            config.num_key_value_heads >= config.tensor_parallel_shards
-        ), f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
+        assert config.num_key_value_heads % config.tensor_parallel_shards == 0, (
+            f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"  # noqa: E501
+        )
+        assert config.num_key_value_heads >= config.tensor_parallel_shards, (
+            f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
+        )
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
@@ -247,7 +244,7 @@ class LlamaModel(nn.Module):
         return hidden_states
 
 
-class LlamaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class LlamaForCausalLM(nn.Module):
     def __init__(self, config: LlamaConfig):
         self.model = LlamaModel(config)
         self.tie_word_embeddings = config.tie_word_embeddings
@@ -396,7 +393,7 @@ class LlamaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

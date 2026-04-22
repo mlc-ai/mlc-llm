@@ -11,9 +11,7 @@ from . import per_tensor_quantization as ptq
 from .utils import apply_sharding
 
 
-class FP8PerTensorQuantizeMixtralExperts(
-    ptq.PerTensorQuantizeMixtralExperts
-):  # pylint: disable=too-many-instance-attributes
+class FP8PerTensorQuantizeMixtralExperts(ptq.PerTensorQuantizeMixtralExperts):
     """MixtralExperts with per-tensor quantization in FP8."""
 
     def __init__(
@@ -24,7 +22,7 @@ class FP8PerTensorQuantizeMixtralExperts(
         config: ptq.PerTensorQuantize,
         name: str,
         tensor_parallel_shards=1,
-    ):  # pylint: disable=too-many-arguments
+    ):
         super().__init__(num_local_experts, in_features, out_features, config, name)
         self.tensor_parallel_shards = tensor_parallel_shards
 
@@ -69,11 +67,11 @@ class FP8PerTensorQuantizeMixtralExperts(
 
         return quantized_mistral_experts
 
-    def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
+    def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:
         w = self.q_weight
 
         if self.config.calibration_mode == "max":
-            _, x_scale = self.config.quantize_float8(  # type: ignore
+            _, x_scale = self.config.quantize_float8(
                 x,
                 quantize_dtype=self.config.activation_dtype,
                 storage_dtype=self.config.activation_dtype,
@@ -121,5 +119,4 @@ class FP8PerTensorQuantizeMixtralExperts(
         return moe_matmul.group_gemm(x, w, indptr)
 
 
-# pylint: disable=protected-access
 ptq.PerTensorQuantizeMixtralExperts._IMPL["fp8"] = FP8PerTensorQuantizeMixtralExperts

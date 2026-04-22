@@ -1,7 +1,7 @@
 """Utility functions for MLC Serve engine"""
 
 import uuid
-from typing import Any, Callable, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Union  # noqa: UP035
 
 from mlc_llm.protocol import error_protocol, openai_api_protocol
 from mlc_llm.protocol.generation_config import GenerationConfig
@@ -12,7 +12,7 @@ RequestProtocol = Union[
 ]
 
 
-def get_unsupported_fields(request: RequestProtocol) -> List[str]:
+def get_unsupported_fields(request: RequestProtocol) -> List[str]:  # noqa: UP006
     """Get the unsupported fields of the request.
     Return the list of unsupported field names.
     """
@@ -27,9 +27,9 @@ def get_unsupported_fields(request: RequestProtocol) -> List[str]:
     raise RuntimeError("Cannot reach here")
 
 
-def openai_api_get_generation_config(request: RequestProtocol) -> Dict[str, Any]:
+def openai_api_get_generation_config(request: RequestProtocol) -> Dict[str, Any]:  # noqa: UP006
     """Create the generation config from the given request."""
-    kwargs: Dict[str, Any] = {}
+    kwargs: Dict[str, Any] = {}  # noqa: UP006
     arg_names = [
         "n",
         "temperature",
@@ -62,11 +62,11 @@ def openai_api_get_generation_config(request: RequestProtocol) -> Dict[str, Any]
 
 def get_generation_config(
     request: RequestProtocol,
-    extra_stop_token_ids: Optional[List[int]] = None,
-    extra_stop_str: Optional[List[str]] = None,
+    extra_stop_token_ids: Optional[List[int]] = None,  # noqa: UP006
+    extra_stop_str: Optional[List[str]] = None,  # noqa: UP006
 ) -> GenerationConfig:
     """Create the generation config in MLC LLM out from the input request protocol."""
-    kwargs: Dict[str, Any]
+    kwargs: Dict[str, Any]  # noqa: UP006
     if isinstance(
         request,
         (
@@ -109,7 +109,8 @@ def check_unsupported_fields(request: RequestProtocol) -> None:
 
 
 def check_and_get_prompts_length(
-    prompts: List[Union[List[int], data.ImageData]], max_input_sequence_length: int
+    prompts: List[Union[List[int], data.ImageData]],  # noqa: UP006
+    max_input_sequence_length: int,
 ) -> int:
     """Check if the total prompt length exceeds the max single sequence
     sequence length allowed by the served model. Raise BadRequestError if so.
@@ -127,9 +128,9 @@ def check_and_get_prompts_length(
 
 
 def process_prompts(
-    input_prompts: Union[str, List[int], List[Union[str, List[int], data.ImageData]]],
-    ftokenize: Callable[[str], List[int]],
-) -> List[Union[List[int], data.ImageData]]:
+    input_prompts: Union[str, List[int], List[Union[str, List[int], data.ImageData]]],  # noqa: UP006
+    ftokenize: Callable[[str], List[int]],  # noqa: UP006
+) -> List[Union[List[int], data.ImageData]]:  # noqa: UP006
     """Convert all input tokens to list of token ids with regard to the
     given tokenization function.
     For each input prompt, return the list of token ids after tokenization.
@@ -149,10 +150,10 @@ def process_prompts(
         assert isinstance(input_prompts, list)
         if not all(isinstance(token_id, int) for token_id in input_prompts):
             raise error_protocol.BadRequestError(error_msg)
-        return [input_prompts]  # type: ignore
+        return [input_prompts]
 
     # Case 3. A list of prompts.
-    output_prompts: List[Union[List[int], data.ImageData]] = []
+    output_prompts: List[Union[List[int], data.ImageData]] = []  # noqa: UP006
     for input_prompt in input_prompts:
         if isinstance(input_prompt, str):
             output_prompts.append(ftokenize(input_prompt))
@@ -168,8 +169,8 @@ def process_prompts(
 
 
 def convert_prompts_to_data(
-    prompts: Union[str, List[int], List[Union[str, List[int], data.Data]]],
-) -> List[data.Data]:
+    prompts: Union[str, List[int], List[Union[str, List[int], data.Data]]],  # noqa: UP006
+) -> List[data.Data]:  # noqa: UP006
     """Convert the given prompts in the combination of token id lists
     and/or data to all data."""
     if isinstance(prompts, data.Data):
@@ -178,8 +179,8 @@ def convert_prompts_to_data(
         return [data.TextData(prompts)]
     if isinstance(prompts[0], int):
         assert isinstance(prompts, list) and all(isinstance(token_id, int) for token_id in prompts)
-        return [data.TokenData(prompts)]  # type: ignore
-    return [convert_prompts_to_data(x)[0] for x in prompts]  # type: ignore
+        return [data.TokenData(prompts)]
+    return [convert_prompts_to_data(x)[0] for x in prompts]
 
 
 class ErrorCleanupScope:
@@ -282,7 +283,7 @@ def load_embedding_params(model_weight_path, device, model_metadata) -> list:
     params : list
         List of tvm.runtime.Tensor parameters in metadata order.
     """
-    from tvm.contrib import tvmjs  # pylint: disable=import-outside-toplevel
+    from tvm.contrib import tvmjs
 
     params, meta = tvmjs.load_tensor_cache(model_weight_path, device)
     param_names = [param["name"] for param in model_metadata["params"]]
@@ -290,7 +291,7 @@ def load_embedding_params(model_weight_path, device, model_metadata) -> list:
     return [params[name] for name in param_names]
 
 
-def get_embedding_metadata(config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def get_embedding_metadata(config: Dict[str, Any]) -> Optional[Dict[str, Any]]:  # noqa: UP006
     """Read emedding metadata from mlc-chat-config or model lib metadata.
 
     Parameters

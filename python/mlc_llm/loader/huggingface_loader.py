@@ -3,8 +3,9 @@
 import gc
 import json
 from collections import OrderedDict, defaultdict
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Callable, Dict, Iterator, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
 from tqdm import tqdm
@@ -22,7 +23,7 @@ from .utils import check_parameter_usage, load_safetensor_shard, load_torch_shar
 logger = logging.getLogger(__name__)
 
 
-class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
+class HuggingFaceLoader:
     """A loader loading HuggingFace's PyTorch/SafeTensor format and converts them
     to MLC's parameters.
 
@@ -47,8 +48,8 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
     """
 
     stats: Stats
-    cached_files: Dict[Path, Dict[str, np.ndarray]]
-    torch_to_path: Dict[str, Path]
+    cached_files: Dict[Path, Dict[str, np.ndarray]]  # noqa: UP006
+    torch_to_path: Dict[str, Path]  # noqa: UP006
     extern_param_map: ExternMapping
     quantize_param_map: Optional[QuantizeMapping]
 
@@ -99,8 +100,10 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         check_parameter_usage(extern_param_map, set(self.torch_to_path.keys()))
 
     def load(
-        self, device: Device, preshard_funcs: Dict[str, Callable] = None
-    ) -> Iterator[Tuple[str, Tensor]]:
+        self,
+        device: Device,
+        preshard_funcs: Optional[Dict[str, Callable]] = None,  # noqa: UP006
+    ) -> Iterator[Tuple[str, Tensor]]:  # noqa: UP006
         """Load the parameters and yield the MLC parameter and its value.
 
         Parameters
@@ -202,9 +205,9 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
             gc.collect()
 
 
-def _loading_order(param_map: ExternMapping, torch_to_path: Dict[str, Path]) -> List[str]:
+def _loading_order(param_map: ExternMapping, torch_to_path: Dict[str, Path]) -> List[str]:  # noqa: UP006
     # Step 1. Build a map from path to torch parameters
-    path_to_torch: Dict[Path, List[str]] = defaultdict(list)
+    path_to_torch: Dict[Path, List[str]] = defaultdict(list)  # noqa: UP006
     for torch_name, path in torch_to_path.items():
         path_to_torch[path].append(torch_name)
     # Step 2. Build a map from torch parameters to MLC parameters

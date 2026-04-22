@@ -1,4 +1,3 @@
-# pylint: disable=line-too-long,missing-docstring
 import tvm
 from tvm import tirx
 from tvm.relax.frontend.nn import core, modules, spec
@@ -9,7 +8,6 @@ from tvm.script import tirx as T
 from mlc_llm.nn.kv_cache import PagedKVCache, RopeMode
 
 # mypy: disable-error-code="attr-defined"
-# pylint: disable=invalid-name,unused-argument,too-many-locals,too-many-statements
 
 
 def test_nn_module_paged_kv_cache():
@@ -18,11 +16,11 @@ def test_nn_module_paged_kv_cache():
     class Module:
         @R.function
         def create_paged_kv_cache(
-            max_batch_size: R.Shape(["max_batch_size_1"]),  # type: ignore
-            max_total_seq_len: R.Shape(["max_total_seq_len_1"]),  # type: ignore
-            prefill_chunk_size: R.Shape(["prefill_chunk_size_1"]),  # type: ignore
-            page_size: R.Shape(["page_size_1"]),  # type: ignore
-            support_sliding_window: R.Shape(["support_sliding_window_1"]),  # type: ignore
+            max_batch_size: R.Shape(["max_batch_size_1"]),
+            max_total_seq_len: R.Shape(["max_total_seq_len_1"]),
+            prefill_chunk_size: R.Shape(["prefill_chunk_size_1"]),
+            page_size: R.Shape(["page_size_1"]),
+            support_sliding_window: R.Shape(["support_sliding_window_1"]),
         ) -> R.Object:
             max_batch_size_1 = T.int64()
             max_total_seq_len_1 = T.int64()
@@ -31,18 +29,18 @@ def test_nn_module_paged_kv_cache():
             support_sliding_window_1 = T.int64()
             R.func_attr({"num_input": 5})
             with R.dataflow():
-                paged_kv_cache: R.Object = R.call_pure_packed("mlc.create_paged_kv_cache_generic", R.shape([max_batch_size_1, max_total_seq_len_1, prefill_chunk_size_1, page_size_1, support_sliding_window_1]), R.prim_value(32), R.prim_value(32), R.prim_value(32), R.prim_value(128), R.prim_value(1), R.prim_value(1), R.prim_value(10000), R.prim_value(128), R.dtype("float16"), sinfo_args=(R.Object,))
+                paged_kv_cache: R.Object = R.call_pure_packed("mlc.create_paged_kv_cache_generic", R.shape([max_batch_size_1, max_total_seq_len_1, prefill_chunk_size_1, page_size_1, support_sliding_window_1]), R.prim_value(32), R.prim_value(32), R.prim_value(32), R.prim_value(128), R.prim_value(1), R.prim_value(1), R.prim_value(10000), R.prim_value(128), R.dtype("float16"), sinfo_args=(R.Object,))  # noqa: E501
                 gv1: R.Object = paged_kv_cache
                 R.output(gv1)
             return gv1
 
         @R.function
         def forward(
-            cache: R.Object, qkv: R.Tensor((1, 100, 96, 128), dtype="float16")  # type: ignore
-        ) -> R.Tensor((1, 100, 32, 128), dtype="float16"):  # type: ignore
+            cache: R.Object, qkv: R.Tensor((1, 100, 96, 128), dtype="float16")
+        ) -> R.Tensor((1, 100, 32, 128), dtype="float16"):
             R.func_attr({"num_input": 2})
             with R.dataflow():
-                reshape: R.Tensor((100, 96, 128), dtype="float16") = R.reshape(  # type: ignore
+                reshape: R.Tensor((100, 96, 128), dtype="float16") = R.reshape(
                     qkv, R.shape([100, 96, 128])
                 )
                 lv = R.call_dps_packed(
@@ -50,10 +48,10 @@ def test_nn_module_paged_kv_cache():
                     (cache, R.prim_value(0), R.prim_value(T.float32(1)), reshape),
                     out_sinfo=R.Tensor((100, 32, 128), dtype="float16"),
                 )
-                reshape1: R.Tensor((1, 100, 32, 128), dtype="float16") = R.reshape(  # type: ignore
+                reshape1: R.Tensor((1, 100, 32, 128), dtype="float16") = R.reshape(
                     lv, R.shape([1, 100, 32, 128])
                 )
-                gv: R.Tensor((1, 100, 32, 128), dtype="float16") = reshape1  # type: ignore
+                gv: R.Tensor((1, 100, 32, 128), dtype="float16") = reshape1
                 R.output(gv)
             return gv
     # fmt: on

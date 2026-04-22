@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name,missing-docstring
 """Unit tests for Gemma3 model architecture."""
 
 import pytest
@@ -31,7 +30,7 @@ def test_gemma3_creation(model_name: str):
     config = model_info.config.from_dict(MODEL_PRESETS[model_name])
     model = model_info.model(config)
     mod, named_params = model.export_tvm(
-        spec=model.get_default_spec(),  # type: ignore
+        spec=model.get_default_spec(),
     )
 
     # Verify export succeeded

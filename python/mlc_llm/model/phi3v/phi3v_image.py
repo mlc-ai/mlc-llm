@@ -12,8 +12,7 @@ from mlc_llm.support.config import ConfigBase
 
 
 # mypy: disable-error-code="attr-defined"
-# pylint: disable=invalid-name,missing-docstring
-class ImageProjection(Module):  # pylint: disable=too-many-instance-attributes
+class ImageProjection(Module):
     def __init__(self, config: ConfigBase):
         super().__init__()
         self.linear_1 = nn.Linear(
@@ -28,7 +27,7 @@ class ImageProjection(Module):  # pylint: disable=too-many-instance-attributes
             relax.BlockBuilder()
             .current()
             .match_cast(
-                image_features._expr,  # pylint: disable=protected-access
+                image_features._expr,
                 relax.TensorStructInfo([shape_1, image_features.shape[1]], image_features.dtype),
             ),
             "image_features",
@@ -41,7 +40,7 @@ class ImageProjection(Module):  # pylint: disable=too-many-instance-attributes
             relax.BlockBuilder()
             .current()
             .match_cast(
-                hidden_states._expr,  # pylint: disable=protected-access
+                hidden_states._expr,
                 relax.TensorStructInfo([shape_2, hidden_states.shape[1]], hidden_states.dtype),
             ),
             "hidden_states",
@@ -65,7 +64,6 @@ class Phi3ImageEmbedding(Module):
         self.img_projection = ImageProjection(config)
         self.image_size = config.vision_config.image_size
 
-    # pylint: disable=dangerous-default-value
     def apply_schedule(self, sch, block, bdx=32, tile=[32, 32]):
         loop_x, loop_y = sch.get_loops(block)[-2:]
         xo, xi = sch.split(loop_x, factors=[tile[0], None])
@@ -76,7 +74,6 @@ class Phi3ImageEmbedding(Module):
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
-    # pylint: disable=too-many-arguments,too-many-locals
     def dyn_repeat_4d_tensor(self, input_tensor, r0, r1, r2, r3) -> Tensor:
         assert 4 == input_tensor.ndim, "input_tensor should be 4D data tensor"
 
@@ -210,7 +207,7 @@ class Phi3ImageEmbedding(Module):
             relax.BlockBuilder()
             .current()
             .match_cast(
-                image_features._expr,  # pylint: disable=protected-access
+                image_features._expr,
                 relax.TensorStructInfo(
                     [
                         image_features.shape[0],
@@ -241,7 +238,7 @@ class Phi3ImageEmbedding(Module):
             relax.BlockBuilder()
             .current()
             .match_cast(
-                image_features._expr,  # pylint: disable=protected-access
+                image_features._expr,
                 relax.TensorStructInfo(
                     [
                         image_features.shape[0],
@@ -269,7 +266,7 @@ class Phi3ImageEmbedding(Module):
         image_features_hd: (num_images, h_crop*12, w_crop*12, 4096)
         output: (num_images, (h_crop*12) * (w_crop*12+1), 4096)
         """
-        num_images, h, w, hid_dim = image_features_hd.shape  # pylint: disable=unused-variable
+        num_images, h, w, hid_dim = image_features_hd.shape
         temp_sub_GN = self.dyn_repeat_4d_tensor(
             self.sub_GN, T.int64(1), T.int64(h), T.int64(1), T.int64(1)
         )
@@ -279,7 +276,6 @@ class Phi3ImageEmbedding(Module):
         )
         return image_features_hd_newline
 
-    # pylint: disable=too-many-locals,too-many-locals,unused-argument
     def forward(self, pixel_values: Tensor, h_crop, w_crop) -> Tensor:
         img_features = self.get_img_features(pixel_values)
         img_features = nn.op.split(img_features, indices_or_sections=[1], axis=0)
@@ -304,7 +300,7 @@ class Phi3ImageEmbedding(Module):
             relax.BlockBuilder()
             .current()
             .match_cast(
-                combined_image._expr,  # pylint: disable=protected-access
+                combined_image._expr,
                 relax.TensorStructInfo([new_s7, combined_image.shape[1]], combined_image.dtype),
             ),
             "combined_image",

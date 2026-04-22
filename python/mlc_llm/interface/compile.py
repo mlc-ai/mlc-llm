@@ -3,14 +3,14 @@
 import dataclasses
 from io import StringIO
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple  # noqa: UP035
 
 from tvm import IRModule, relax, tirx
 from tvm.ir.transform import Pass, PassContext
 from tvm.relax.frontend import nn
 from tvm.target import Target
 
-from mlc_llm import compiler_pass as _
+from mlc_llm import compiler_pass as _  # noqa: F401
 from mlc_llm import op as op_ext
 from mlc_llm.cli.model_metadata import _report_memory_usage
 from mlc_llm.model import Model
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class CompileArgs:  # pylint: disable=too-many-instance-attributes
+class CompileArgs:
     """Arguments to MLC LLM's compiler."""
 
     config: Path
@@ -60,10 +60,10 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
 
 
 def _apply_preproc_to_params_and_check_pipeline(
-    named_params: List[Tuple[str, nn.Parameter]],
+    named_params: List[Tuple[str, nn.Parameter]],  # noqa: UP006
     model_config,
-) -> Dict[str, tirx.PrimFunc]:
-    extra_tirs: Dict[str, tirx.PrimFunc] = {}
+) -> Dict[str, tirx.PrimFunc]:  # noqa: UP006
+    extra_tirs: Dict[str, tirx.PrimFunc] = {}  # noqa: UP006
     for name, param in named_params:
         preprocs = param.attrs.get("preprocs", [])
         shard_strategy = param.attrs.get("shard_strategy", None)
@@ -106,7 +106,7 @@ def _infer_kv_state_kind(model_type) -> str:
 
 
 def _compile(args: CompileArgs, model_config: ConfigBase):
-    def _get_variable_bounds(model_config) -> Dict[str, int]:
+    def _get_variable_bounds(model_config) -> Dict[str, int]:  # noqa: UP006
         if hasattr(model_config, "sliding_window_size"):
             return {
                 "rolling_cache_len": model_config.sliding_window_size,
@@ -120,7 +120,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "batch_size": getattr(model_config, "max_batch_size", 1),
         }
 
-    def _get_param_metadata(name: str, param: nn.Parameter) -> Dict[str, Any]:
+    def _get_param_metadata(name: str, param: nn.Parameter) -> Dict[str, Any]:  # noqa: UP006
         return {
             "name": name,
             # Record dynamic shape as -1 (e.g. vocab_size)
@@ -145,14 +145,14 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         if (
             args.quantization.kind == "ft-quant"
             and hasattr(model_config, "tensor_parallel_shards")
-            and model_config.tensor_parallel_shards > 1  # type: ignore
+            and model_config.tensor_parallel_shards > 1
         ):
             raise NotImplementedError
         if (
             hasattr(args.quantization, "linear_weight_layout")
             and args.quantization.linear_weight_layout == "KN"
             and hasattr(model_config, "tensor_parallel_shards")
-            and model_config.tensor_parallel_shards > 1  # type: ignore
+            and model_config.tensor_parallel_shards > 1
         ):
             raise NotImplementedError(
                 "KN layout (q3f16_0 and q4f16_0) is not supported for tensor parallelism"
@@ -161,7 +161,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         # Step 2. Exporting the model to TVM
         logger.info("Exporting the model to TVM compiler")
         mod, named_params, ext_mods = model.export_tvm(
-            spec=model.get_default_spec(),  # type: ignore
+            spec=model.get_default_spec(),
             allow_extern=True,
         )
         # Step 3. Running relax compilation pipeline
@@ -183,8 +183,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "context_window_size": getattr(model_config, "context_window_size", -1),
             "sliding_window_size": getattr(model_config, "sliding_window_size", -1),
             "attention_sink_size": getattr(model_config, "attention_sink_size", -1),
-            "prefill_chunk_size": model_config.prefill_chunk_size,  # type: ignore
-            "tensor_parallel_shards": model_config.tensor_parallel_shards,  # type: ignore
+            "prefill_chunk_size": model_config.prefill_chunk_size,
+            "tensor_parallel_shards": model_config.tensor_parallel_shards,
             "pipeline_parallel_stages": getattr(model_config, "pipeline_parallel_stages", 1),
             "disaggregation": getattr(model_config, "disaggregation", False),
             "kv_state_kind": _infer_kv_state_kind(args.model.name),
@@ -206,7 +206,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             args.build_func(
                 mod,
                 args,
-                pipeline=relax.get_pipeline(  # type: ignore
+                pipeline=relax.get_pipeline(
                     "mlc_llm",
                     target=args.target,
                     flashinfer=args.opt.flashinfer,
@@ -225,8 +225,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
     logger.info("Generated: %s", bold(str(args.output)))
 
 
-def compile(  # pylint: disable=too-many-arguments,redefined-builtin
-    config: Dict[str, Any],
+def compile(
+    config: Dict[str, Any],  # noqa: UP006
     quantization: Quantization,
     model_type: Model,
     target: Target,

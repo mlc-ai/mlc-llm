@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union  # noqa: UP035
 
 from tvm.runtime import Device
 
@@ -47,9 +47,9 @@ def log_jit_policy():
     )
 
 
-def jit(  # pylint: disable=too-many-locals,too-many-statements
+def jit(
     model_path: Path,
-    overrides: Dict[str, Any],
+    overrides: Dict[str, Any],  # noqa: UP006
     device: Union[Device, str],
     system_lib_prefix: Optional[str] = None,
     *,
@@ -63,7 +63,7 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
     if MLC_JIT_POLICY == "OFF":
         raise RuntimeError("JIT is disabled by MLC_JIT_POLICY=OFF")
 
-    with open(model_path / "mlc-chat-config.json", "r", encoding="utf-8") as in_file:
+    with open(model_path / "mlc-chat-config.json", encoding="utf-8") as in_file:
         mlc_chat_config = json.load(in_file)
     model_type = mlc_chat_config.pop("model_type")
     quantization = mlc_chat_config.pop("quantization")
@@ -90,7 +90,7 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
                 result.append(f"{field.name}={value}")
         return ";".join(result)
 
-    def _get_model_config() -> Dict[str, Any]:
+    def _get_model_config() -> Dict[str, Any]:  # noqa: UP006
         model_config = mlc_chat_config.pop("model_config")
         model_config.update(mlc_chat_config)
         for field in dataclasses.fields(ModelConfigOverride):

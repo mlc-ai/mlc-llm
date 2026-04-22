@@ -1,7 +1,5 @@
 """A compiler pass that fuses add + rms_norm."""
 
-# pylint: disable=invalid-name
-
 from typing import Optional
 
 import tvm
@@ -21,15 +19,13 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
     add_local_size = hidden_size // TX
 
     @T.prim_func(private=True)
-    def decode_add_rms(  # pylint: disable=too-many-locals
-        pA: T.handle, pB: T.handle, pC: T.handle, pO: T.handle, pAdd: T.handle
-    ):
+    def decode_add_rms(pA: T.handle, pB: T.handle, pC: T.handle, pO: T.handle, pAdd: T.handle):
         T.func_attr({"tirx.noalias": T.bool(True), "tirx.is_scheduled": 1})
         batch_size = T.int32()
         A = T.match_buffer(pA, (batch_size, 1, hidden_size), in_dtype)
         B = T.match_buffer(pB, (batch_size, 1, hidden_size), in_dtype)
         C = T.match_buffer(pC, (hidden_size,), in_dtype)
-        O = T.match_buffer(pO, (batch_size, 1, hidden_size), in_dtype)
+        out = T.match_buffer(pO, (batch_size, 1, hidden_size), in_dtype)
         add = T.match_buffer(pAdd, (batch_size, 1, hidden_size), in_dtype)
         add_local = T.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
         sum_shared = T.sblock_alloc_buffer((batch_size, 1), scope="shared")
@@ -74,7 +70,7 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
                     with T.sblock("T_cast_2"):
                         bx = T.axis.spatial(batch_size, v_bx)
                         h = T.axis.spatial(hidden_size, i * TX + v_tx_2)
-                        O[bx, 0, h] = T.cast(
+                        out[bx, 0, h] = T.cast(
                             T.rsqrt(sum_shared[bx, 0] * inv_hidden_size + eps)
                             * T.float32(add_local[h // TX])
                             * T.float32(C[h]),
@@ -92,15 +88,13 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
     add_local_size = hidden_size // TX
 
     @T.prim_func(private=True)
-    def prefill_add_rms(  # pylint: disable=too-many-locals
-        pA: T.handle, pB: T.handle, pC: T.handle, pO: T.handle, pAdd: T.handle
-    ):
+    def prefill_add_rms(pA: T.handle, pB: T.handle, pC: T.handle, pO: T.handle, pAdd: T.handle):
         T.func_attr({"tirx.noalias": T.bool(True), "tirx.is_scheduled": 1})
         seq_len = T.int32()
         A = T.match_buffer(pA, (1, seq_len, hidden_size), in_dtype)
         B = T.match_buffer(pB, (1, seq_len, hidden_size), in_dtype)
         C = T.match_buffer(pC, (hidden_size,), in_dtype)
-        O = T.match_buffer(pO, (1, seq_len, hidden_size), in_dtype)
+        out = T.match_buffer(pO, (1, seq_len, hidden_size), in_dtype)
         add = T.match_buffer(pAdd, (1, seq_len, hidden_size), in_dtype)
         add_local = T.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
         sum_shared = T.sblock_alloc_buffer((1, seq_len), scope="shared")
@@ -142,7 +136,7 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
                     with T.sblock("T_cast_2"):
                         bx = T.axis.spatial(seq_len, v_bx)
                         v1 = T.axis.spatial(hidden_size, v_i * TX + v_tx_2)
-                        O[0, bx, v1] = T.cast(
+                        out[0, bx, v1] = T.cast(
                             T.rsqrt(sum_shared[0, bx] * inv_hidden_size + eps)
                             * T.float32(add_local[v1 // TX])
                             * T.float32(C[v1]),
@@ -153,7 +147,7 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
 
 
 @tvm.transform.module_pass(opt_level=0, name="FuseAddRMSNorm")
-class FuseAddRMSNorm:  # pylint: disable=too-few-public-methods
+class FuseAddRMSNorm:
     """A compiler pass that fuses add + rms_norm."""
 
     def __init__(self, target: tvm.target.Target) -> None:
@@ -172,7 +166,7 @@ class FuseAddRMSNorm:  # pylint: disable=too-few-public-methods
 
 
 @mutator
-class _FuseAddRMSNormRewriter(PyExprMutator):  # pylint: disable=abstract-method
+class _FuseAddRMSNormRewriter(PyExprMutator):
     def __init__(self, mod: tvm.IRModule, target: tvm.target.Target):
         super().__init__(mod)
         self.mod = mod
@@ -180,7 +174,7 @@ class _FuseAddRMSNormRewriter(PyExprMutator):  # pylint: disable=abstract-method
         self.decode_norm_gv: Optional[tvm.ir.GlobalVar] = None
         self.TX = min(1024, get_max_num_threads_per_block(target))
 
-    def transform(self) -> tvm.IRModule:  # pylint: disable=too-many-locals
+    def transform(self) -> tvm.IRModule:
         """Entry point of the transformation"""
         for g_var, func in self.mod.functions_items():
             if not isinstance(func, relax.Function):
@@ -190,7 +184,7 @@ class _FuseAddRMSNormRewriter(PyExprMutator):  # pylint: disable=abstract-method
             self.builder_.update_func(g_var, new_func)
         return self.builder_.finalize()
 
-    def visit_call_(self, call: relax.Call) -> relax.Expr:  # pylint: disable=arguments-renamed
+    def visit_call_(self, call: relax.Call) -> relax.Expr:
         call = super().visit_call_(call)
 
         # Match the "rms_norm(add(x1, x2), w)" pattern

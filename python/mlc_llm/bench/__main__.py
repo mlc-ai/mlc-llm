@@ -3,11 +3,11 @@
 import functools
 import json
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
 import requests
-from transformers import AutoTokenizer  # pylint: disable=import-error
+from transformers import AutoTokenizer
 
 import mlc_llm
 from mlc_llm.bench.api_endpoint import SUPPORTED_BACKENDS, create_api_endpoint
@@ -31,7 +31,7 @@ logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
-def _parse_num_concurrent_requests(num_str: Optional[str]) -> Optional[List[int]]:
+def _parse_num_concurrent_requests(num_str: Optional[str]) -> Optional[List[int]]:  # noqa: UP006
     if num_str is None:
         return None
     numbers = num_str.split(",")
@@ -40,7 +40,7 @@ def _parse_num_concurrent_requests(num_str: Optional[str]) -> Optional[List[int]
     return list(int(number) for number in numbers)
 
 
-def _parse_request_rate(request_rate_str: Optional[str]) -> Optional[List[np.float32]]:
+def _parse_request_rate(request_rate_str: Optional[str]) -> Optional[List[np.float32]]:  # noqa: UP006
     if request_rate_str is None:
         return None
     request_rates = request_rate_str.split(",")
@@ -68,7 +68,7 @@ def _parse_mlc_engine_config(config_str: Optional[str]) -> EngineConfig:
         gpu_memory_utilization=engine_config_override.gpu_memory_utilization,
         spec_draft_length=engine_config_override.spec_draft_length,
         prefill_mode=engine_config_override.prefill_mode,
-        prefix_cache_max_num_recycling_seqs=engine_config_override.prefix_cache_max_num_recycling_seqs,  # pylint: disable=line-too-long
+        prefix_cache_max_num_recycling_seqs=engine_config_override.prefix_cache_max_num_recycling_seqs,
         prefix_cache_mode=engine_config_override.prefix_cache_mode,
     )
 
@@ -90,7 +90,7 @@ def run_pipeline(
     dataset: Dataset,
     tokenizer: AutoTokenizer,
     args: argparse.argparse.Namespace,
-) -> Tuple[Dict[str, Any], List[RequestRecord]]:
+) -> Tuple[Dict[str, Any], List[RequestRecord]]:  # noqa: UP006
     """Run the pipeline with the given dataset and args. Return the benchmark report dict."""
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -105,7 +105,7 @@ def run_pipeline(
         args.num_requests if not args.per_gpu_workload else args.num_requests * args.num_gpus
     )
     assert len(request_records) == num_total_requests
-    sorted_requests: List[RequestRecord] = [None] * num_total_requests
+    sorted_requests: List[RequestRecord] = [None] * num_total_requests  # noqa: UP006
     for request_record in request_records:
         assert request_record.request_id is not None
         assert sorted_requests[request_record.request_id] is None
@@ -122,7 +122,7 @@ def query_mlc_server_metrics(host: str, port: int):
         r = requests.post(f"http://{host}:{port}/debug/dump_engine_metrics", json={}, timeout=10)
         if r.status_code == 200:
             print(f"MLC server metrics: {r.json()}")
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:
         pass
 
 

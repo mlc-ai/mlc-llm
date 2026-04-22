@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name,missing-docstring
 import json
 import os
 
@@ -20,7 +19,7 @@ MLC_QWEN3_EMB_DEVICE = os.environ.get("MLC_QWEN3_EMB_DEVICE", "cuda")
 
 _skip = not all([MLC_QWEN3_EMB_HF_DIR, MLC_QWEN3_EMB_MODEL_DIR, MLC_QWEN3_EMB_MODEL_LIB])
 _skip_reason = (
-    "Set MLC_QWEN3_EMB_HF_DIR, MLC_QWEN3_EMB_MODEL_DIR, " "MLC_QWEN3_EMB_MODEL_LIB to run this test"
+    "Set MLC_QWEN3_EMB_HF_DIR, MLC_QWEN3_EMB_MODEL_DIR, MLC_QWEN3_EMB_MODEL_LIB to run this test"
 )
 
 TEST_TEXTS = [

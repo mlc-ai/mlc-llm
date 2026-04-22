@@ -4,7 +4,7 @@ import asyncio
 import concurrent.futures
 import json
 import os
-from typing import List, Literal, Optional, Tuple, Union
+from typing import List, Literal, Optional, Tuple, Union  # noqa: UP035
 
 import numpy as np
 import tvm
@@ -16,7 +16,7 @@ from mlc_llm.support.auto_device import detect_device
 from mlc_llm.tokenizers import Tokenizer
 
 
-class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
+class AsyncEmbeddingEngine:
     """Asynchronous embedding inference engine.
 
     Supports both encoder models (BERT-style) and decoder-only embedding models
@@ -40,7 +40,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         encoder -> "cls", decoder -> "last".
     """
 
-    def __init__(  # pylint: disable=too-many-branches
+    def __init__(
         self,
         model: str,
         model_lib: str,
@@ -161,7 +161,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         self._kv_state_end_forward = tvm.get_global_func("vm.builtin.kv_state_end_forward")
         self._nd_reshape = tvm.get_global_func("vm.builtin.reshape")
 
-    def embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
+    def embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:  # noqa: UP006
         """Compute embeddings for a list of input strings (synchronous).
 
         Parameters
@@ -180,7 +180,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
             return self._embed_encoder(inputs)
         return self._embed_decoder(inputs)
 
-    async def async_embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
+    async def async_embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:  # noqa: UP006
         """Compute embeddings asynchronously in a background thread.
 
         This method does not block the asyncio event loop.
@@ -200,9 +200,10 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, self.embed, inputs)
 
-    def _embed_encoder(  # pylint: disable=too-many-locals
-        self, inputs: List[str]
-    ) -> Tuple[List[List[float]], int]:
+    def _embed_encoder(
+        self,
+        inputs: List[str],  # noqa: UP006
+    ) -> Tuple[List[List[float]], int]:  # noqa: UP006
         """Encoder model embedding (BERT-style).
 
         Processes each input individually to avoid batch padding artifacts.
@@ -217,8 +218,8 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
           2. Encode each window independently
           3. Mean-pool all window embeddings → final embedding → L2 normalize
           This preserves information from the full text at the cost of N× compute.
-        """
-        embeddings: List[List[float]] = []
+        """  # noqa: RUF002
+        embeddings: List[List[float]] = []  # noqa: UP006
         total_tokens = 0
         prefill_chunk = self._metadata.get("prefill_chunk_size", 512)
 
@@ -228,11 +229,11 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
             if self._cls_token_id is not None and (
                 len(tokens) == 0 or tokens[0] != self._cls_token_id
             ):
-                tokens = [self._cls_token_id] + tokens
+                tokens = [self._cls_token_id, *tokens]
             if self._sep_token_id is not None and (
                 len(tokens) == 0 or tokens[-1] != self._sep_token_id
             ):
-                tokens = tokens + [self._sep_token_id]
+                tokens = [*tokens, self._sep_token_id]
 
             # Truncate to compiled buffer limit (keep [CLS] at start, [SEP] at end)
             if len(tokens) > prefill_chunk:
@@ -272,7 +273,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
 
         return embeddings, total_tokens
 
-    def _embed_decoder(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
+    def _embed_decoder(self, inputs: List[str]) -> Tuple[List[List[float]], int]:  # noqa: UP006
         """Decoder model embedding with batch prefill optimization.
 
         When total tokens fit within prefill_chunk_size, all inputs are processed
@@ -289,7 +290,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
 
         # Tokenize all inputs. Prefer tokenizer post-processor output. If absent (older models),
         # fall back to appending eos_token_id when missing.
-        token_lists: List[List[int]] = []
+        token_lists: List[List[int]] = []  # noqa: UP006
         for text in inputs:
             tokens = list(self.tokenizer.encode(text))
             if (
@@ -314,7 +315,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         # prefill_chunk, preserving input order. Oversize texts (single text
         # exceeding prefill_chunk) fall back to sequential chunked prefill.
         sub_batches = self._build_sub_batches(token_lists, prefill_chunk)
-        all_embeddings: List[List[float]] = []
+        all_embeddings: List[List[float]] = []  # noqa: UP006
         for batch_type, batch, batch_total in sub_batches:
             if batch_type == "batch":
                 embs, _ = self._batch_embed_decoder(
@@ -330,15 +331,16 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
 
     @staticmethod
     def _build_sub_batches(
-        token_lists: List[List[int]], prefill_chunk: int
-    ) -> List[Tuple[Literal["batch", "sequential"], List[List[int]], int]]:
+        token_lists: List[List[int]],  # noqa: UP006
+        prefill_chunk: int,
+    ) -> List[Tuple[Literal["batch", "sequential"], List[List[int]], int]]:  # noqa: UP006
         """Partition token lists into sub-batches that fit within prefill_chunk.
 
         Each sub-batch is a tuple of (mode, token_lists, total_token_count).
         Empty token lists are skipped to avoid invalid batch processing.
         """
-        sub_batches: List[Tuple[Literal["batch", "sequential"], List[List[int]], int]] = []
-        current_batch: List[List[int]] = []
+        sub_batches: List[Tuple[Literal["batch", "sequential"], List[List[int]], int]] = []  # noqa: UP006
+        current_batch: List[List[int]] = []  # noqa: UP006
         current_tokens = 0
 
         for tokens in token_lists:
@@ -359,14 +361,14 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
 
         return sub_batches
 
-    def _batch_embed_decoder(  # pylint: disable=too-many-arguments,too-many-locals
+    def _batch_embed_decoder(
         self,
-        token_lists: List[List[int]],
+        token_lists: List[List[int]],  # noqa: UP006
         total_tokens: int,
         max_seq_len: int,
         prefill_chunk: int,
         support_sliding: int,
-    ) -> Tuple[List[List[float]], int]:
+    ) -> Tuple[List[List[float]], int]:  # noqa: UP006
         """Batch prefill: process all inputs in a single forward pass."""
         batch_size = len(token_lists)
 
@@ -405,7 +407,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
             self._kv_state_remove_sequence(kv_cache, sid)
 
         # Extract last token hidden state per sequence
-        embeddings: List[List[float]] = []
+        embeddings: List[List[float]] = []  # noqa: UP006
         offset = 0
         for tokens in token_lists:
             last_pos = offset + len(tokens) - 1
@@ -419,16 +421,16 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
 
         return embeddings, total_tokens
 
-    def _sequential_embed_decoder(  # pylint: disable=too-many-arguments,too-many-locals
+    def _sequential_embed_decoder(
         self,
-        token_lists: List[List[int]],
+        token_lists: List[List[int]],  # noqa: UP006
         total_tokens: int,
         max_seq_len: int,
         prefill_chunk: int,
         support_sliding: int,
-    ) -> Tuple[List[List[float]], int]:
+    ) -> Tuple[List[List[float]], int]:  # noqa: UP006
         """Sequential chunked prefill: process each input independently."""
-        embeddings: List[List[float]] = []
+        embeddings: List[List[float]] = []  # noqa: UP006
 
         for tokens in token_lists:
             if len(tokens) == 0:

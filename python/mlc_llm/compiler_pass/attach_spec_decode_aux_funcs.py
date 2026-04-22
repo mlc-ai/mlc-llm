@@ -7,7 +7,7 @@ from tvm.script import tirx as T
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachSpecDecodeAuxFuncs")
-class AttachSpecDecodeAuxFuncs:  # pylint: disable=too-few-public-methods
+class AttachSpecDecodeAuxFuncs:
     """Attach logit processing TIR functions to IRModule."""
 
     tensor_parallel_shards: int
@@ -30,7 +30,7 @@ class AttachSpecDecodeAuxFuncs:  # pylint: disable=too-few-public-methods
         if "prefill_to_last_hidden_states" in mod:
             hidden_states_struct_info = mod["prefill_to_last_hidden_states"].ret_struct_info.fields[
                 0
-            ]  # pylint: disable=no-member
+            ]
             dtype = hidden_states_struct_info.dtype
             _add_gather_hidden_states(bb, self.tensor_parallel_shards, dtype)
             _add_scatter_hidden_states(bb, self.tensor_parallel_shards, dtype)
@@ -92,7 +92,7 @@ def _add_scatter_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dt
                     ),
                     [src, indices, dst],
                     2,
-                    dst.struct_info,  # pylint: disable=no-member
+                    dst.struct_info,
                 )
             )
         gv = bb.emit_func_output(output)
@@ -118,7 +118,7 @@ def _add_gather_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dty
                     ),
                     [src, indices, dst],
                     2,
-                    dst.struct_info,  # pylint: disable=no-member
+                    dst.struct_info,
                 )
             )
         gv = bb.emit_func_output(output)

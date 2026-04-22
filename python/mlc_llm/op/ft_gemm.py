@@ -8,7 +8,7 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import op
 
 
-def faster_transformer_dequantize_gemm(  # pylint: disable=too-many-arguments
+def faster_transformer_dequantize_gemm(
     x: nn.Tensor,
     weight: nn.Tensor,
     scale: nn.Tensor,
@@ -45,8 +45,7 @@ def faster_transformer_dequantize_gemm(  # pylint: disable=too-many-arguments
     assert weight.ndim == 2
     assert scale.dtype == "float16" and scale.ndim == 2
     assert x.shape[-1] == weight.shape[0], (
-        "Reduction dimension mismatched between x and weight, "
-        f"{x.shape[-1]} vs {weight.shape[0]}."
+        f"Reduction dimension mismatched between x and weight, {x.shape[-1]} vs {weight.shape[0]}."
     )
     assert activation in [
         None,
@@ -93,7 +92,7 @@ def faster_transformer_dequantize_gemm(  # pylint: disable=too-many-arguments
     )
 
 
-def faster_transformer_moe_gemm(  # pylint: disable=too-many-arguments
+def faster_transformer_moe_gemm(
     x: nn.Tensor,
     weight: nn.Tensor,
     total_rows_before: nn.Tensor,
@@ -121,8 +120,7 @@ def faster_transformer_moe_gemm(  # pylint: disable=too-many-arguments
     assert x.dtype == "float16" and x.ndim >= 1
     assert weight.dtype == "float16" and weight.ndim == 3
     assert x.shape[-1] == weight.shape[-1], (
-        "Reduction dimension mismatched between x and weight, "
-        f"{x.shape[-1]} vs {weight.shape[-1]}."
+        f"Reduction dimension mismatched between x and weight, {x.shape[-1]} vs {weight.shape[-1]}."
     )
     m = reduce(operator.mul, x.shape[:-1], 1)
     num_experts = weight.shape[0]

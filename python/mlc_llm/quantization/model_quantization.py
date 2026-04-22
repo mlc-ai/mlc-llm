@@ -1,6 +1,6 @@
 """Quantization factory utilities for model quantization."""
 
-from typing import Any, Callable, Dict, Optional, Tuple, Type
+from typing import Any, Callable, Dict, Optional, Tuple, Type  # noqa: UP035
 
 from tvm.relax.frontend import nn
 
@@ -14,11 +14,11 @@ from .no_quantization import NoQuantize
 from .per_tensor_quantization import PerTensorQuantize
 from .quantization import Quantization
 
-FuncQuantization = Callable[[Any, Quantization], Tuple[nn.Module, QuantizeMapping]]
+FuncQuantization = Callable[[Any, Quantization], Tuple[nn.Module, QuantizeMapping]]  # noqa: UP006
 
 
-def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many-locals
-    model_cls: Type[nn.Module],
+def make_quantization_functions(
+    model_cls: Type[nn.Module],  # noqa: UP006
     *,
     model_ctor: Optional[Callable[[Any], nn.Module]] = None,
     supports_group_quant: bool = True,
@@ -29,7 +29,7 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
     supports_block_scale: bool = False,
     set_tensor_parallel_shards: bool = True,
     per_tensor_use_shards: bool = True,
-) -> Dict[str, FuncQuantization]:
+) -> Dict[str, FuncQuantization]:  # noqa: UP006
     """Create standard quantization function implementations for a model class."""
 
     def _create_model(model_config: Any) -> nn.Module:
@@ -37,7 +37,7 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
             return model_ctor(model_config)
         return model_cls(model_config)
 
-    def _no_quant(model_config: Any, quantization: NoQuantize) -> Tuple[nn.Module, QuantizeMapping]:
+    def _no_quant(model_config: Any, quantization: NoQuantize) -> Tuple[nn.Module, QuantizeMapping]:  # noqa: UP006
         model = _create_model(model_config)
         model.to(quantization.model_dtype)
         return model, QuantizeMapping({}, {})
@@ -45,7 +45,7 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
     def _group_quant(
         model_config: Any,
         quantization: GroupQuantize,
-    ) -> Tuple[nn.Module, QuantizeMapping]:
+    ) -> Tuple[nn.Module, QuantizeMapping]:  # noqa: UP006
         model = _create_model(model_config)
         model.to(quantization.model_dtype)
         quant_map = QuantizeMapping({}, {})
@@ -63,7 +63,7 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
         )
         return model, quant_map
 
-    def _ft_quant(model_config: Any, quantization: FTQuantize) -> Tuple[nn.Module, QuantizeMapping]:
+    def _ft_quant(model_config: Any, quantization: FTQuantize) -> Tuple[nn.Module, QuantizeMapping]:  # noqa: UP006
         model = _create_model(model_config)
         model.to(quantization.model_dtype)
         quant_map = QuantizeMapping({}, {})
@@ -76,7 +76,7 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
 
     def _awq_quant(
         model_config: Any, quantization: AWQQuantize
-    ) -> Tuple[nn.Module, QuantizeMapping]:
+    ) -> Tuple[nn.Module, QuantizeMapping]:  # noqa: UP006
         if awq_unsupported_message is not None:
             raise NotImplementedError(awq_unsupported_message)
         model = _create_model(model_config)
@@ -92,7 +92,7 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
     def _per_tensor_quant(
         model_config: Any,
         quantization: PerTensorQuantize,
-    ) -> Tuple[nn.Module, QuantizeMapping]:
+    ) -> Tuple[nn.Module, QuantizeMapping]:  # noqa: UP006
         model = _create_model(model_config)
         model.to(quantization.model_dtype)
         quant_map = QuantizeMapping({}, {})
@@ -115,14 +115,14 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
     def _block_scale_quant(
         model_config: Any,
         quantization: BlockScaleQuantize,
-    ) -> Tuple[nn.Module, QuantizeMapping]:
+    ) -> Tuple[nn.Module, QuantizeMapping]:  # noqa: UP006
         model = _create_model(model_config)
         model.to(quantization.model_dtype)
         quant_map = QuantizeMapping({}, {})
         model = quantization.quantize_model(model, quant_map, "")
         return model, quant_map
 
-    quantize_fns: Dict[str, FuncQuantization] = {"no-quant": _no_quant}
+    quantize_fns: Dict[str, FuncQuantization] = {"no-quant": _no_quant}  # noqa: UP006
     if supports_group_quant:
         quantize_fns["group-quant"] = _group_quant
     if supports_ft_quant:
@@ -137,13 +137,13 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
 
 
 def make_awq_quant(
-    model_cls: Type[nn.Module],
-) -> Callable[[Any, AWQQuantize], Tuple[nn.Module, QuantizeMapping]]:
+    model_cls: Type[nn.Module],  # noqa: UP006
+) -> Callable[[Any, AWQQuantize], Tuple[nn.Module, QuantizeMapping]]:  # noqa: UP006
     """Create a standard AWQ quantization function for loaders."""
 
     def awq_quant(
         model_config: Any, quantization: AWQQuantize
-    ) -> Tuple[nn.Module, QuantizeMapping]:
+    ) -> Tuple[nn.Module, QuantizeMapping]:  # noqa: UP006
         model = model_cls(model_config)
         model.to(quantization.model_dtype)
         quant_map = QuantizeMapping({}, {})

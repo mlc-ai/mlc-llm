@@ -15,14 +15,14 @@ from mlc_llm.serve.config import EngineConfig
 from mlc_llm.serve.engine_base import _check_engine_config
 
 
-class PopenServer:  # pylint: disable=too-many-instance-attributes
+class PopenServer:
     """The wrapper of MLC LLM server, which runs the server in
     a background subprocess.
 
     This server can be used for debugging purposes.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         model: str,
         device: Union[str, Device] = "auto",
@@ -56,9 +56,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         self.base_url = ""
         self.openai_v1_base_url = ""
 
-    def start(  # pylint: disable=too-many-branches,too-many-statements
-        self, extra_env=None
-    ) -> None:
+    def start(self, extra_env=None) -> None:
         """Launch the server in a popen subprocess.
         Wait until the server becomes ready before return.
         """
@@ -122,9 +120,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         final_env = os.environ.copy()
         for key, value in extra_env.items():
             final_env[key] = value
-        self._proc = subprocess.Popen(  # pylint: disable=consider-using-with
-            cmd, cwd=process_path, env=final_env
-        )
+        self._proc = subprocess.Popen(cmd, cwd=process_path, env=final_env)
         # NOTE: DO NOT USE `stdout=subprocess.PIPE, stderr=subprocess.PIPE`
         # in subprocess.Popen here. PIPE has a fixed-size buffer with may block
         # and hang forever.
@@ -144,7 +140,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
                     query_result = None
                     attempts += 0.1
                     time.sleep(0.1)
-            except:  # pylint: disable=bare-except
+            except Exception:
                 attempts += 0.1
                 time.sleep(0.1)
 

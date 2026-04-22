@@ -17,7 +17,7 @@ awq_quant = make_awq_quant(LlavaForCausalLM)
 
 
 def _num_layers(config: object) -> int:
-    return config.text_config.num_hidden_layers  # type: ignore[attr-defined]
+    return config.text_config.num_hidden_layers
 
 
 huggingface = make_standard_hf_loader(

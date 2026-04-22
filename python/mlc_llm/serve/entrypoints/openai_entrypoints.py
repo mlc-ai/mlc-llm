@@ -1,10 +1,10 @@
 """OpenAI API-compatible server entrypoints in MLC LLM"""
 
-# pylint: disable=too-many-locals,too-many-return-statements,too-many-statements,fixme
 import base64
 import struct
+from collections.abc import AsyncGenerator
 from http import HTTPStatus
-from typing import AsyncGenerator, List, Optional
+from typing import List, Optional  # noqa: UP035
 
 import fastapi
 import numpy as np
@@ -52,12 +52,11 @@ async def request_embedding(request: EmbeddingRequest):
     if embedding_engine is None:
         return error_protocol.create_error_response(
             HTTPStatus.BAD_REQUEST,
-            message=f'The requested model "{request.model}" is not served '
-            f"as an embedding model.",
+            message=f'The requested model "{request.model}" is not served as an embedding model.',
         )
 
     # Normalize input to List[str]
-    inputs: List[str]
+    inputs: List[str]  # noqa: UP006
     if isinstance(request.input, str):
         inputs = [request.input]
     elif (
@@ -65,21 +64,18 @@ async def request_embedding(request: EmbeddingRequest):
         and len(request.input) > 0
         and isinstance(request.input[0], str)
     ):
-        inputs = list(request.input)  # type: ignore[arg-type]
+        inputs = list(request.input)
     else:
         # Token ID inputs (List[int] or List[List[int]]) — decode back to strings
         if isinstance(request.input[0], int):
-            inputs = [embedding_engine.tokenizer.decode(request.input)]  # type: ignore[arg-type]
+            inputs = [embedding_engine.tokenizer.decode(request.input)]
         else:
-            inputs = [
-                embedding_engine.tokenizer.decode(ids)  # type: ignore[arg-type]
-                for ids in request.input
-            ]
+            inputs = [embedding_engine.tokenizer.decode(ids) for ids in request.input]
 
     # Run embedding inference (async — does not block the event loop)
     try:
         embeddings, total_tokens = await embedding_engine.async_embed(inputs)
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         return error_protocol.create_error_response(
             HTTPStatus.INTERNAL_SERVER_ERROR,
             message=f"Embedding inference failed: {exc}",
@@ -161,12 +157,12 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         # We manually get the first response from generator to
         # capture potential exceptions in this scope, rather then
         # the StreamingResponse scope.
-        stream_generator = async_engine._handle_completion(  # pylint: disable=protected-access
+        stream_generator = async_engine._handle_completion(
             request,
             request_id,
             request_final_usage_include_extra=request_final_usage_include_extra,
         )
-        first_response = await anext(  # type: ignore  # pylint: disable=undefined-variable
+        first_response = await anext(  # noqa: F821
             stream_generator
         )
 
@@ -186,10 +182,10 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     # Normal response.
     request_final_usage = None
     output_texts = [""] * request.n
-    finish_reasons: List[Optional[str]] = [None] * request.n
-    logprob_results: List[Optional[CompletionLogProbs]] = [None] * request.n
+    finish_reasons: List[Optional[str]] = [None] * request.n  # noqa: UP006
+    logprob_results: List[Optional[CompletionLogProbs]] = [None] * request.n  # noqa: UP006
 
-    async for response in async_engine._handle_completion(  # pylint: disable=protected-access
+    async for response in async_engine._handle_completion(
         request,
         request_id,
         request_final_usage_include_extra=request_final_usage_include_extra,
@@ -238,9 +234,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
 
 
 @app.post("/v1/chat/completions")
-async def request_chat_completion(
-    request: ChatCompletionRequest, raw_request: fastapi.Request
-):  # pylint: disable=too-many-branches
+async def request_chat_completion(request: ChatCompletionRequest, raw_request: fastapi.Request):
     """OpenAI-compatible chat completion API.
     API reference: https://platform.openai.com/docs/api-reference/chat
     """
@@ -269,12 +263,12 @@ async def request_chat_completion(
         # We manually get the first response from generator to
         # capture potential exceptions in this scope, rather then
         # the StreamingResponse scope.
-        stream_generator = async_engine._handle_chat_completion(  # pylint: disable=protected-access
+        stream_generator = async_engine._handle_chat_completion(
             request,
             request_id,
             request_final_usage_include_extra=request_final_usage_include_extra,
         )
-        first_response = await anext(  # type: ignore  # pylint: disable=undefined-variable
+        first_response = await anext(  # noqa: F821
             stream_generator
         )
 
@@ -294,12 +288,12 @@ async def request_chat_completion(
     # Normal response.
     request_final_usage = None
     output_texts = ["" for _ in range(request.n)]
-    finish_reasons: List[Optional[str]] = [None for _ in range(request.n)]
-    logprob_results: Optional[List[List[LogProbsContent]]] = (
+    finish_reasons: List[Optional[str]] = [None for _ in range(request.n)]  # noqa: UP006
+    logprob_results: Optional[List[List[LogProbsContent]]] = (  # noqa: UP006
         [[] for _ in range(request.n)] if request.logprobs else None
     )
 
-    async for response in async_engine._handle_chat_completion(  # pylint: disable=protected-access
+    async for response in async_engine._handle_chat_completion(
         request,
         request_id,
         request_final_usage_include_extra=request_final_usage_include_extra,

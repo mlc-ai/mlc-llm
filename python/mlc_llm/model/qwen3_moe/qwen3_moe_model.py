@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class Qwen3MoeConfig(Qwen3Config):  # pylint: disable=too-many-instance-attributes
+class Qwen3MoeConfig(Qwen3Config):
     """Configuration of the Qwen3Moe model."""
 
     moe_intermediate_size: int = 0
@@ -29,9 +29,6 @@ class Qwen3MoeConfig(Qwen3Config):  # pylint: disable=too-many-instance-attribut
     num_experts: int = 0
     decoder_sparse_step: int = 0
     norm_topk_prob: bool = False
-
-
-# pylint: disable=invalid-name,missing-docstring,too-many-locals
 
 
 class Qwen3MoeMLP(nn.Module):
@@ -53,7 +50,7 @@ class Qwen3MoeMLP(nn.Module):
         return self.down_proj(self.act_fn(x1) * x2)
 
 
-class Qwen3MoeSparseMoeBlock(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Qwen3MoeSparseMoeBlock(nn.Module):
     """MoE layer for Qwen3MoE model."""
 
     def __init__(self, config: Qwen3MoeConfig):
@@ -148,9 +145,9 @@ class Qwen3MoeDecoderLayer(nn.Module):
     def __init__(self, config: Qwen3MoeConfig):
         super().__init__()
         self.self_attn = Qwen3Attention(config)
-        assert (
-            config.num_experts > 0 and config.decoder_sparse_step == 1
-        ), "Currently only support use moe for every layer."
+        assert config.num_experts > 0 and config.decoder_sparse_step == 1, (
+            "Currently only support use moe for every layer."
+        )
         self.mlp = Qwen3MoeSparseMoeBlock(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(
@@ -219,7 +216,7 @@ class Qwen3MoeModel(nn.Module):
         return hidden_states
 
 
-class Qwen3MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Qwen3MoeForCausalLM(nn.Module):
     def __init__(self, config: Qwen3MoeConfig):
         self.model = Qwen3MoeModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
@@ -300,7 +297,7 @@ class Qwen3MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

@@ -1,6 +1,6 @@
 """Server context that shared by multiple entrypoint files."""
 
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional  # noqa: UP035
 
 from ..engine import AsyncMLCEngine
 
@@ -17,8 +17,8 @@ class ServerContext:
     enable_debug: bool = False
 
     def __init__(self) -> None:
-        self._models: Dict[str, AsyncMLCEngine] = {}
-        self._embedding_engines: Dict[str, "AsyncEmbeddingEngine"] = {}
+        self._models: Dict[str, AsyncMLCEngine] = {}  # noqa: UP006
+        self._embedding_engines: Dict[str, AsyncEmbeddingEngine] = {}  # noqa: UP006
         self.api_key: Optional[str] = None
 
     def __enter__(self):
@@ -54,7 +54,7 @@ class ServerContext:
             return next(iter(self._models.values()))
         return self._models.get(model, None)
 
-    def get_model_list(self) -> List[str]:
+    def get_model_list(self) -> List[str]:  # noqa: UP006
         """Get the list of all models on serve, including embedding models."""
         return list(self._models.keys()) + list(self._embedding_engines.keys())
 

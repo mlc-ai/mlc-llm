@@ -1,10 +1,9 @@
 """Debug compiled models with TVM instrument"""
 
-# pylint: disable=too-many-arguments
 import json
 import random
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union  # noqa: UP035
 
 import numpy as np
 import tvm
@@ -29,8 +28,10 @@ def _extract_metadata(mod: Module):
 
 
 def _load_params(
-    model_weight_path: str, device: Device, model_metadata: Dict[str, Any]
-) -> List[tvm.runtime.Tensor]:
+    model_weight_path: str,
+    device: Device,
+    model_metadata: Dict[str, Any],  # noqa: UP006
+) -> List[tvm.runtime.Tensor]:  # noqa: UP006
     params, meta = tvmjs.load_tensor_cache(model_weight_path, device)
     param_names = [param["name"] for param in model_metadata["params"]]
     assert len(param_names) == meta["ParamSize"]
@@ -142,7 +143,7 @@ class DefaultDebugInstrument:
         self.counter += 1
 
 
-class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public-methods
+class DebugChat:
     """A chat interface used only for debugging purpose.
 
     It debugs auto-regressive decoding fully in Python via the prefill and
@@ -162,7 +163,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
     dc.generate("hello world", 3)
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         model: str,
         model_lib: str,
@@ -243,7 +244,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         )
         self.model_path = Path(model)
         self.config_file_path = self.model_path / "mlc-chat-config.json"
-        with open(self.config_file_path, mode="rt", encoding="utf-8") as file:
+        with open(self.config_file_path, encoding="utf-8") as file:
             self.chat_config = MLCChatConfig.model_validate_json(file.read())
 
         conv_template = self.chat_config.conv_template
@@ -282,14 +283,14 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         elif self.mod.implements_function("create_tir_paged_kv_cache"):
             self.create_kv_cache_func = self.mod["create_tir_paged_kv_cache"]
         else:
-            # TODO: Support RNN KVState # pylint: disable=fixme
+            # TODO: Support RNN KVState
             raise RuntimeError("DebugChat cannot find create KV cache function")
 
-        self.appeared_token_freq: Dict[int, int] = {}
+        self.appeared_token_freq: Dict[int, int] = {}  # noqa: UP006
 
     def _preprocess_prompts(
         self, prompt: str, image_url: Optional[str] = None
-    ) -> List[Union[List[int], data.ImageData]]:
+    ) -> List[Union[List[int], data.ImageData]]:  # noqa: UP006
         print("======================= Starts Tokenization & Embedding =======================")
         # Step 0. Generate prompt string using conversation template
         if image_url is None:
@@ -306,14 +307,14 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
             )
         self.conversation.messages.append(("assistant", None))
 
-        with open(self.config_file_path, "r", encoding="utf-8") as file:
+        with open(self.config_file_path, encoding="utf-8") as file:
             config = json.load(file)
         parsed_prompt = self.conversation.as_prompt(config)
         print(
             "Parsed prompt using conversation template "
             f"{green(self.conversation.name)}: {parsed_prompt}"
         )
-        tokens = engine_utils.process_prompts(parsed_prompt, self.tokenizer.encode)  # type: ignore
+        tokens = engine_utils.process_prompts(parsed_prompt, self.tokenizer.encode)
 
         if self.conversation.system_prefix_token_ids is not None:
             tokens[0] = self.conversation.system_prefix_token_ids + tokens[0]
@@ -321,8 +322,9 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         return tokens
 
     def _embed(
-        self, data_inputs: List[Union[List[int], data.ImageData]]
-    ) -> Tuple[tvm.runtime.Tensor, int]:
+        self,
+        data_inputs: List[Union[List[int], data.ImageData]],  # noqa: UP006
+    ) -> Tuple[tvm.runtime.Tensor, int]:  # noqa: UP006
         # We currently convert to numpy after embedded, concat in numpy, then convert back to
         # tvm tensor; could be more optimized; but may suffice for debug purposes.
         embeddings = []

@@ -3,7 +3,7 @@
 import os
 import subprocess
 import sys
-from typing import Dict, Optional
+from typing import Dict, Optional  # noqa: UP035
 
 import tvm
 from tvm.runtime import Device
@@ -15,7 +15,7 @@ from .style import bold, green, red
 FOUND = green("Found")
 NOT_FOUND = red("Not found")
 AUTO_DETECT_DEVICES = ["cuda", "rocm", "metal", "vulkan", "opencl", "cpu"]
-_RESULT_CACHE: Dict[str, bool] = {}
+_RESULT_CACHE: Dict[str, bool] = {}  # noqa: UP006
 
 
 logger = logging.getLogger(__name__)
@@ -46,13 +46,11 @@ def detect_device(device_hint: str) -> Optional[Device]:
 
 def device2str(device: Device) -> str:
     """Convert a TVM device object to string."""
-    return f"{tvm.runtime.Device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]}:{device.index}"  # pylint: disable=protected-access, line-too-long
+    return f"{tvm.runtime.Device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]}:{device.index}"
 
 
 def _device_exists(device: Device) -> bool:
-    device_type = tvm.runtime.Device._DEVICE_TYPE_TO_NAME[  # pylint: disable=protected-access
-        device.dlpack_device_type()
-    ]
+    device_type = tvm.runtime.Device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]
     device_str = device2str(device)
     if device_str in _RESULT_CACHE:
         return _RESULT_CACHE[device_str]

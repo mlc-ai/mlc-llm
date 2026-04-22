@@ -37,7 +37,7 @@ def main(argv):
         "--model-type",
         type=str,
         default="auto",
-        choices=["auto"] + list(MODELS.keys()),
+        choices=["auto", *list(MODELS.keys())],
         help=HELP["model_type"] + ' (default: "%(default)s", choices: %(choices)s)',
     )
     parser.add_argument(

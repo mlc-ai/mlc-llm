@@ -9,8 +9,8 @@ from . import logging
 from .style import bold, green
 
 if TYPE_CHECKING:
-    from mlc_llm.model import Model  # pylint: disable=unused-import
-    from mlc_llm.quantization import Quantization  # pylint: disable=unused-import
+    from mlc_llm.model import Model
+    from mlc_llm.quantization import Quantization
 
 
 logger = logging.getLogger(__name__)
@@ -33,12 +33,9 @@ def detect_mlc_chat_config(mlc_chat_config: str) -> Path:
     mlc_chat_config_json_path : pathlib.Path
         The path points to mlc_chat_config.json.
     """
-    # pylint: disable=import-outside-toplevel
     from mlc_llm.model import MODEL_PRESETS
 
     from .download_cache import download_and_cache_mlc_weights
-
-    # pylint: enable=import-outside-toplevel
 
     if mlc_chat_config.startswith("HF://") or mlc_chat_config.startswith("http"):
         mlc_chat_config_path = Path(download_and_cache_mlc_weights(model_url=mlc_chat_config))
@@ -46,7 +43,7 @@ def detect_mlc_chat_config(mlc_chat_config: str) -> Path:
         logger.info("%s mlc preset model: %s", FOUND, mlc_chat_config)
         content = MODEL_PRESETS[mlc_chat_config].copy()
         content["model_preset_tag"] = mlc_chat_config
-        temp_file = tempfile.NamedTemporaryFile(  # pylint: disable=consider-using-with
+        temp_file = tempfile.NamedTemporaryFile(
             suffix=".json",
             delete=False,
         )
@@ -86,13 +83,13 @@ def detect_config(config: str) -> Path:
     config_json_path : pathlib.Path
         The path points to config.json.
     """
-    from mlc_llm.model import MODEL_PRESETS  # pylint: disable=import-outside-toplevel
+    from mlc_llm.model import MODEL_PRESETS
 
     if isinstance(config, str) and config in MODEL_PRESETS:
         logger.info("%s preset model: %s", FOUND, config)
         content = MODEL_PRESETS[config].copy()
         content["model_preset_tag"] = config
-        temp_file = tempfile.NamedTemporaryFile(  # pylint: disable=consider-using-with
+        temp_file = tempfile.NamedTemporaryFile(
             suffix=".json",
             delete=False,
         )
@@ -136,10 +133,10 @@ def detect_model_type(model_type: str, config: Path) -> "Model":
         The model type.
     """
 
-    from mlc_llm.model import MODELS  # pylint: disable=import-outside-toplevel
+    from mlc_llm.model import MODELS
 
     if model_type == "auto":
-        with open(config, "r", encoding="utf-8") as config_file:
+        with open(config, encoding="utf-8") as config_file:
             cfg = json.load(config_file)
         if "model_type" not in cfg and (
             "model_config" not in cfg or "model_type" not in cfg["model_config"]
@@ -175,11 +172,11 @@ def detect_quantization(quantization_arg: str, config: Path) -> "Quantization":
     quantization : mlc_llm.quantization.Quantization
         The model quantization scheme.
     """
-    from mlc_llm.quantization import (  # pylint: disable=import-outside-toplevel
+    from mlc_llm.quantization import (
         QUANTIZATION,
     )
 
-    with open(config, "r", encoding="utf-8") as config_file:
+    with open(config, encoding="utf-8") as config_file:
         cfg = json.load(config_file)
     if quantization_arg is not None:
         quantization = QUANTIZATION[quantization_arg]

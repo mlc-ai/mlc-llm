@@ -3,8 +3,6 @@
 from tvm.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
-# pylint: disable=too-many-locals,invalid-name,too-many-arguments,
-# pylint: disable=too-many-statements,line-too-long,too-many-nested-blocks,too-many-branches
 
 
 def batch_spec_verify(vocab_size):
@@ -50,7 +48,7 @@ def batch_spec_verify(vocab_size):
 
     token_tree_parent_ptr:
         Current parent ptr state
-    """
+    """  # noqa: E501
     TX = 1024
 
     def _var(dtype="int32"):
@@ -125,8 +123,8 @@ def batch_spec_verify(vocab_size):
                                     p_child[0] = model_probs[parent_ptr[0], child_token[0]]
                                     q_child[0] = draft_probs[child_ptr[0], child_token[0]]
                                     uniform_sample[0] = uniform_samples[child_ptr[0]]
-                                    pred_shared[0] = p_child[0] >= uniform_sample[0] * q_child[0]  # use multiplication to avoid division by zero
-                                T.tvm_storage_sync("shared") # make sure all read of model_probs are done
+                                    pred_shared[0] = p_child[0] >= uniform_sample[0] * q_child[0]  # use multiplication to avoid division by zero  # noqa: E501
+                                T.tvm_storage_sync("shared") # make sure all read of model_probs are done  # noqa: E501
                                 pred_local[0] = pred_shared[0]
 
                                 # accept the proposal, we move to child
@@ -141,7 +139,7 @@ def batch_spec_verify(vocab_size):
                                         if k < vocab_size:
                                             model_prob_local[0] = model_probs[parent_ptr[0], k]
                                             draft_prob_local[0] = draft_probs[child_ptr[0], k]
-                                            model_prob_local[0] = T.max(model_prob_local[0] - draft_prob_local[0], 0.0)
+                                            model_prob_local[0] = T.max(model_prob_local[0] - draft_prob_local[0], 0.0)  # noqa: E501
                                             psum[0] += model_prob_local[0]
 
                                     with T.sblock("block_cross_thread"):
@@ -152,7 +150,7 @@ def batch_spec_verify(vocab_size):
                                             "reduce_scope",
                                             T.reinterpret("handle", T.uint64(0)),
                                         )
-                                        T.tvm_thread_allreduce(T.uint32(1), psum[0], True, t0[0], tx, dtype="handle")
+                                        T.tvm_thread_allreduce(T.uint32(1), psum[0], True, t0[0], tx, dtype="handle")  # noqa: E501
 
                                     if t0[0] < 1e-7:
                                         # accept the proposal, we move to child
@@ -165,8 +163,8 @@ def batch_spec_verify(vocab_size):
                                             if k < vocab_size:
                                                 model_prob_local[0] = model_probs[parent_ptr[0], k]
                                                 draft_prob_local[0] = draft_probs[child_ptr[0], k]
-                                                model_prob_local[0] = T.max(model_prob_local[0] - draft_prob_local[0], 0.0)
-                                                model_probs[parent_ptr[0], k] = model_prob_local[0] / t0[0]
+                                                model_prob_local[0] = T.max(model_prob_local[0] - draft_prob_local[0], 0.0)  # noqa: E501
+                                                model_probs[parent_ptr[0], k] = model_prob_local[0] / t0[0]  # noqa: E501
 
                                         child_ptr[0] = token_tree_next_sibling[child_ptr[0]]
 

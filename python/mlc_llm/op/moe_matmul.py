@@ -1,13 +1,12 @@
 """Mixture of Experts operators"""
 
-from typing import Literal, Optional, Tuple
+from typing import Literal, Optional, Tuple  # noqa: UP035
 
 from tvm import DataType, DataTypeCode, s_tir, tirx
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
-# pylint: disable=too-many-locals,invalid-name,too-many-arguments,too-many-statements
 
 
 def gemv(x: Tensor, w: Tensor, indptr: Tensor) -> Tensor:
@@ -75,7 +74,7 @@ def gemv(x: Tensor, w: Tensor, indptr: Tensor) -> Tensor:
     )
 
 
-def dequantize_gemv(  # pylint: disable=too-many-arguments
+def dequantize_gemv(
     x: Tensor,
     w: Tensor,
     scale: Tensor,
@@ -301,7 +300,7 @@ def dequantize_block_scale_float8_gemv(
     w: Tensor,
     w_scale: Tensor,
     expert_indices: Tensor,
-    block_size: Tuple[int, int],
+    block_size: Tuple[int, int],  # noqa: UP006
     out_dtype: str,
 ) -> Tensor:
     """GEMV for project-in (e1-e3) or project-out (e2) in MLP but the weight is quantized in
@@ -383,7 +382,7 @@ def dequantize_block_scale_float8_gemv(
     )
 
 
-def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-many-statements
+def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):
     """Group GEMM in MoE models.
 
     Parameters
@@ -421,7 +420,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
     zero = tirx.const(0, dtype)
 
     @T.prim_func(private=True)
-    def _func(  # pylint: disable=too-many-statements
+    def _func(
         var_x: T.handle,
         var_w: T.handle,
         var_indptr: T.handle,
@@ -432,26 +431,24 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
         X = T.match_buffer(var_x, (B, K), dtype)
         W = T.match_buffer(var_w, (Ne, N, K), dtype)
         indptr = T.match_buffer(var_indptr, (Ne + 1,), "int32")
-        O = T.match_buffer(var_o, (B, N), dtype)
+        out = T.match_buffer(var_o, (B, N), dtype)
 
         for _bx in T.thread_binding(CTA_COUNT, thread="blockIdx.x"):
             with T.sblock("CTA"):
                 bx = T.axis.spatial(CTA_COUNT, _bx)
                 T.reads(indptr[:], X[:, :], W[:, :, :])
-                T.writes(O[:, :])
-                # pylint: disable=redefined-builtin
+                T.writes(out[:, :])
                 sum = T.sblock_alloc_buffer((2,), "int32", scope="local")
                 row = T.sblock_alloc_buffer((2,), "int32", scope="local")
                 cur_e = T.sblock_alloc_buffer((1,), "int32", scope="local")
                 tile_id = T.sblock_alloc_buffer((1,), "int32", scope="local")
-                # pylint: enable=redefined-builtin
                 sum[0] = 0
                 sum[1] = T.ceildiv(indptr[1] - indptr[0], BLK_M) * tiles_per_row
                 row[0] = 0
                 row[1] = indptr[1] - indptr[0]
                 cur_e[0] = 0
                 tile_id[0] = bx
-                while T.tvm_thread_invariant(cur_e[0] < Ne):  # pylint: disable=no-member
+                while T.tvm_thread_invariant(cur_e[0] < Ne):
                     # move to the current group
                     while sum[1] <= tile_id[0] and cur_e[0] < Ne:
                         cur_e[0] += 1
@@ -464,9 +461,9 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                             row[1] += delta
                     # sync threads to make sure all threads have the same tile position
                     T.tvm_storage_sync("shared")
-                    if T.tvm_thread_invariant(cur_e[0] < Ne):  # pylint: disable=no-member
+                    if T.tvm_thread_invariant(cur_e[0] < Ne):
                         # fetch current tile position
-                        e: T.int32 = cur_e[0]  # type: ignore[no-redef]
+                        e: T.int32 = cur_e[0]
                         num_tiles: T.int32 = tile_id[0] - sum[0]
                         m_offset: T.int32 = BLK_M * T.floordiv(num_tiles, tiles_per_row) + row[0]
                         n_offset: T.int32 = BLK_N * T.floormod(num_tiles, tiles_per_row)
@@ -477,7 +474,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                                 W[e, n_offset : n_offset + BLK_N, :],
                             )
                             T.writes(
-                                O[
+                                out[
                                     m_offset : m_offset + BLK_M,
                                     n_offset : n_offset + BLK_N,
                                 ]
@@ -511,7 +508,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                                 with T.sblock("store"):
                                     i, j = T.axis.remap("SS", [a0, a1])
                                     if m_offset + i < row[1] and n_offset + j < N:
-                                        O[m_offset + i, n_offset + j] = O_tile[i, j]
+                                        out[m_offset + i, n_offset + j] = O_tile[i, j]
                     # move to next tile
                     tile_id[0] += CTA_COUNT
 
@@ -643,25 +640,23 @@ def dequantize_group_gemm(
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
         B = T.int32(is_size_var=True)
         X = T.match_buffer(var_x, (B, K), model_dtype)
-        O = T.match_buffer(var_o, (B, N), model_dtype)
+        out = T.match_buffer(var_o, (B, N), model_dtype)
         for _bx in T.thread_binding(CTA_COUNT, thread="blockIdx.x"):
             with T.sblock("CTA"):
                 bx = T.axis.spatial(CTA_COUNT, _bx)
                 T.reads(X[:, :], w[:, :, :], scale[:, :, :], indptr[:])
-                T.writes(O[:, :])
-                # pylint: disable=redefined-builtin
+                T.writes(out[:, :])
                 sum = T.sblock_alloc_buffer((2,), indptr_dtype, scope="local")
                 row = T.sblock_alloc_buffer((2,), indptr_dtype, scope="local")
                 cur_e = T.sblock_alloc_buffer((1,), indptr_dtype, scope="local")
                 tile_id = T.sblock_alloc_buffer((1,), indptr_dtype, scope="local")
-                # pylint: enable=redefined-builtin
                 sum[0] = 0
                 sum[1] = T.ceildiv(indptr[1] - indptr[0], BLK_M) * tiles_per_row
                 row[0] = 0
                 row[1] = indptr[1] - indptr[0]
                 cur_e[0] = 0
                 tile_id[0] = bx
-                while T.tvm_thread_invariant(cur_e[0] < Ne):  # pylint: disable=no-member
+                while T.tvm_thread_invariant(cur_e[0] < Ne):
                     # move to the current group
                     while sum[1] <= tile_id[0] and cur_e[0] < Ne:
                         cur_e[0] += 1
@@ -674,9 +669,9 @@ def dequantize_group_gemm(
                             row[1] += delta
                     # sync threads to make sure all threads have the same tile position
                     T.tvm_storage_sync("shared")
-                    if T.tvm_thread_invariant(cur_e[0] < Ne):  # pylint: disable=no-member
+                    if T.tvm_thread_invariant(cur_e[0] < Ne):
                         # fetch current tile position
-                        e = cur_e[0]  # type: ignore[no-redef]
+                        e = cur_e[0]
                         num_tiles = tile_id[0] - sum[0]
                         m_offset = T.floordiv(num_tiles, tiles_per_row) * BLK_M + row[0]
                         n_offset = T.floormod(num_tiles, tiles_per_row) * BLK_N
@@ -688,7 +683,7 @@ def dequantize_group_gemm(
                                 scale[e, n_offset : n_offset + BLK_N, :],
                             )
                             T.writes(
-                                O[
+                                out[
                                     m_offset : m_offset + BLK_M,
                                     n_offset : n_offset + BLK_N,
                                 ]
@@ -722,7 +717,7 @@ def dequantize_group_gemm(
                                 with T.sblock("store"):
                                     i, j = T.axis.remap("SS", [a0, a1])
                                     if m_offset + i < row[1] and n_offset + j < N:
-                                        O[m_offset + i, n_offset + j] = O_tile[i, j]
+                                        out[m_offset + i, n_offset + j] = O_tile[i, j]
                     # move to next tile
                     tile_id[0] += CTA_COUNT
 

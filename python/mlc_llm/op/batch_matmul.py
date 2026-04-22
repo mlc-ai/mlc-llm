@@ -1,6 +1,6 @@
 """Batch matmul operators"""
 
-from typing import Tuple
+from typing import Tuple  # noqa: UP035
 
 from tvm.relax.frontend import nn
 
@@ -12,7 +12,7 @@ def quantized_bmm(
     x: nn.Tensor,
     w: nn.Tensor,
     w_scale: nn.Tensor,
-    block_size: Tuple[int, int],
+    block_size: Tuple[int, int],  # noqa: UP006
 ) -> nn.Tensor:
     """Quantized batch matmul.
     Currently only support CUDA backend (by using CUTLASS).

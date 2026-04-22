@@ -8,9 +8,9 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple  # noqa: UP035
 
-import requests  # pylint: disable=import-error
+import requests
 
 from . import logging, tqdm
 from .constants import (
@@ -73,7 +73,7 @@ def git_clone(url: str, destination: Path, ignore_lfs: bool) -> None:
         ) from error
 
 
-def git_lfs_pull(repo_dir: Path, ignore_extensions: Optional[List[str]] = None) -> None:
+def git_lfs_pull(repo_dir: Path, ignore_extensions: Optional[List[str]] = None) -> None:  # noqa: UP006
     """Pull files with Git LFS."""
     filenames = (
         subprocess.check_output(
@@ -103,12 +103,12 @@ def download_file(
     url: str,
     destination: Path,
     md5sum: Optional[str],
-) -> Tuple[str, Path]:
+) -> Tuple[str, Path]:  # noqa: UP006
     """Download a file from a URL to a destination file."""
     with requests.get(url, stream=True, timeout=30) as response:
-        response.raise_for_status()  # type: ignore
+        response.raise_for_status()
         with destination.open("wb") as file:
-            for chunk in response.iter_content(chunk_size=8192):  # type: ignore
+            for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
     if md5sum is not None:
         hash_md5 = hashlib.md5()
@@ -124,7 +124,7 @@ def download_file(
     return url, destination
 
 
-def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
+def download_and_cache_mlc_weights(
     model_url: str,
     num_processes: int = 4,
     force_redo: Optional[bool] = None,

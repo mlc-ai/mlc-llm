@@ -7,7 +7,7 @@ import json
 import string
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: UP035
 
 import numpy as np
 import tqdm
@@ -86,7 +86,7 @@ def parse_args():
     parser.add_argument(
         "--dataset", type=Path, required=True, help="Path to MMLU test dataset home."
     )
-    parser.add_argument("--device", type=str, choices=["auto"] + DEVICES, default="auto")
+    parser.add_argument("--device", type=str, choices=["auto", *DEVICES], default="auto")
     parser.add_argument("--model-lib", type=str, default=None)
     parser.add_argument("-s", "--subject", nargs="+", type=str, choices=SUBJECTS, default=SUBJECTS)
     parser.add_argument("-bs", "--batch-size", type=int, default=16)
@@ -96,7 +96,7 @@ def parse_args():
 
 async def send_request(
     async_engine: AsyncMLCEngine,
-    prompts: List[str],
+    prompts: List[str],  # noqa: UP006
     semaphore: asyncio.Semaphore,
     subject: str,
 ):
@@ -125,19 +125,19 @@ async def send_request(
     )
 
 
-async def evaluate(  # pylint: disable=too-many-arguments, too-many-locals
+async def evaluate(
     model: str,
     device: str,
     dataset: Path,
     model_lib: Optional[str],
-    subjects: List[str],
+    subjects: List[str],  # noqa: UP006
     semaphore: asyncio.Semaphore,
-    log_dir: Optional[Path],  # pylint: disable=redefined-outer-name
+    log_dir: Optional[Path],
 ):
     """Evaluate MMLU for the model."""
     async_engine = AsyncMLCEngine(model, device=device, model_lib=model_lib, mode="server")
 
-    results: Dict[str, Any] = {}
+    results: Dict[str, Any] = {}  # noqa: UP006
     for subject in subjects:
         with open(dataset / "test" / f"{subject}_test.csv", encoding="utf-8") as csvfile:
             tests = list(csv.reader(csvfile, delimiter=",", quotechar='"'))

@@ -4,5 +4,5 @@
 # https://clang.llvm.org/docs/ClangFormat.html
 BasedOnStyle: Google
 DerivePointerAlignment: false
-ColumnLimit:     100
+ColumnLimit: 100
 PointerAlignment: Left

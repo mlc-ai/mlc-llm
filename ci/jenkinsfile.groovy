@@ -21,9 +21,9 @@ run_cpu = "bash ci/bash.sh mlcaidev/ci-cpu:26d65cc -e GPU cpu -e MLC_CI_SETUP_DE
 run_cuda = "bash ci/bash.sh mlcaidev/ci-cu128:26d65cc -e GPU cuda-12.8 -e MLC_CI_SETUP_DEPS 1"
 // run_rocm = "bash ci/bash.sh mlcaidev/ci-rocm57:26d65cc -e GPU rocm-5.7 -e MLC_CI_SETUP_DEPS 1"
 
-pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm61:519d0b3 -e GPU cpu -e MLC_CI_SETUP_DEPS 1"
-pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu128:519d0b3 -e GPU cuda-12.8 -e MLC_CI_SETUP_DEPS 1"
-pkg_rocm = "bash ci/bash.sh mlcaidev/package-rocm61:519d0b3 -e GPU rocm-6.1 -e MLC_CI_SETUP_DEPS 1"
+pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm61:a86c2a7 -e GPU cpu -e MLC_CI_SETUP_DEPS 1"
+pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu128:a86c2a7 -e GPU cuda-12.8 -e MLC_CI_SETUP_DEPS 1"
+pkg_rocm = "bash ci/bash.sh mlcaidev/package-rocm61:a86c2a7 -e GPU rocm-6.1 -e MLC_CI_SETUP_DEPS 1"
 
 
 def per_exec_ws(folder) {
@@ -61,61 +61,6 @@ def init_git(submodule = false) {
   }
 }
 
-stage('Lint') {
-  parallel(
-    'isort': {
-      node('CPU-SMALL') {
-        ws(per_exec_ws('mlc-llm-lint-isort')) {
-          init_git()
-          sh(script: "ls -alh", label: 'Show work directory')
-          sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${run_cpu} -j 1 conda run -n ci-lint ci/task/isort.sh", label: 'Lint')
-        }
-      }
-    },
-    'black': {
-      node('CPU-SMALL') {
-        ws(per_exec_ws('mlc-llm-lint-black')) {
-          init_git()
-          sh(script: "ls -alh", label: 'Show work directory')
-          sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${run_cpu} -j 1 conda run -n ci-lint ci/task/black.sh", label: 'Lint')
-        }
-      }
-    },
-    'mypy': {
-      node('CPU-SMALL') {
-        ws(per_exec_ws('mlc-llm-lint-mypy')) {
-          init_git()
-          sh(script: "ls -alh", label: 'Show work directory')
-          sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${run_cpu} -j 1 conda run -n ci-lint ci/task/mypy.sh", label: 'Lint')
-        }
-      }
-    },
-    'pylint': {
-      node('CPU-SMALL') {
-        ws(per_exec_ws('mlc-llm-lint-pylint')) {
-          init_git()
-          sh(script: "ls -alh", label: 'Show work directory')
-          sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${run_cpu} -j 4 conda run -n ci-lint ci/task/pylint.sh", label: 'Lint')
-        }
-      }
-    },
-    'clang-format': {
-      node('CPU-SMALL') {
-        ws(per_exec_ws('mlc-llm-lint-clang-format')) {
-          init_git()
-          sh(script: "ls -alh", label: 'Show work directory')
-          sh(script: "${run_cpu} conda env export --name ci-lint", label: 'Checkout version')
-          sh(script: "${run_cpu} -j 1 conda run -n ci-lint ci/task/clang-format.sh", label: 'Lint')
-        }
-      }
-    },
-  )
-}
-
 stage('Build') {
   parallel(
     'CUDA': {
@@ -123,9 +68,9 @@ stage('Build') {
         ws(per_exec_ws('mlc-llm-build-cuda')) {
           init_git(true)
           sh(script: "ls -alh", label: 'Show work directory')
-          sh(script: "${pkg_cuda} conda env export --name py312", label: 'Checkout version')
-          sh(script: "${pkg_cuda} -j 8 -v \$HOME/.ccache /ccache conda run -n py312 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
-          sh(script: "${pkg_cuda} -j 1 conda run -n py312 ./ci/task/build_clean.sh", label: 'Clean up after build')
+          sh(script: "${pkg_cuda} conda env export --name py313", label: 'Checkout version')
+          sh(script: "${pkg_cuda} -j 8 -v \$HOME/.ccache /ccache conda run -n py313 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
+          sh(script: "${pkg_cuda} -j 1 conda run -n py313 ./ci/task/build_clean.sh", label: 'Clean up after build')
           sh(script: "ls -alh ./wheels/", label: 'Build artifact')
           pack_lib('mlc_wheel_cuda', 'wheels/*.whl')
         }
@@ -162,9 +107,9 @@ stage('Build') {
         ws(per_exec_ws('mlc-llm-build-vulkan')) {
           init_git(true)
           sh(script: "ls -alh", label: 'Show work directory')
-          sh(script: "${pkg_cpu} conda env export --name py312", label: 'Checkout version')
-          sh(script: "${pkg_cpu} -j 8 conda run -n py312 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
-          sh(script: "${pkg_cpu} -j 1 conda run -n py312 ./ci/task/build_clean.sh", label: 'Clean up after build')
+          sh(script: "${pkg_cpu} conda env export --name py313", label: 'Checkout version')
+          sh(script: "${pkg_cpu} -j 8 conda run -n py313 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
+          sh(script: "${pkg_cpu} -j 1 conda run -n py313 ./ci/task/build_clean.sh", label: 'Clean up after build')
           sh(script: "ls -alh ./wheels/", label: 'Build artifact')
           pack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
         }

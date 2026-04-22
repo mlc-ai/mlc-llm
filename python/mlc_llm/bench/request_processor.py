@@ -7,12 +7,12 @@ import copy
 import os
 import random
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional  # noqa: UP035
 
 import numpy as np
 import requests
 from tqdm import tqdm
-from transformers import AutoTokenizer  # pylint: disable=import-error
+from transformers import AutoTokenizer
 
 from mlc_llm.bench.api_endpoint import APIEndPoint
 from mlc_llm.bench.dataset import Dataset
@@ -27,28 +27,28 @@ from mlc_llm.support import logging
 logger = logging.getLogger(__name__)
 
 
-class RequestProcessor:  # pylint: disable=too-few-public-methods
+class RequestProcessor:
     """The request processor base class.
     Each processor can take a list of RequestRecord, applying the process,
     and returning the processed RequestRecord in the end.
     """
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         raise NotImplementedError()
 
 
-class LogMessage(RequestProcessor):  # pylint: disable=too-few-public-methods
+class LogMessage(RequestProcessor):
     """The processor that prints the logger message."""
 
     def __init__(self, message: str) -> None:
         self.message = message
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         logger.info(self.message)
         return request_records
 
 
-class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-methods
+class SampleRequests(RequestProcessor):
     """The processor that samples requests out from the given request list."""
 
     def __init__(self, num_requests: int, take_first_x_requests: bool = False) -> None:
@@ -57,7 +57,7 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
         # are returned and sampling will not happen.
         self.take_first_x_requests = take_first_x_requests
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         assert len(request_records) > 0, "Empty input request record."
 
         # We expect the input request records to be all grouped or all plain.
@@ -69,9 +69,10 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
         return self._sample_from_plain_request_records(request_records)
 
     def _sample_from_plain_request_records(
-        self, request_records: List[RequestRecord]
-    ) -> List[RequestRecord]:
-        samples: List[RequestRecord] = []
+        self,
+        request_records: List[RequestRecord],  # noqa: UP006
+    ) -> List[RequestRecord]:  # noqa: UP006
+        samples: List[RequestRecord] = []  # noqa: UP006
         if self.take_first_x_requests:
             if len(request_records) < self.num_requests:
                 raise ValueError(
@@ -91,8 +92,9 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
         return samples
 
     def _sample_from_grouped_request_records(
-        self, grouped_request_records: List[GroupedRequestRecord]
-    ) -> List[RequestRecord]:
+        self,
+        grouped_request_records: List[GroupedRequestRecord],  # noqa: UP006
+    ) -> List[RequestRecord]:  # noqa: UP006
         num_total_available_requests = sum(
             len(record.records) for record in grouped_request_records
         )
@@ -109,7 +111,7 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
         if not self.take_first_x_requests:
             random.shuffle(records)
         remaining = self.num_requests
-        samples: List[RequestRecord] = []
+        samples: List[RequestRecord] = []  # noqa: UP006
         for grouped_request_record in grouped_request_records:
             num_used_requests = min(len(grouped_request_record.records), remaining)
             samples += grouped_request_record.records[:num_used_requests]
@@ -121,25 +123,25 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
         return samples
 
 
-class AttachModelName(RequestProcessor):  # pylint: disable=too-few-public-methods
+class AttachModelName(RequestProcessor):
     """The processor that attaches model name to requests."""
 
     def __init__(self, model: str) -> None:
         self.model = model
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         for request_record in request_records:
             request_record.chat_cmpl.model = self.model
         return request_records
 
 
-class AttachRequestRateTimestamp(RequestProcessor):  # pylint: disable=too-few-public-methods
+class AttachRequestRateTimestamp(RequestProcessor):
     """The processor that applies timestamps to the requests."""
 
     def __init__(self, request_rate: np.float32) -> None:
         self.request_rate = request_rate
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         timestamp = 0.0
         for request_record in request_records:
             assert request_record.timestamp is None, "The request record already has a timestamp"
@@ -148,26 +150,26 @@ class AttachRequestRateTimestamp(RequestProcessor):  # pylint: disable=too-few-p
         return request_records
 
 
-class AttachExecutionFeature(RequestProcessor):  # pylint: disable=too-few-public-methods
+class AttachExecutionFeature(RequestProcessor):
     """The processor that attaches execution features to all requests"""
 
-    def __init__(self, exec_feature: Dict[str, Any]) -> None:
+    def __init__(self, exec_feature: Dict[str, Any]) -> None:  # noqa: UP006
         self.exec_feature = exec_feature
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         for request_record in request_records:
             assert request_record.metrics is not None
             request_record.metrics.exec_feature = self.exec_feature
         return request_records
 
 
-class AttachStreamFlag(RequestProcessor):  # pylint: disable=too-few-public-methods
+class AttachStreamFlag(RequestProcessor):
     """The processor that attaches the stream flag to the requests."""
 
     def __init__(self, stream: Optional[bool]) -> None:
         self.stream = stream
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         if self.stream is None:
             return request_records
         for request_record in request_records:
@@ -175,7 +177,7 @@ class AttachStreamFlag(RequestProcessor):  # pylint: disable=too-few-public-meth
         return request_records
 
 
-class AttachSamplingOptions(RequestProcessor):  # pylint: disable=too-few-public-methods
+class AttachSamplingOptions(RequestProcessor):
     """The processor that attaches the stream flag to the requests."""
 
     def __init__(self, temperature: float, top_p: float, ignore_eos: bool) -> None:
@@ -183,7 +185,7 @@ class AttachSamplingOptions(RequestProcessor):  # pylint: disable=too-few-public
         self.top_p = top_p
         self.ignore_eos = ignore_eos
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         for request_record in request_records:
             request_record.chat_cmpl.temperature = self.temperature
             request_record.chat_cmpl.top_p = self.top_p
@@ -195,13 +197,13 @@ class AttachSamplingOptions(RequestProcessor):  # pylint: disable=too-few-public
         return request_records
 
 
-class ScaleTimestamp(RequestProcessor):  # pylint: disable=too-few-public-methods
+class ScaleTimestamp(RequestProcessor):
     """Scale the timestamp of requests by the given scale factor."""
 
     def __init__(self, timestamp_scale: float):
         self.timestamp_scale = timestamp_scale
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         for request_record in request_records:
             if request_record.timestamp is None:
                 raise ValueError(
@@ -211,13 +213,13 @@ class ScaleTimestamp(RequestProcessor):  # pylint: disable=too-few-public-method
         return request_records
 
 
-class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-methods
+class MetricAnalyzer(RequestProcessor):
     """The processor that analyzes the raw benchmark results and computes more detailed metrics."""
 
     def __init__(self, tokenizer: AutoTokenizer) -> None:
         self.tokenizer = tokenizer
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         updated_records = []
         for request_record in request_records:
             metrics = request_record.metrics
@@ -252,10 +254,10 @@ class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-method
         return updated_records
 
 
-class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods,line-too-long
+class WarmupAndRun(RequestProcessor):
     """The processor that runs warmup first and then runs the benchmark with the given pipeline."""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         num_warmup_requests: int,
         num_benchmark_requests: int,
@@ -269,9 +271,9 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods,
         self.cuda_profile_url = cuda_profile_url
         self.fake_warmup = fake_warmup
 
-    def generate_fake_warmup_requests(  # pylint: disable=missing-function-docstring
+    def generate_fake_warmup_requests(
         self, num_warmup_requests: int, example_request: RequestRecord
-    ) -> List[RequestRecord]:
+    ) -> List[RequestRecord]:  # noqa: UP006
         records = []
         for _ in range(num_warmup_requests):
             record = copy.deepcopy(example_request)
@@ -279,7 +281,7 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods,
                 messages=[
                     {
                         "role": "user",
-                        "content": "Please output arbitrary coherent sentences. Do not output eos token.",  # pylint: disable=line-too-long
+                        "content": "Please output arbitrary coherent sentences. Do not output eos token.",  # noqa: E501
                     }
                 ],
                 model="",
@@ -288,7 +290,7 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods,
             records.append(record)
         return records
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         # Warmup
         if self.fake_warmup:
             assert len(request_records) == self.num_benchmark_requests
@@ -321,7 +323,7 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods,
 
         return updated_request_records
 
-    def _process_warmup_requests(self, warmup_requests: List[RequestRecord]) -> List[RequestRecord]:
+    def _process_warmup_requests(self, warmup_requests: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         if len(warmup_requests) == 0:
             return warmup_requests
         # NOTE: to warm up the server for as more different batch sizes as possible,
@@ -338,21 +340,21 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods,
         return warmup_requests
 
 
-class SequentialProcessor(RequestProcessor):  # pylint: disable=too-few-public-methods
+class SequentialProcessor(RequestProcessor):
     """The processor that sequentially applies a list of processors in order."""
 
-    processors: List[RequestProcessor]
+    processors: List[RequestProcessor]  # noqa: UP006
 
     def __init__(self, *processors: RequestProcessor) -> None:
         self.processors = list(processors)
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         for processor in self.processors:
             request_records = processor(request_records)
         return request_records
 
 
-class Executor(RequestProcessor):  # pylint: disable=too-few-public-methods
+class Executor(RequestProcessor):
     """The executor base class, denoting the kind of benchmark mode."""
 
     def __init__(
@@ -365,14 +367,14 @@ class Executor(RequestProcessor):  # pylint: disable=too-few-public-methods
         self.disable_tqdm = disable_tqdm
         self.num_processes = num_processes
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         raise NotImplementedError()
 
 
-class FixedConcurrentRequestExecutor(Executor):  # pylint: disable=too-few-public-methods
+class FixedConcurrentRequestExecutor(Executor):
     """The benchmark executor of fixing the number of concurrent requests."""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         f_create_api_endpoint: Callable[[], APIEndPoint],
         num_processes: Optional[int],
@@ -388,8 +390,8 @@ class FixedConcurrentRequestExecutor(Executor):  # pylint: disable=too-few-publi
         self.num_concurrent_requests = num_concurrent_requests
         self.multi_round = multi_round
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
-        partitions: List[List[RequestRecord]] = [
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
+        partitions: List[List[RequestRecord]] = [  # noqa: UP006
             request_records[slice(i, len(request_records), self.num_processes)]
             for i in range(self.num_processes)
         ]
@@ -410,7 +412,7 @@ class FixedConcurrentRequestExecutor(Executor):  # pylint: disable=too-few-publi
                 )
                 for i, partition in enumerate(partitions)
             ]
-            results: List[RequestRecord] = []
+            results: List[RequestRecord] = []  # noqa: UP006
             for i, future in enumerate(concurrent.futures.as_completed(futures)):
                 results.extend(future.result())
                 if pbar is not None:
@@ -421,24 +423,24 @@ class FixedConcurrentRequestExecutor(Executor):  # pylint: disable=too-few-publi
     @staticmethod
     def _process_task(
         f_create_api_endpoint: Callable[[], APIEndPoint],
-        request_records: List[RequestRecord],
+        request_records: List[RequestRecord],  # noqa: UP006
         num_concurrent_requests: int,
         multi_round: bool,
-    ) -> List[RequestRecord]:
+    ) -> List[RequestRecord]:  # noqa: UP006
         if len(request_records) == 0:
             return []
-        chat_history: List[List[ChatCompletionMessage]] = [
+        chat_history: List[List[ChatCompletionMessage]] = [  # noqa: UP006
             [] for _ in range(num_concurrent_requests)
         ]
 
         async def process_task_impl(
             f_create_api_endpoint: Callable[[], APIEndPoint],
-            request_records: List[RequestRecord],
+            request_records: List[RequestRecord],  # noqa: UP006
             num_concurrent_requests: int,
             multi_round: bool,
-        ) -> List[RequestRecord]:
+        ) -> List[RequestRecord]:  # noqa: UP006
             api_endpoint = f_create_api_endpoint()
-            updated_request_records: List[RequestRecord] = [None for _ in request_records]
+            updated_request_records: List[RequestRecord] = [None for _ in request_records]  # noqa: UP006
             async with api_endpoint:
                 num_sent_request = 0
 
@@ -459,11 +461,12 @@ class FixedConcurrentRequestExecutor(Executor):  # pylint: disable=too-few-publi
                         updated_request_records[idx] = await api_endpoint(request)
 
                         if multi_round:
-                            chat_history[i] = updated_request_records[idx].chat_cmpl.messages + [
+                            chat_history[i] = [
+                                *updated_request_records[idx].chat_cmpl.messages,
                                 ChatCompletionMessage(
                                     content=updated_request_records[idx].output_str,
                                     role="assistant",
-                                )
+                                ),
                             ]
 
                 tasks = [asyncio.create_task(_task(i)) for i in range(num_concurrent_requests)]
@@ -481,10 +484,10 @@ class FixedConcurrentRequestExecutor(Executor):  # pylint: disable=too-few-publi
         )
 
 
-class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
+class FixTimestampExecutor(Executor):
     """The benchmark executor of fixing the timestamps of sending requests."""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         f_create_api_endpoint: Callable[[], APIEndPoint],
         num_processes: Optional[int],
@@ -500,13 +503,13 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
         self.max_schedule_gap = max_schedule_gap
         self.num_requests = num_requests
 
-    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:  # noqa: UP006
         assert len(request_records) > 0
         assert all(request_record.timestamp is not None for request_record in request_records)
         # Sort the request records in timestamp ascending order before partitioning.
         request_records.sort(key=lambda request_record: request_record.timestamp)
         base_timestamp = request_records[0].timestamp
-        partitions: List[List[RequestRecord]] = [
+        partitions: List[List[RequestRecord]] = [  # noqa: UP006
             request_records[slice(i, len(request_records), self.num_processes)]
             for i in range(self.num_processes)
         ]
@@ -528,7 +531,7 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
                 )
                 for partition in partitions
             ]
-            results: List[RequestRecord] = []
+            results: List[RequestRecord] = []  # noqa: UP006
             for i, future in enumerate(concurrent.futures.as_completed(futures)):
                 results.extend(future.result())
                 if pbar is not None:
@@ -539,27 +542,27 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
     @staticmethod
     def _process_task(
         f_create_api_endpoint: Callable[[], APIEndPoint],
-        request_records: List[RequestRecord],
+        request_records: List[RequestRecord],  # noqa: UP006
         base_timestamp: float,
         base_sys_time: float,
         max_schedule_gap: float,
-    ) -> List[RequestRecord]:
+    ) -> List[RequestRecord]:  # noqa: UP006
         if len(request_records) == 0:
             return []
 
         async def process_task_impl(
             f_create_api_endpoint: Callable[[], APIEndPoint],
-            request_records: List[RequestRecord],
+            request_records: List[RequestRecord],  # noqa: UP006
             base_timestamp: float,
             base_sys_time: float,
             max_schedule_gap: float,
-        ) -> List[RequestRecord]:
+        ) -> List[RequestRecord]:  # noqa: UP006
             api_endpoint = f_create_api_endpoint()
             loop = asyncio.get_running_loop()
             # Get the delta time to convert system time to the loop time.
             # We must use the system time `time.time()` which is consistent across processes.
             loop_sys_delta_time = loop.time() - time.time()
-            updated_request_records: List[RequestRecord] = []
+            updated_request_records: List[RequestRecord] = []  # noqa: UP006
             async with api_endpoint:
 
                 async def _task(request_record: RequestRecord) -> None:
@@ -600,14 +603,14 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
         )
 
 
-def create_pipelines(  # pylint: disable=too-many-branches
+def create_pipelines(
     args: argparse.Namespace,
     f_create_api_endpoint: Callable[[], APIEndPoint],
     dataset: Dataset,
-) -> List[RequestProcessor]:
+) -> List[RequestProcessor]:  # noqa: UP006
     """Creating request processing pipelines with regard to the specified args."""
     cuda_profile_url = f"http://{args.host}:{args.port}" if args.cuda_profile else None
-    pipelines: List[RequestProcessor] = []
+    pipelines: List[RequestProcessor] = []  # noqa: UP006
     if args.num_concurrent_requests is not None:
         if args.request_rate is not None:
             raise ValueError(

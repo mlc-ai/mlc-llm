@@ -5,7 +5,7 @@ TODO: add docstring
 
 import dataclasses
 from functools import partial
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class OLMoConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class OLMoConfig(ConfigBase):
     """Configuration of the OLMo model."""
 
     vocab_size: int = None
@@ -32,7 +32,7 @@ class OLMoConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     num_key_value_heads: int = 0
     head_dim: int = 0
     position_embedding_base: int = 0
-    rope_scaling: Optional[Dict[str, Any]] = None
+    rope_scaling: Optional[Dict[str, Any]] = None  # noqa: UP006
     intermediate_size: int = None
     hidden_act: str = None
     num_hidden_layers: int = None
@@ -43,9 +43,9 @@ class OLMoConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     pipeline_parallel_stages: int = 1
     max_batch_size: int = 1
     clip_qkv: float = None
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
-    def __post_init__(self):  # pylint: disable=too-many-branches
+    def __post_init__(self):
         if self.num_key_value_heads == 0:
             self.num_key_value_heads = self.num_attention_heads
         if self.head_dim == 0:
@@ -116,15 +116,15 @@ class OLMoEmbedding(nn.Embedding):
         return nn.op.matmul(x, weight, out_dtype="float32")
 
 
-class OLMoAttention(nn.Module):  # pylint: disable=missing-class-docstring
+class OLMoAttention(nn.Module):
     def __init__(self, config: OLMoConfig):
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
-        assert (
-            config.num_key_value_heads >= config.tensor_parallel_shards
-        ), f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
-        assert (
-            config.num_key_value_heads % config.tensor_parallel_shards == 0
-        ), f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
+        assert config.num_key_value_heads >= config.tensor_parallel_shards, (
+            f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
+        )
+        assert config.num_key_value_heads % config.tensor_parallel_shards == 0, (
+            f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"  # noqa: E501
+        )
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.head_dim = config.head_dim
         self.qkv_proj = nn.Linear(
@@ -139,9 +139,7 @@ class OLMoAttention(nn.Module):  # pylint: disable=missing-class-docstring
             bias=False,
         )
 
-    def forward(  # pylint: disable=missing-function-docstring
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
-    ):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
         b, s, _ = hidden_states.shape
 
@@ -173,7 +171,7 @@ ACT2FN = {
 }
 
 
-class OLMoFFN(nn.Module):  # pylint: disable=missing-class-docstring
+class OLMoFFN(nn.Module):
     def __init__(self, config: OLMoConfig):
         super().__init__()
         if config.intermediate_size % config.tensor_parallel_shards != 0:
@@ -194,16 +192,13 @@ class OLMoFFN(nn.Module):  # pylint: disable=missing-class-docstring
             bias=False,
         )
 
-    def forward(self, x: Tensor):  # pylint: disable=missing-function-docstring
+    def forward(self, x: Tensor):
         concat_x1_x2 = self.gate_up_proj(x)
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
         return self.down_proj(self.act_fn(x1) * x2)
 
 
-# pylint: disable=trailing-whitespace
-
-
-class OLMoDecoderLayer(nn.Module):  # pylint: disable=missing-class-docstring
+class OLMoDecoderLayer(nn.Module):
     def __init__(self, config: OLMoConfig):
         self.input_layernorm = nn.LayerNorm(
             normalized_shape=config.hidden_size,
@@ -246,9 +241,7 @@ class OLMoDecoderLayer(nn.Module):  # pylint: disable=missing-class-docstring
             return op.ccl_allreduce(out, "sum") + residual
         return out + residual
 
-    def forward(  # pylint: disable=missing-function-docstring
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
-    ):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
@@ -256,7 +249,7 @@ class OLMoDecoderLayer(nn.Module):  # pylint: disable=missing-class-docstring
         return hidden_states
 
 
-class OLMoModel(nn.Module):  # pylint: disable=missing-class-docstring
+class OLMoModel(nn.Module):
     def __init__(self, config: OLMoConfig):
         assert config.hidden_size % config.num_attention_heads == 0
         self.embed_tokens = OLMoEmbedding(config.vocab_size, config.hidden_size)
@@ -280,9 +273,7 @@ class OLMoModel(nn.Module):  # pylint: disable=missing-class-docstring
             i * layers_per_stage for i in range(config.pipeline_parallel_stages)
         ] + [config.num_hidden_layers]
 
-    def forward(  # pylint: disable=missing-function-docstring
-        self, inputs: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = inputs
         for layer_id, layer in enumerate(self.layers):
             if layer_id != 0 and layer_id in self.layer_partition:
@@ -292,9 +283,7 @@ class OLMoModel(nn.Module):  # pylint: disable=missing-class-docstring
         return hidden_states
 
 
-class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-instance-attributes
-    nn.Module
-):
+class OLMoForCausalLM(nn.Module):
     def __init__(self, config: OLMoConfig):
         self.model = OLMoModel(config)
         self.tie_word_embeddings = config.tie_word_embeddings
@@ -332,7 +321,7 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
         if dtype is not None:
             self.dtype = dtype
 
-    def batch_forward(  # pylint: disable=missing-function-docstring
+    def batch_forward(
         self,
         input_embeds: Tensor,
         paged_kv_cache: PagedKVCache,
@@ -346,7 +335,7 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         return self.get_logits(hidden_states)
 
-    def batch_forward_to_last_hidden_states(  # pylint: disable=missing-function-docstring
+    def batch_forward_to_last_hidden_states(
         self,
         input_embeds: Tensor,
         paged_kv_cache: PagedKVCache,
@@ -355,12 +344,12 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
         hidden_states = self.model(input_embeds, paged_kv_cache)
         return hidden_states
 
-    def embed(self, input_ids: Tensor):  # pylint: disable=missing-function-docstring
+    def embed(self, input_ids: Tensor):
         if self.tensor_parallel_shards > 1:
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.model.embed_tokens(input_ids)
 
-    def get_logits(self, hidden_states: Tensor):  # pylint: disable=missing-function-docstring
+    def get_logits(self, hidden_states: Tensor):
         op_ext.configure()
         if self.tie_word_embeddings:
             logits = self.model.embed_tokens.lm_head_forward(hidden_states)
@@ -370,50 +359,38 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
             logits = logits.astype("float32")
         return logits
 
-    def batch_select_last_hidden_states(  # pylint: disable=missing-function-docstring
-        self, hidden_states: Tensor, logit_positions: Tensor
-    ):
+    def batch_select_last_hidden_states(self, hidden_states: Tensor, logit_positions: Tensor):
         op_ext.configure()
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
         hidden_states = op.take(hidden_states, logit_positions, axis=0)
         return hidden_states
 
-    def prefill(  # pylint: disable=missing-function-docstring
-        self, input_embed: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        # pylint: disable=trailing-whitespace
         hidden_states = self.model(input_embed, paged_kv_cache)
         hidden_states = index_last_token(hidden_states)
         logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
-    # pylint: disable=trailing-whitespace
-    def decode(  # pylint: disable=missing-function-docstring
-        self, input_embed: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
         hidden_states = self.model(input_embed, paged_kv_cache)
         logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
-    def prefill_to_last_hidden_states(  # pylint: disable=missing-function-docstring
-        self, input_embed: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def prefill_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
         hidden_states = self.model(input_embed, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
-    def decode_to_last_hidden_states(  # pylint: disable=missing-function-docstring
-        self, input_embed: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def decode_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
         hidden_states = self.model(input_embed, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
-    def batch_prefill(  # pylint: disable=missing-function-docstring
+    def batch_prefill(
         self,
         input_embeds: Tensor,
         logit_positions: Tensor,
@@ -422,37 +399,33 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache
 
-    def batch_decode(  # pylint: disable=missing-function-docstring
-        self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def batch_verify(  # pylint: disable=missing-function-docstring
-        self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def batch_prefill_to_last_hidden_states(  # pylint: disable=missing-function-docstring
+    def batch_prefill_to_last_hidden_states(
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
         hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
-    def batch_decode_to_last_hidden_states(  # pylint: disable=missing-function-docstring
+    def batch_decode_to_last_hidden_states(
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
         hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
-    def batch_verify_to_last_hidden_states(  # pylint: disable=missing-function-docstring
+    def batch_verify_to_last_hidden_states(
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
         hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=missing-function-docstring,too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,
@@ -480,7 +453,7 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
             dtype=self.dtype,
         )
 
-    def get_default_spec(self):  # pylint: disable=missing-function-docstring
+    def get_default_spec(self):
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor(["seq_len"], "int32"),

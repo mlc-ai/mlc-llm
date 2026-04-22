@@ -3,7 +3,7 @@ Implementation for Orion-14B architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class OrionConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class OrionConfig(ConfigBase):
     """Configuration of the Orion model."""
 
     hidden_size: int
@@ -37,7 +37,7 @@ class OrionConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     head_dim: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.position_embedding_base == 0:
@@ -85,9 +85,6 @@ class OrionConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = min(self.context_window_size, 8192)
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
 class OrionFFN(nn.Module):
     def __init__(self, config: OrionConfig):
         super().__init__()
@@ -110,16 +107,16 @@ class OrionFFN(nn.Module):
         return self.down_proj(op.silu(x1) * x2)
 
 
-class OrionAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class OrionAttention(nn.Module):
     def __init__(self, config: OrionConfig):
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
-        assert (
-            config.num_key_value_heads % config.tensor_parallel_shards == 0
-        ), f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
-        assert (
-            config.num_key_value_heads >= config.tensor_parallel_shards
-        ), f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
+        assert config.num_key_value_heads % config.tensor_parallel_shards == 0, (
+            f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"  # noqa: E501
+        )
+        assert config.num_key_value_heads >= config.tensor_parallel_shards, (
+            f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
+        )
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
@@ -206,7 +203,7 @@ class OrionModel(nn.Module):
         return hidden_states
 
 
-class OrionForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class OrionForCausalLM(nn.Module):
     def __init__(self, config: OrionConfig):
         self.model = OrionModel(config)
         self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
@@ -284,7 +281,7 @@ class OrionForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

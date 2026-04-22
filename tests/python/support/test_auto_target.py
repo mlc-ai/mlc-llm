@@ -1,4 +1,3 @@
-# pylint: disable=missing-docstring
 import pytest
 from tvm.target import Target
 

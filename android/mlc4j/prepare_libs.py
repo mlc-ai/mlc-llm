@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def run_cmake(mlc4j_path: Path):
     if "ANDROID_NDK" not in os.environ:
         raise ValueError(
-            f'Environment variable "ANDROID_NDK" is required but not found.'
+            'Environment variable "ANDROID_NDK" is required but not found.'
             "Please follow https://llm.mlc.ai/docs/deploy/android.html to properly "
             'specify "ANDROID_NDK".'
         )

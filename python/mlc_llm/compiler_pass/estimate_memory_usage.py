@@ -1,7 +1,7 @@
 """Memory usage estimation analysis function for Relax functions."""
 
 import json
-from typing import Any, Dict
+from typing import Any, Dict  # noqa: UP035
 
 import tvm
 from tvm import relax, tirx
@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachMetadata")
-class AttachMetadataWithMemoryUsage:  # pylint: disable=too-few-public-methods
+class AttachMetadataWithMemoryUsage:
     """Attach a Relax function that returns metadata in a JSON string"""
 
-    def __init__(self, metadata: Dict[str, Any]):
+    def __init__(self, metadata: Dict[str, Any]):  # noqa: UP006
         self.metadata = metadata
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
@@ -26,7 +26,7 @@ class AttachMetadataWithMemoryUsage:  # pylint: disable=too-few-public-methods
         func_name = "_metadata"
 
         def _emit_metadata(metadata):
-            bb = relax.BlockBuilder()  # pylint: disable=invalid-name
+            bb = relax.BlockBuilder()
             with bb.function(func_name, params=[]):
                 bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
             return bb.finalize()[func_name]
@@ -46,9 +46,9 @@ class _MemoryEstimator(PyExprVisitor):
         self._op_alloc_tensor = Op.get("relax.builtin.alloc_tensor")
         self._op_alloc_storage = Op.get("relax.memory.alloc_storage")
 
-    def run(self, mod: IRModule) -> Dict[str, int]:
+    def run(self, mod: IRModule) -> Dict[str, int]:  # noqa: UP006
         """Entry point of the visitor."""
-        result: Dict[str, int] = {}
+        result: Dict[str, int] = {}  # noqa: UP006
         for global_var, func in mod.functions_items():
             if isinstance(func, relax.Function):
                 self.planned_alloc_mem = 0
@@ -62,7 +62,7 @@ class _MemoryEstimator(PyExprVisitor):
                 )
         return result
 
-    def visit_call_(self, call: relax.Call) -> None:  # pylint: disable=arguments-renamed
+    def visit_call_(self, call: relax.Call) -> None:
         if call.op == self._op_alloc_tensor:
             self._builtin_tensor_alloc(shape=call.args[0], dtype_str=call.args[1].value)
         elif call.op == self._op_alloc_storage:

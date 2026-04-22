@@ -6,7 +6,7 @@ Reference: https://github.com/mlc-ai/tokenizers-cpp
 
 import json
 from dataclasses import asdict, dataclass
-from typing import List, Literal
+from typing import List, Literal  # noqa: UP035
 
 import tvm
 import tvm_ffi
@@ -16,7 +16,7 @@ from . import _ffi_api
 
 
 @dataclass
-class TokenizerInfo:  # pylint: disable=too-many-instance-attributes
+class TokenizerInfo:
     """Useful information of the tokenizer during generation.
 
     Attributes
@@ -55,18 +55,18 @@ class TokenizerInfo:  # pylint: disable=too-many-instance-attributes
         return TokenizerInfo(**json.loads(json_str))
 
 
-@tvm_ffi.register_object("mlc.Tokenizer")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.Tokenizer")
 class Tokenizer(Object):
     """The tokenizer class in MLC LLM."""
 
-    def __init__(self, tokenizer_path: str) -> None:  # pylint: disable=super-init-not-called
+    def __init__(self, tokenizer_path: str) -> None:
         """Create the tokenizer from tokenizer directory path."""
         self.__init_handle_by_constructor__(
-            _ffi_api.Tokenizer,  # type: ignore[attr-defined]  # pylint: disable=no-member
-            tokenizer_path,  # type: ignore
+            _ffi_api.Tokenizer,
+            tokenizer_path,
         )
 
-    def encode(self, text: str) -> List[int]:
+    def encode(self, text: str) -> List[int]:  # noqa: UP006
         """Encode text into ids.
 
         Parameters
@@ -79,9 +79,9 @@ class Tokenizer(Object):
         token_ids : List[int]
             The list of encoded token ids.
         """
-        return list(_ffi_api.TokenizerEncode(self, text))  # type: ignore  # pylint: disable=no-member
+        return list(_ffi_api.TokenizerEncode(self, text))
 
-    def encode_batch(self, texts: List[str]) -> List[List[int]]:
+    def encode_batch(self, texts: List[str]) -> List[List[int]]:  # noqa: UP006
         """Encode a batch of texts into ids.
 
         Parameters
@@ -94,9 +94,9 @@ class Tokenizer(Object):
         token_ids : List[List[int]]
             The list of list of encoded token ids.
         """
-        return list(_ffi_api.TokenizerEncodeBatch(self, texts))  # type: ignore  # pylint: disable=no-member
+        return list(_ffi_api.TokenizerEncodeBatch(self, texts))
 
-    def decode(self, token_ids: List[int]) -> str:
+    def decode(self, token_ids: List[int]) -> str:  # noqa: UP006
         """Decode token ids into text.
 
         Parameters
@@ -109,9 +109,7 @@ class Tokenizer(Object):
         text : str
             The decoded text string.
         """
-        return _ffi_api.TokenizerDecode(  # type: ignore  # pylint: disable=no-member
-            self, tvm.runtime.ShapeTuple(token_ids)
-        )
+        return _ffi_api.TokenizerDecode(self, tvm.runtime.ShapeTuple(token_ids))
 
     @staticmethod
     def detect_tokenizer_info(tokenizer_path: str) -> TokenizerInfo:
@@ -127,4 +125,4 @@ class Tokenizer(Object):
         tokenizer_info : str
             The detected tokenizer info in JSON string.
         """
-        return TokenizerInfo.from_json(_ffi_api.DetectTokenizerInfo(tokenizer_path))  # type: ignore  # pylint: disable=no-member
+        return TokenizerInfo.from_json(_ffi_api.DetectTokenizerInfo(tokenizer_path))

@@ -3,11 +3,9 @@ Adapted from FastChat's OpenAI protocol:
 https://github.com/lm-sys/FastChat/blob/main/fastchat/protocol/openai_api_protocol.py
 """
 
-# pylint: disable=missing-class-docstring
-
 import json
 import time
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union  # noqa: UP035
 
 import shortuuid
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -26,40 +24,40 @@ COMPLETION_MAX_TOP_LOGPROBS = 5
 
 class ListResponse(BaseModel):
     object: str = "list"
-    data: List[Any]
+    data: List[Any]  # noqa: UP006
 
 
 class TopLogProbs(BaseModel):
     token: str
     logprob: float
-    bytes: Optional[List[int]]
+    bytes: Optional[List[int]]  # noqa: UP006
 
 
 class LogProbsContent(BaseModel):
     token: str
     logprob: float
-    bytes: Optional[List[int]]
-    top_logprobs: List[TopLogProbs] = []
+    bytes: Optional[List[int]]  # noqa: UP006
+    top_logprobs: List[TopLogProbs] = []  # noqa: UP006
 
 
 class LogProbs(BaseModel):
-    content: List[LogProbsContent]
+    content: List[LogProbsContent]  # noqa: UP006
 
 
 class CompletionLogProbs(BaseModel):
     # The position of the token in the concatenated str: prompt + completion_text
     # TODO(vvchernov): skip optional after support
-    text_offset: Optional[List[int]]
-    token_logprobs: List[float]
-    tokens: List[str]
-    top_logprobs: List[Dict[str, float]]
+    text_offset: Optional[List[int]]  # noqa: UP006
+    token_logprobs: List[float]  # noqa: UP006
+    tokens: List[str]  # noqa: UP006
+    top_logprobs: List[Dict[str, float]]  # noqa: UP006
 
 
 class CompletionUsage(BaseModel):
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
-    extra: Optional[Dict[str, Any]] = None
+    extra: Optional[Dict[str, Any]] = None  # noqa: UP006
     """Extra metrics and info that may be returned by debug_config
     """
 
@@ -76,7 +74,7 @@ class EmbeddingRequest(BaseModel):
     API reference: https://platform.openai.com/docs/api-reference/embeddings/create
     """
 
-    input: Union[str, List[str], List[int], List[List[int]]]
+    input: Union[str, List[str], List[int], List[List[int]]]  # noqa: UP006
     model: Optional[str] = None
     encoding_format: Literal["float", "base64"] = "float"
     dimensions: Optional[int] = None
@@ -97,7 +95,7 @@ class EmbeddingRequest(BaseModel):
 
 class EmbeddingObject(BaseModel):
     object: str = "embedding"
-    embedding: Union[List[float], str]
+    embedding: Union[List[float], str]  # noqa: UP006
     index: int
 
 
@@ -112,7 +110,7 @@ class EmbeddingResponse(BaseModel):
     """
 
     object: str = "list"
-    data: List[EmbeddingObject]
+    data: List[EmbeddingObject]  # noqa: UP006
     model: Optional[str] = None
     usage: EmbeddingUsage
 
@@ -149,17 +147,17 @@ class CompletionRequest(BaseModel):
     """
 
     model: Optional[str] = None
-    prompt: Union[str, List[int]]
+    prompt: Union[str, List[int]]  # noqa: UP006
     best_of: int = 1
     echo: bool = False
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
     logprobs: Optional[int] = None
-    logit_bias: Optional[Dict[int, float]] = None
+    logit_bias: Optional[Dict[int, float]] = None  # noqa: UP006
     max_tokens: Optional[int] = None
     n: int = 1
     seed: Optional[int] = None
-    stop: Optional[Union[str, List[str]]] = None
+    stop: Optional[Union[str, List[str]]] = None  # noqa: UP006
     stream: bool = False
     stream_options: Optional[StreamOptions] = None
     suffix: Optional[str] = None
@@ -180,8 +178,9 @@ class CompletionRequest(BaseModel):
     @field_validator("logit_bias")
     @classmethod
     def check_logit_bias(
-        cls, logit_bias_value: Optional[Dict[int, float]]
-    ) -> Optional[Dict[int, float]]:
+        cls,
+        logit_bias_value: Optional[Dict[int, float]],  # noqa: UP006
+    ) -> Optional[Dict[int, float]]:  # noqa: UP006
         """Check if the logit bias key is given as an integer."""
         if logit_bias_value is None:
             return None
@@ -216,7 +215,7 @@ class CompletionResponse(BaseModel):
     """
 
     id: str
-    choices: List[CompletionResponseChoice]
+    choices: List[CompletionResponseChoice]  # noqa: UP006
     created: int = Field(default_factory=lambda: int(time.time()))
     model: Optional[str] = None
     object: str = "text_completion"
@@ -229,7 +228,7 @@ class CompletionResponse(BaseModel):
 class ChatFunction(BaseModel):
     description: Optional[str] = None
     name: str
-    parameters: Dict
+    parameters: Dict  # noqa: UP006
 
 
 class ChatTool(BaseModel):
@@ -239,7 +238,7 @@ class ChatTool(BaseModel):
 
 class ChatFunctionCall(BaseModel):
     name: str
-    arguments: Union[None, Dict[str, Any]] = None
+    arguments: Union[None, Dict[str, Any]] = None  # noqa: UP006
 
 
 class ChatToolCall(BaseModel):
@@ -249,10 +248,10 @@ class ChatToolCall(BaseModel):
 
 
 class ChatCompletionMessage(BaseModel):
-    content: Optional[Union[str, List[Dict]]] = None
+    content: Optional[Union[str, List[Dict]]] = None  # noqa: UP006
     role: Literal["system", "user", "assistant", "tool"]
     name: Optional[str] = None
-    tool_calls: Optional[List[ChatToolCall]] = None
+    tool_calls: Optional[List[ChatToolCall]] = None  # noqa: UP006
     tool_call_id: Optional[str] = None
 
 
@@ -261,23 +260,23 @@ class ChatCompletionRequest(BaseModel):
     API reference: https://platform.openai.com/docs/api-reference/chat/create
     """
 
-    messages: List[ChatCompletionMessage]
+    messages: List[ChatCompletionMessage]  # noqa: UP006
     model: Optional[str] = None
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
     logprobs: bool = False
     top_logprobs: int = 0
-    logit_bias: Optional[Dict[int, float]] = None
+    logit_bias: Optional[Dict[int, float]] = None  # noqa: UP006
     max_tokens: Optional[int] = None
     n: int = 1
     seed: Optional[int] = None
-    stop: Optional[Union[str, List[str]]] = None
+    stop: Optional[Union[str, List[str]]] = None  # noqa: UP006
     stream: bool = False
     stream_options: Optional[StreamOptions] = None
     temperature: Optional[float] = None
     top_p: Optional[float] = None
-    tools: Optional[List[ChatTool]] = None
-    tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None
+    tools: Optional[List[ChatTool]] = None  # noqa: UP006
+    tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None  # noqa: UP006
     user: Optional[str] = None
     response_format: Optional[RequestResponseFormat] = None
     # NOTE: debug_config is not part of OpenAI protocol
@@ -295,8 +294,9 @@ class ChatCompletionRequest(BaseModel):
     @field_validator("logit_bias")
     @classmethod
     def check_logit_bias(
-        cls, logit_bias_value: Optional[Dict[int, float]]
-    ) -> Optional[Dict[int, float]]:
+        cls,
+        logit_bias_value: Optional[Dict[int, float]],  # noqa: UP006
+    ) -> Optional[Dict[int, float]]:  # noqa: UP006
         """Check if the logit bias key is given as an integer."""
         if logit_bias_value is None:
             return None
@@ -375,35 +375,28 @@ class ChatCompletionRequest(BaseModel):
 
         # select the tool based on the tool_choice if specified
         if isinstance(self.tool_choice, dict):
-            if self.tool_choice["type"] != "function":  # pylint: disable=unsubscriptable-object
+            if self.tool_choice["type"] != "function":
                 raise BadRequestError("Only 'function' tool choice is supported")
 
-            if len(self.tool_choice["function"]) > 1:  # pylint: disable=unsubscriptable-object
+            if len(self.tool_choice["function"]) > 1:
                 raise BadRequestError("Only one tool is supported when tool_choice is specified")
 
-            for tool in self.tools:  # pylint: disable=not-an-iterable
-                if (
-                    tool.function.name
-                    == self.tool_choice["function"][  # pylint: disable=unsubscriptable-object
-                        "name"
-                    ]
-                ):
+            for tool in self.tools:
+                if tool.function.name == self.tool_choice["function"]["name"]:
                     conv_template.use_function_calling = True
                     conv_template.function_string = tool.function.model_dump_json(by_alias=True)
                     return
 
-            # pylint: disable=unsubscriptable-object
             raise BadRequestError(
                 f"The tool_choice function {self.tool_choice['function']['name']}"
                 " is not found in the tools list"
             )
-            # pylint: enable=unsubscriptable-object
 
         if isinstance(self.tool_choice, str) and self.tool_choice != "auto":
             raise BadRequestError(f"Invalid tool_choice value: {self.tool_choice}")
 
         function_list = []
-        for tool in self.tools:  # pylint: disable=not-an-iterable
+        for tool in self.tools:
             if tool.type != "function":
                 raise BadRequestError("Only 'function' tool type is supported")
             function_list.append(tool.function.model_dump(by_alias=True))
@@ -432,7 +425,7 @@ class ChatCompletionResponse(BaseModel):
     """
 
     id: str
-    choices: List[ChatCompletionResponseChoice]
+    choices: List[ChatCompletionResponseChoice]  # noqa: UP006
     created: int = Field(default_factory=lambda: int(time.time()))
     model: Optional[str] = None
     system_fingerprint: str
@@ -446,7 +439,7 @@ class ChatCompletionStreamResponse(BaseModel):
     """
 
     id: str
-    choices: List[ChatCompletionStreamResponseChoice]
+    choices: List[ChatCompletionStreamResponseChoice]  # noqa: UP006
     created: int = Field(default_factory=lambda: int(time.time()))
     model: Optional[str] = None
     system_fingerprint: str
@@ -454,18 +447,15 @@ class ChatCompletionStreamResponse(BaseModel):
     usage: Optional[CompletionUsage] = None
 
 
-################################################
-
-
 def openai_api_get_unsupported_fields(
     request: Union[CompletionRequest, ChatCompletionRequest],
-) -> List[str]:
+) -> List[str]:  # noqa: UP006
     """Get the unsupported fields in the request."""
-    unsupported_field_default_values: List[Tuple[str, Any]] = [
+    unsupported_field_default_values: List[Tuple[str, Any]] = [  # noqa: UP006
         ("best_of", 1),
     ]
 
-    unsupported_fields: List[str] = []
+    unsupported_fields: List[str] = []  # noqa: UP006
     for field, value in unsupported_field_default_values:
         if hasattr(request, field) and getattr(request, field) != value:
             unsupported_fields.append(field)

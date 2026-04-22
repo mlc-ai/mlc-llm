@@ -1,8 +1,8 @@
 """Python entrypoint of router."""
 
-# pylint: disable=fixme
+from collections.abc import AsyncGenerator
 from http import HTTPStatus
-from typing import AsyncGenerator, List, Literal, Optional, Type
+from typing import List, Literal, Optional, Type  # noqa: UP035
 
 import fastapi
 import uvicorn
@@ -19,14 +19,14 @@ def serve(
     model_lib: Optional[str],
     router_host: str,
     router_port: int,
-    endpoint_hosts: List[str],
-    endpoint_ports: List[int],
-    endpoint_num_gpus: List[int],
+    endpoint_hosts: List[str],  # noqa: UP006
+    endpoint_ports: List[int],  # noqa: UP006
+    endpoint_num_gpus: List[int],  # noqa: UP006
     enable_prefix_cache: bool,
     router_mode: Literal["disagg", "round-robin"] = "round-robin",
     pd_balance_factor: float = 0.0,
-    router_type: Type[Router] = Router,
-):  # pylint: disable=too-many-arguments
+    router_type: Type[Router] = Router,  # noqa: UP006
+):
     """Start the router with the specified configuration."""
     # 1. Instantiate router
     router = router_type(
@@ -58,10 +58,8 @@ def serve(
             # We manually get the first response from generator to
             # capture potential exceptions in this scope, rather then
             # the StreamingResponse scope.
-            stream_generator = router.handle_completion(  # pylint: disable=protected-access
-                request, request_id
-            )
-            first_response = await anext(  # type: ignore  # pylint: disable=undefined-variable
+            stream_generator = router.handle_completion(request, request_id)
+            first_response = await anext(  # noqa: F821
                 stream_generator
             )
 
@@ -81,12 +79,10 @@ def serve(
         # FIXME: Non-streaming response not fully implemented
         request_final_usage = None
         output_texts = [""] * request.n
-        finish_reasons: List[Optional[str]] = [None] * request.n
-        logprob_results: List[Optional[CompletionLogProbs]] = [None] * request.n
+        finish_reasons: List[Optional[str]] = [None] * request.n  # noqa: UP006
+        logprob_results: List[Optional[CompletionLogProbs]] = [None] * request.n  # noqa: UP006
 
-        async for response in router.handle_completion(  # pylint: disable=protected-access
-            request, request_id
-        ):
+        async for response in router.handle_completion(request, request_id):
             if await raw_request.is_disconnected():
                 # In non-streaming cases, the engine will not be notified
                 # when the request is disconnected.

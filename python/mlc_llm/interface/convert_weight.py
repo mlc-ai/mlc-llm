@@ -5,9 +5,10 @@ import dataclasses
 import math
 import os
 import tempfile
+from collections.abc import Iterator
 from io import StringIO
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple  # noqa: UP035
 
 from tvm import tirx
 from tvm.contrib import tvmjs
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class ConversionArgs:  # pylint: disable=too-many-instance-attributes
+class ConversionArgs:
     """Arguments to MLC LLM's weight conversation and quantization flow."""
 
     config: Path
@@ -43,7 +44,7 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
         """Display the arguments to stdout."""
 
         def _device_to_str(device: Device) -> str:
-            return f"{Device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]}:{device.index}"  # pylint: disable=protected-access, line-too-long
+            return f"{Device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]}:{device.index}"
 
         out = StringIO()
         print(f"{bold('Weight conversion with arguments:')}", file=out)
@@ -72,11 +73,9 @@ def _merge_lora_adapter_with_base_model(base_source: Path, lora_adapter: Path) -
         raise ValueError(f"LoRA adapter directory does not exist: {lora_adapter}")
 
     try:
-        # pylint: disable=import-outside-toplevel
         from peft import PeftModel
         from transformers import AutoModelForCausalLM
 
-        # pylint: enable=import-outside-toplevel
     except ImportError as err:
         raise ImportError(
             "`--lora-adapter` requires `peft` and `transformers` to be installed."
@@ -99,7 +98,7 @@ def _merge_lora_adapter_with_base_model(base_source: Path, lora_adapter: Path) -
         yield merged_model_dir
 
 
-def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-locals
+def _convert_args(args: ConversionArgs) -> None:
     pre_shards_num = os.getenv("MLC_INTERNAL_PRESHARD_NUM")
     # model config & quantization config
     model_config = args.model.config.from_file(args.config)
@@ -114,8 +113,8 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
     model, quantize_map = args.model.quantize[args.quantization.kind](
         model_config, args.quantization
     )
-    _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
-        spec=model.get_default_spec(),  # type: ignore[attr-defined]
+    _, _named_params, _ = model.export_tvm(
+        spec=model.get_default_spec(),
         allow_extern=True,
     )
     named_params = dict(_named_params)
@@ -160,9 +159,9 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
     # load and quantize
     param_names = set()
     total_bytes = 0.0
-    total_params: int
+    total_params: int = 0
 
-    def _param_generator() -> Iterator[Tuple[str, Tensor]]:
+    def _param_generator() -> Iterator[Tuple[str, Tensor]]:  # noqa: UP006
         nonlocal total_params, total_bytes
         with Target.from_device(args.device), tqdm.redirect():
             loader = LOADER[args.source_format](
@@ -180,7 +179,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
                 yield name, param
         total_params = loader.stats.total_param_num
 
-    def _metadata_callback() -> Dict[str, Any]:
+    def _metadata_callback() -> Dict[str, Any]:  # noqa: UP006
         return {
             "ParamSize": len(param_names),
             "ParamBytes": total_bytes,
@@ -212,7 +211,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
     logger.info("Saved to directory: %s", bold(str(args.output)))
 
 
-def convert_weight(  # pylint: disable=too-many-arguments
+def convert_weight(
     config: Path,
     quantization: Quantization,
     model: Model,
@@ -230,8 +229,7 @@ def convert_weight(  # pylint: disable=too-many-arguments
     allowed_lora_source_formats = {"huggingface-safetensor", "huggingface-torch"}
     if lora_adapter is not None and source_format not in allowed_lora_source_formats:
         raise ValueError(
-            "`--lora-adapter` only supports source formats: "
-            f"{sorted(allowed_lora_source_formats)}"
+            f"`--lora-adapter` only supports source formats: {sorted(allowed_lora_source_formats)}"
         )
 
     if lora_adapter is not None:

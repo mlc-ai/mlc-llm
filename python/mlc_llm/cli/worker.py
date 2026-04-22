@@ -5,28 +5,25 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-#
 #   http://www.apache.org/licenses/LICENSE-2.0
-#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Internal DiscoWorker for Disco ProcessSession."""
 
 import os
 import sys
 
-from tvm import runtime as _  # pylint: disable=unused-import
+from tvm import runtime as _  # noqa: F401
 from tvm_ffi import get_global_func
 
-from .. import base  # pylint: disable=unused-import, no-name-in-module
+from .. import base  # noqa: F401
 
 # register the calibration functions
-from ..interface import calibrate  # pylint: disable=unused-import
+from ..interface import calibrate  # noqa: F401
 
 
 def main():
@@ -41,7 +38,7 @@ def main():
     read_fd = int(sys.argv[4])
     write_fd = int(sys.argv[5])
     if sys.platform == "win32":
-        import msvcrt  # pylint: disable=import-outside-toplevel,import-error
+        import msvcrt
 
         reader = msvcrt.open_osfhandle(read_fd, os.O_BINARY)
         writer = msvcrt.open_osfhandle(write_fd, os.O_BINARY)
@@ -56,5 +53,5 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (KeyboardInterrupt, IOError):
+    except (OSError, KeyboardInterrupt):
         pass

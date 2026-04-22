@@ -11,10 +11,10 @@
 #     pre-commit autoupdate
 #
 # See https://github.com/pre-commit/pre-commit
-# Note the pre-commit hooks shoule only be used for formatting, but not for linting.
-# For linting consider using CI.
+default_install_hook_types:
+  - pre-commit
 repos:
-  # Standard hooks
+  # ---------- General file checks ----------
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -23,38 +23,46 @@ repos:
       - id: check-merge-conflict
       - id: check-symlinks
       - id: end-of-file-fixer
+        exclude: ^3rdparty/
       - id: mixed-line-ending
+        exclude: ^3rdparty/
       - id: requirements-txt-fixer
       - id: trailing-whitespace
+        exclude: ^3rdparty/
+      - id: check-yaml
+      - id: check-toml
 
-  # Changes tabs to spaces
-  - repo: https://github.com/Lucas-C/pre-commit-hooks
-    rev: v1.5.5
+  # ---------- YAML lint ----------
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
     hooks:
-      - id: remove-tabs
-      - id: remove-crlf
+      - id: yamllint
+        args:
+          - --config-file
+          - .yamllint.yaml
+        exclude: ^\.github/
 
-  # Formatters
-  - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 24.8.0
+  # ---------- TOML format ----------
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: v0.9.3
     hooks:
-      - id: black
+      - id: taplo-format
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+  # ---------- Python: ruff ----------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.3
     hooks:
-      - id: isort
+      - id: ruff-check
+        types_or: [python, pyi, jupyter]
+        args: [--fix]
+      - id: ruff-format
+        types_or: [python, pyi, jupyter]
 
+  # ---------- C/C++: clang-format ----------
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v19.1.1
+    rev: "v20.1.8"
     hooks:
       - id: clang-format
-        types_or: [c++, c, cuda]
+        types_or: [c, c++, cuda, objective-c++]
         exclude: |
-          (?x)^(.*cubin.cpp$ | .*fmha_cubin.h | 3rdparty/.*)$
-
-  - repo: https://github.com/cheshirekow/cmake-format-precommit
-    rev: v0.6.13
-    hooks:
-      - id: cmake-format
-        additional_dependencies: [pyyaml>=5.1]
+          (?x)^(.*cubin\.cpp$|.*fmha_cubin\.h|3rdparty/.*)$

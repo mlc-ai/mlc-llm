@@ -3,7 +3,8 @@
 import asyncio
 import json
 import random
-from typing import List, Mapping, Optional, Tuple
+from collections.abc import Mapping
+from typing import List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
 import tqdm.asyncio
@@ -64,9 +65,8 @@ def sample_requests(
     dataset_path: str,
     num_requests: int,
     tokenizer: Tokenizer,
-) -> List[Tuple[str, int, int]]:
+) -> List[Tuple[str, int, int]]:  # noqa: UP006
     """Sample the requests from the given dataset."""
-    # pylint: disable=too-many-locals
     # Load the dataset.
     with open(dataset_path, encoding="utf-8") as f:
         dataset = json.load(f)
@@ -81,13 +81,13 @@ def sample_requests(
     prompt_token_ids = tokenizer.encode_batch(prompts)
     completions = [completion for _, completion in dataset]
     completion_token_ids = tokenizer.encode_batch(completions)
-    tokenized_dataset: List[Tuple[str, List[int], int]] = []
+    tokenized_dataset: List[Tuple[str, List[int], int]] = []  # noqa: UP006
     for i in range(len(dataset)):
         output_len = len(completion_token_ids[i])
         tokenized_dataset.append((prompts[i], prompt_token_ids[i], output_len))
 
     # Filter out too long sequences.
-    filtered_dataset: List[Tuple[str, int, int]] = []
+    filtered_dataset: List[Tuple[str, int, int]] = []  # noqa: UP006
     for prompt, token_ids, output_len in tokenized_dataset:
         prompt_len = len(token_ids)
         if prompt_len < 4 or output_len < 4:
@@ -105,7 +105,7 @@ def sample_requests(
 
 async def send_calibration_requests(
     async_engine: AsyncMLCEngine,
-    sampled_requests: List[Tuple[str, int, int]],
+    sampled_requests: List[Tuple[str, int, int]],  # noqa: UP006
     max_concurrent_requests: int,
 ) -> None:
     """Send the calibration requests to the engine."""
@@ -144,7 +144,6 @@ def calibrate(
     gpu_memory_utilization: Optional[float] = None,
 ) -> None:
     """Calibrate the quantized model using the given dataset."""
-    # pylint: disable=too-many-arguments, too-many-locals
     random.seed(seed)
     async_engine = AsyncMLCEngine(
         model=model,

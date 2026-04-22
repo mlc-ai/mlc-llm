@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
 from tvm import te, tirx
@@ -18,7 +19,7 @@ def _rotate_half(x: Tensor) -> Tensor:
     return op.concat([op.negative(x2), x1], dim=-1)
 
 
-def _repeat_mrope_section(section: Sequence[int]) -> Tuple[int, ...]:
+def _repeat_mrope_section(section: Sequence[int]) -> Tuple[int, ...]:  # noqa: UP006
     if not section:
         raise ValueError("mrope_section must not be empty.")
     if any(s <= 0 for s in section):
@@ -26,8 +27,8 @@ def _repeat_mrope_section(section: Sequence[int]) -> Tuple[int, ...]:
     return tuple(section) * 2
 
 
-def _split_indices_from_sizes(sizes: Sequence[int]) -> List[int]:
-    indices: List[int] = []
+def _split_indices_from_sizes(sizes: Sequence[int]) -> List[int]:  # noqa: UP006
+    indices: List[int] = []  # noqa: UP006
     running = 0
     # Drop the final cumulative sum so split() keeps the last chunk.
     for size in sizes[:-1]:
@@ -75,7 +76,7 @@ class MultimodalRotaryEmbedding(nn.Module):
             theta ** (np.arange(0, head_dim, 2, dtype="float32") / np.float32(head_dim))
         )
 
-    def forward(self, reference: Tensor, position_ids: Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(self, reference: Tensor, position_ids: Tensor) -> Tuple[Tensor, Tensor]:  # noqa: UP006
         """Return ``(cos, sin)`` with shape ``(3, batch, seq, head_dim)``."""
         if len(position_ids.shape) != 3:
             raise ValueError(
@@ -119,14 +120,14 @@ class MultimodalRotaryEmbedding(nn.Module):
         return cos.astype(dtype), sin.astype(dtype)
 
 
-def apply_multimodal_rotary_pos_emb(  # pylint: disable=too-many-arguments
+def apply_multimodal_rotary_pos_emb(
     q: Tensor,
     k: Tensor,
     cos: Tensor,
     sin: Tensor,
     mrope_section: Sequence[int],
     unsqueeze_dim: int = 2,
-) -> Tuple[Tensor, Tensor]:
+) -> Tuple[Tensor, Tensor]:  # noqa: UP006
     """Apply multimodal rotary embedding to query and key tensors."""
 
     split_sizes = _repeat_mrope_section(mrope_section)
@@ -151,7 +152,7 @@ class VisionPositionMetadata:
     spatial_merge_size: int
     tokens_per_second: float
 
-    def merged_hw(self, height: int, width: int) -> Tuple[int, int]:
+    def merged_hw(self, height: int, width: int) -> Tuple[int, int]:  # noqa: UP006
         """Return merged height/width after applying ``spatial_merge_size``."""
 
         if height % self.spatial_merge_size != 0 or width % self.spatial_merge_size != 0:
@@ -172,7 +173,7 @@ def _text_chunk(length: int, offset: int) -> np.ndarray:
     return chunk + offset
 
 
-def _grid_chunk(  # pylint: disable=too-many-arguments
+def _grid_chunk(
     grid_t: int,
     grid_h: int,
     grid_w: int,
@@ -212,7 +213,7 @@ def _count_vision_items(
     vision_start_token_id: int,
     image_token_id: int,
     video_token_id: int,
-) -> Tuple[int, int]:
+) -> Tuple[int, int]:  # noqa: UP006
     vision_starts = np.where(token_array == vision_start_token_id)[0]
     valid_starts = vision_starts[vision_starts + 1 < token_array.shape[0]]
     following_tokens = token_array[valid_starts + 1]
@@ -227,7 +228,7 @@ def _next_vision_block(
     meta: VisionPositionMetadata,
     has_images: bool,
     has_videos: bool,
-) -> Tuple[str, int]:
+) -> Tuple[str, int]:  # noqa: UP006
     sentinel = len(tokens) + 1
     image_end = _find_token_index(tokens, meta.image_token_id, start) if has_images else sentinel
     video_end = _find_token_index(tokens, meta.video_token_id, start) if has_videos else sentinel
@@ -236,14 +237,14 @@ def _next_vision_block(
     return "video", video_end
 
 
-def _load_grid_for_block(  # pylint: disable=too-many-arguments
+def _load_grid_for_block(
     block_kind: str,
-    image_grid_thw: Optional[np.ndarray],
-    video_grid_thw: Optional[np.ndarray],
-    second_per_grid_ts: Optional[np.ndarray],
+    image_grid_thw: Optional[np.ndarray],  # noqa: UP045
+    video_grid_thw: Optional[np.ndarray],  # noqa: UP045
+    second_per_grid_ts: Optional[np.ndarray],  # noqa: UP045
     image_index: int,
     video_index: int,
-) -> Tuple[int, int, int, float, int, int]:
+) -> Tuple[int, int, int, float, int, int]:  # noqa: UP006
     if block_kind == "image":
         if image_grid_thw is None:
             raise ValueError("Image grids are required for sequences with image tokens.")
@@ -259,15 +260,15 @@ def _load_grid_for_block(  # pylint: disable=too-many-arguments
     return int(grid_t), int(grid_h), int(grid_w), second_per_grid, image_index, video_index + 1
 
 
-def _build_sequence_position_ids(  # pylint: disable=too-many-arguments,too-many-locals
+def _build_sequence_position_ids(
     input_tokens: Sequence[int],
     meta: VisionPositionMetadata,
-    image_grid_thw: Optional[np.ndarray],
-    video_grid_thw: Optional[np.ndarray],
-    second_per_grid_ts: Optional[np.ndarray],
+    image_grid_thw: Optional[np.ndarray],  # noqa: UP045
+    video_grid_thw: Optional[np.ndarray],  # noqa: UP045
+    second_per_grid_ts: Optional[np.ndarray],  # noqa: UP045
     image_index: int,
     video_index: int,
-) -> Tuple[np.ndarray, int, int, int]:
+) -> Tuple[np.ndarray, int, int, int]:  # noqa: UP006
     token_array = np.asarray(input_tokens, dtype=np.int64)
     image_count, video_count = _count_vision_items(
         token_array,
@@ -280,7 +281,7 @@ def _build_sequence_position_ids(  # pylint: disable=too-many-arguments,too-many
     if video_count > 0 and video_grid_thw is None:
         raise ValueError("Video grids are required for sequences with video tokens.")
 
-    llm_pos_ids_list: List[np.ndarray] = []
+    llm_pos_ids_list: List[np.ndarray] = []  # noqa: UP006
     start = 0
     remain_images = image_count
     remain_videos = video_count
@@ -344,8 +345,8 @@ def _build_sequence_position_ids(  # pylint: disable=too-many-arguments,too-many
 
 def _text_only_position_ids(
     input_ids: np.ndarray,
-    attention_mask: Optional[np.ndarray],
-) -> Tuple[np.ndarray, np.ndarray]:
+    attention_mask: Optional[np.ndarray],  # noqa: UP045
+) -> Tuple[np.ndarray, np.ndarray]:  # noqa: UP006
     batch, seq_len = input_ids.shape
     if attention_mask is None:
         base: np.ndarray = np.arange(seq_len, dtype=np.int64).reshape(1, 1, -1)
@@ -360,14 +361,14 @@ def _text_only_position_ids(
     return position.astype(np.int64), delta
 
 
-def get_mrope_position_ids(  # pylint: disable=too-many-arguments,too-many-locals
+def get_mrope_position_ids(
     input_ids: np.ndarray,
     meta: VisionPositionMetadata,
-    attention_mask: Optional[np.ndarray] = None,
-    image_grid_thw: Optional[np.ndarray] = None,
-    video_grid_thw: Optional[np.ndarray] = None,
-    second_per_grid_ts: Optional[np.ndarray] = None,
-) -> Tuple[np.ndarray, np.ndarray]:
+    attention_mask: Optional[np.ndarray] = None,  # noqa: UP045
+    image_grid_thw: Optional[np.ndarray] = None,  # noqa: UP045
+    video_grid_thw: Optional[np.ndarray] = None,  # noqa: UP045
+    second_per_grid_ts: Optional[np.ndarray] = None,  # noqa: UP045
+) -> Tuple[np.ndarray, np.ndarray]:  # noqa: UP006
     """Generate 3D position IDs and deltas following Hugging Face Qwen2.5-VL."""
 
     input_ids = np.asarray(input_ids, dtype=np.int64)
@@ -410,14 +411,14 @@ def get_mrope_position_ids(  # pylint: disable=too-many-arguments,too-many-local
 
     image_index = 0
     video_index = 0
-    deltas: List[int] = []
+    deltas: List[int] = []  # noqa: UP006
 
     for batch_idx in range(batch):
         tokens = input_ids[batch_idx]
         if attention is not None:
             tokens = tokens[attention[batch_idx]]
         token_values = np.asarray(tokens, dtype=np.int64).tolist()
-        input_tokens: List[int] = [int(token) for token in token_values]
+        input_tokens: List[int] = [int(token) for token in token_values]  # noqa: UP006
         if not input_tokens:
             deltas.append(0)
             continue

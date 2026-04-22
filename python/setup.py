@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name, exec-used
 """Setup MLC LLM package."""
 
 import os

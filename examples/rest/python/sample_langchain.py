@@ -55,8 +55,8 @@ def llm_chain_example():
         memory=ConversationBufferWindowMemory(human_prefix="USER", ai_prefix="ASSISTANT"),
     )
 
-    output = llm_chain.predict(human_input="Write a short poem about Pittsburgh.")
-    output = llm_chain.predict(human_input="What does the poem mean?")
+    llm_chain.predict(human_input="Write a short poem about Pittsburgh.")
+    llm_chain.predict(human_input="What does the poem mean?")
 
 
 def load_qa_chain_example():
@@ -66,7 +66,7 @@ def load_qa_chain_example():
     query = "When was Linux released?"
     print(f"{color.BOLD}Query:{color.END} {color.BLUE} {query}{color.END}")
     print(
-        f"{color.BOLD}Response:{color.END} {color.GREEN}{chain.run(input_documents=documents, question=query)}{color.END}"
+        f"{color.BOLD}Response:{color.END} {color.GREEN}{chain.run(input_documents=documents, question=query)}{color.END}"  # noqa: E501
     )
 
 
@@ -76,7 +76,7 @@ def retrieval_qa_sotu_example():
     {context}
 
     USER: {question}
-    ASSISTANT:"""
+    ASSISTANT:"""  # noqa: E501
 
     PROMPT = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
 
@@ -109,7 +109,7 @@ def retrieval_qa_sotu_example():
         res = qa({"query": qn})
         print(f"{color.BOLD}RESPONSE:{color.END} {color.GREEN}{res['result']}{color.END}")
         print(
-            f"{color.BOLD}SOURCE:{color.END} {color.BLUE}{repr(res['source_documents'][0].page_content)}{color.END}"
+            f"{color.BOLD}SOURCE:{color.END} {color.BLUE}{repr(res['source_documents'][0].page_content)}{color.END}"  # noqa: E501
         )
         print()
 
@@ -120,7 +120,7 @@ def retrieval_qa_mlc_docs_example():
     {context}
 
     USER: {question}
-    ASSISTANT:"""
+    ASSISTANT:"""  # noqa: E501
 
     PROMPT = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
 
@@ -149,7 +149,7 @@ def retrieval_qa_mlc_docs_example():
         res = qa({"query": qn})
         print(f"{color.BOLD}RESPONSE:{color.END} {color.GREEN}{res['result']}{color.END}")
         print(
-            f"{color.BOLD}SOURCE:{color.END} {color.BLUE}{repr(res['source_documents'][0].page_content)}{color.END}"
+            f"{color.BOLD}SOURCE:{color.END} {color.BLUE}{repr(res['source_documents'][0].page_content)}{color.END}"  # noqa: E501
         )
         print()
 

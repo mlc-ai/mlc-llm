@@ -1,6 +1,6 @@
 """A compiler pass that rewrites IR for pipeline parallelism."""
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple  # noqa: UP035
 
 import tvm
 from tvm import relax, tirx
@@ -9,7 +9,7 @@ from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visito
 
 
 @tvm.transform.module_pass(opt_level=0, name="PipelineParallelRewrite")
-class PipelineParallelRewrite:  # pylint: disable=too-few-public-methods
+class PipelineParallelRewrite:
     """A compiler pass that rewrites IR for pipeline parallelism."""
 
     def transform_module(
@@ -22,17 +22,17 @@ class PipelineParallelRewrite:  # pylint: disable=too-few-public-methods
 
 
 @mutator
-class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-method
+class _PipelineParallelRewriter(PyExprMutator):
     def __init__(self, mod: IRModule):
         super().__init__(mod)
         self.mod = mod
         self.old_packed_params_var: relax.Var
         self.new_main_packed_params_var: relax.Var
         self.new_stage_func_packed_params: relax.Var
-        self.undefined_shape_vars_remap: Dict[tirx.Var, tirx.Var]
-        self.undefined_param_shape_vars_remap: Dict[tirx.Var, tirx.Var]
+        self.undefined_shape_vars_remap: Dict[tirx.Var, tirx.Var]  # noqa: UP006
+        self.undefined_param_shape_vars_remap: Dict[tirx.Var, tirx.Var]  # noqa: UP006
 
-    def transform(self) -> IRModule:  # pylint: disable=too-many-locals
+    def transform(self) -> IRModule:
         """Entry point of the transformation"""
         for g_var, func in self.mod.functions_items():
             if not isinstance(func, relax.Function) or "pipeline_parallel_stages" not in func.attrs:
@@ -84,11 +84,11 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
             # Create and update the entry function, which dispatches toz the stage functions
             # according to the disco worker group id.
             bb = relax.BlockBuilder()
-            params = list(func.params[:-1]) + [self.new_main_packed_params_var]
+            params = [*list(func.params[:-1]), self.new_main_packed_params_var]
             with bb.function(g_var.name_hint, params=params):
                 dispatch_func_args = []
                 for stage_func_gv, caller_args in zip(stage_func_gvs, caller_args_list):
-                    dispatch_func_args.append([stage_func_gv] + caller_args)
+                    dispatch_func_args.append([stage_func_gv, *caller_args])
                 output = bb.emit(
                     relax.op.call_builtin_with_ctx(
                         "mlc.multi_gpu.DispatchFunctionByGroup",
@@ -102,16 +102,16 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
 
         return self.builder_.finalize()
 
-    def _create_stage_func(  # pylint: disable=too-many-arguments,too-many-locals
+    def _create_stage_func(
         self,
         func_name: str,
-        stage_bindings: List[relax.Binding],
-        required_func_params: List[relax.Var],
-        stage_receive_vars: List[relax.Var],
-        stage_send_vars: List[relax.Var],
+        stage_bindings: List[relax.Binding],  # noqa: UP006
+        required_func_params: List[relax.Var],  # noqa: UP006
+        stage_receive_vars: List[relax.Var],  # noqa: UP006
+        stage_send_vars: List[relax.Var],  # noqa: UP006
         func_attrs: tvm.ir.DictAttrs,
         func_output: Optional[relax.Var],
-    ) -> Tuple[tvm.ir.GlobalVar, List[relax.Expr]]:
+    ) -> Tuple[tvm.ir.GlobalVar, List[relax.Expr]]:  # noqa: UP006
         self.undefined_shape_vars_remap = {}
         self.undefined_param_shape_vars_remap = {}
 
@@ -237,7 +237,7 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
             )
         self.set_var_remap(binding.var.vid, new_binding_var)
 
-    def visit_call_(self, call: relax.Call) -> relax.Call:  # pylint: disable=arguments-renamed
+    def visit_call_(self, call: relax.Call) -> relax.Call:
         call = super().visit_call_(call)
         return relax.Call(
             call.op,
@@ -247,10 +247,11 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
         )
 
     def _prepare_stage_func_params_and_args(
-        self, required_func_params: List[relax.Var]
-    ) -> Tuple[List[relax.Var], List[relax.Expr]]:
-        params: List[relax.Var] = []
-        args: List[relax.Expr] = []
+        self,
+        required_func_params: List[relax.Var],  # noqa: UP006
+    ) -> Tuple[List[relax.Var], List[relax.Expr]]:  # noqa: UP006
+        params: List[relax.Var] = []  # noqa: UP006
+        args: List[relax.Expr] = []  # noqa: UP006
         for required_param in required_func_params:
             struct_info = self._update_struct_info(required_param.struct_info)
             params.append(relax.Var(required_param.name_hint, struct_info))
@@ -261,7 +262,7 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
     def _update_struct_info(
         self,
         struct_info: relax.StructInfo,
-        undefined_var_remap: Optional[Dict[tirx.Var, tirx.Var]] = None,
+        undefined_var_remap: Optional[Dict[tirx.Var, tirx.Var]] = None,  # noqa: UP006
     ) -> relax.StructInfo:
         if undefined_var_remap is None:
             undefined_var_remap = self.undefined_shape_vars_remap
@@ -289,7 +290,9 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
         return struct_info
 
     def _copy_undefined_var(
-        self, expr: tirx.PrimExpr, undefined_var_remap: Dict[tirx.Var, tirx.Var]
+        self,
+        expr: tirx.PrimExpr,
+        undefined_var_remap: Dict[tirx.Var, tirx.Var],  # noqa: UP006
     ) -> None:
         def _visit_expr(e: tirx.PrimExpr) -> None:
             if isinstance(e, tirx.Var) and e not in undefined_var_remap:
@@ -299,8 +302,10 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
         tirx.stmt_functor.post_order_visit(expr, _visit_expr)
 
     def _update_shape(
-        self, shape: List[tirx.PrimExpr], undefined_var_remap: Dict[tirx.Var, tirx.Var]
-    ) -> List[tirx.PrimExpr]:
+        self,
+        shape: List[tirx.PrimExpr],  # noqa: UP006
+        undefined_var_remap: Dict[tirx.Var, tirx.Var],  # noqa: UP006
+    ) -> List[tirx.PrimExpr]:  # noqa: UP006
         new_shape = []
         for v in shape:
             self._copy_undefined_var(v, undefined_var_remap)
@@ -310,10 +315,10 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
 
 def _extract_pipeline_stages(
     func: relax.Function,
-) -> Tuple[List[List[relax.Binding]], List[List[relax.Var]], List[List[relax.Var]]]:
-    pipeline_stages: List[List[relax.Binding]] = []
-    stage_send_vars: List[List[relax.Var]] = []
-    stage_receive_vars: List[List[relax.Var]] = []
+) -> Tuple[List[List[relax.Binding]], List[List[relax.Var]], List[List[relax.Var]]]:  # noqa: UP006
+    pipeline_stages: List[List[relax.Binding]] = []  # noqa: UP006
+    stage_send_vars: List[List[relax.Var]] = []  # noqa: UP006
+    stage_receive_vars: List[List[relax.Var]] = []  # noqa: UP006
 
     # Requiring that the function has only one body block which is a dataflow block
     assert isinstance(func.body, relax.SeqExpr)
@@ -322,8 +327,8 @@ def _extract_pipeline_stages(
     bindings = func.body.blocks[0].bindings
 
     boundary_var = None
-    current_stage_bindings: List[relax.Binding] = []
-    current_stage_receive_vars: List[relax.Var] = []
+    current_stage_bindings: List[relax.Binding] = []  # noqa: UP006
+    current_stage_receive_vars: List[relax.Var] = []  # noqa: UP006
     for binding in bindings:
         if (
             isinstance(binding, relax.VarBinding)
@@ -361,12 +366,13 @@ def _extract_pipeline_stages(
 
 
 def _analyze_required_func_params(
-    pipeline_stages: List[List[relax.Binding]], func_params: List[relax.Var]
-) -> List[List[relax.Var]]:
+    pipeline_stages: List[List[relax.Binding]],  # noqa: UP006
+    func_params: List[relax.Var],  # noqa: UP006
+) -> List[List[relax.Var]]:  # noqa: UP006
     analyzer = _RequiredFuncParamAnalyzer(func_params)
-    required_func_params: List[List[relax.Var]] = []
+    required_func_params: List[List[relax.Var]] = []  # noqa: UP006
     for stage_bindings in pipeline_stages:
-        required_params: List[relax.Var]
+        required_params: List[relax.Var]  # noqa: UP006
         required_params = analyzer.run(stage_bindings)
         required_func_params.append(required_params)
     return required_func_params
@@ -376,18 +382,18 @@ def _analyze_required_func_params(
 class _RequiredFuncParamAnalyzer(PyExprVisitor):
     """The IR visitor which analyzes the required func parameters in each pipeline stage."""
 
-    def __init__(self, func_params: List[relax.Var]) -> None:
+    def __init__(self, func_params: List[relax.Var]) -> None:  # noqa: UP006
         self.func_params = set(func_params)
-        self.required_params: List[relax.Var]
+        self.required_params: List[relax.Var]  # noqa: UP006
 
-    def run(self, stage_bindings: List[relax.Binding]) -> List[relax.Var]:
+    def run(self, stage_bindings: List[relax.Binding]) -> List[relax.Var]:  # noqa: UP006
         """Entry point of the visitor."""
         self.required_params = []
         for binding in stage_bindings:
             self.visit_binding(binding)
         return self.required_params
 
-    def visit_var_(self, var: relax.Var) -> None:  # pylint: disable=arguments-renamed
+    def visit_var_(self, var: relax.Var) -> None:
         if var in self.func_params:
             if var not in self.required_params:
                 self.required_params.append(var)

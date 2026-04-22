@@ -4,7 +4,7 @@ Implementation for Deepseek architecture.
 
 import dataclasses
 from functools import partial
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class DeepseekConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class DeepseekConfig(ConfigBase):
     """Configuration of the Deepseek model."""
 
     vocab_size: int
@@ -52,7 +52,7 @@ class DeepseekConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
     head_dim: int = 0
     max_batch_size: int = 1
     num_experts_per_tok: int = 0
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.context_window_size == 0:
@@ -92,10 +92,7 @@ class DeepseekConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
             self.prefill_chunk_size = min(self.context_window_size, 8192)
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
-class DeepseekAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class DeepseekAttention(nn.Module):
     def __init__(self, config: DeepseekConfig):
         super().__init__()  # Make sure to call the parent class constructor
         self.hidden_size = config.hidden_size
@@ -169,7 +166,7 @@ class DeepseekMLP(nn.Module):
         return self.down_proj(op.silu(x1) * x2)
 
 
-class DeepseekMoE(nn.Module):  # pylint: disable=too-many-instance-attributes
+class DeepseekMoE(nn.Module):
     def __init__(self, config: DeepseekConfig):
         self.num_local_experts = config.n_routed_experts
         self.num_experts_per_tok = config.num_experts_per_tok
@@ -194,7 +191,7 @@ class DeepseekMoE(nn.Module):  # pylint: disable=too-many-instance-attributes
             intermediate_size = self.moe_intermediate_size * config.n_shared_experts
             self.shared_experts = DeepseekMLP(config, intermediate_size=intermediate_size)
 
-    def forward(self, x: Tensor):  # pylint: disable=too-many-locals
+    def forward(self, x: Tensor):
         def _expert_forward(x: Tensor, indptr: Tensor):
             x1_x3 = self.moe_gate_up_proj(x, indptr)
             x1, x3 = op.split(x1_x3, indices_or_sections=2, axis=-1)
@@ -243,7 +240,7 @@ class DeepseekMoE(nn.Module):  # pylint: disable=too-many-instance-attributes
         return final_hidden_states
 
 
-class DeepseekDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attributes
+class DeepseekDecoderLayer(nn.Module):
     def __init__(self, config: DeepseekConfig, layer_idx: int):
         self.hidden_size = config.hidden_size
         self.num_hidden_layers = config.num_hidden_layers
@@ -318,7 +315,7 @@ class DeepseekDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attr
         out = self.self_attn(out, paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.post_attention_layernorm(hidden_states)
-        out = self.mlp(out)  # type: ignore[operator]
+        out = self.mlp(out)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
 
@@ -348,7 +345,7 @@ class DeepseekModel(nn.Module):
         return hidden_states
 
 
-class DeepseekForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class DeepseekForCausalLM(nn.Module):
     def __init__(self, config: DeepseekConfig):
         self.model = DeepseekModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
@@ -428,7 +425,7 @@ class DeepseekForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

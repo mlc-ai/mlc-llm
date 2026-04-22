@@ -1,6 +1,6 @@
 """A compiler pass that lifts TIR-level global allocation to Relax."""
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple  # noqa: UP035
 
 import tvm
 from tvm import relax, tirx
@@ -10,7 +10,7 @@ from tvm.relax.expr_functor import PyExprMutator, mutator
 
 
 @tvm.transform.module_pass(opt_level=0, name="LiftTIRGlobalBufferAlloc")
-class LiftTIRGlobalBufferAlloc:  # pylint: disable=too-few-public-methods
+class LiftTIRGlobalBufferAlloc:
     """A compiler pass that lifts TIR-level global allocation to Relax."""
 
     def transform_module(
@@ -23,13 +23,13 @@ class LiftTIRGlobalBufferAlloc:  # pylint: disable=too-few-public-methods
 
 
 @mutator
-class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
+class _TIRGlobalAllocRewriter(PyExprMutator):
     def __init__(self, mod: IRModule):
         super().__init__(mod)
         self.mod = mod
-        self.gv2new_tensor_sinfo: Dict[
+        self.gv2new_tensor_sinfo: Dict[  # noqa: UP006
             tvm.ir.GlobalVar,
-            Tuple[tvm.ir.GlobalVar, List[relax.TensorStructInfo], tirx.PrimFunc],
+            Tuple[tvm.ir.GlobalVar, List[relax.TensorStructInfo], tirx.PrimFunc],  # noqa: UP006
         ] = {}
 
     def transform(self) -> IRModule:
@@ -51,7 +51,7 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
         mod = self.builder_.get()
         return relax.transform.DeadCodeElimination()(mod)
 
-    def visit_call_(self, call: relax.Call):  # pylint: disable=arguments-renamed
+    def visit_call_(self, call: relax.Call):
         call = self.visit_expr_post_order(call)
         if (
             call.op != tvm.ir.Op.get("relax.call_tir")
@@ -92,7 +92,7 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
 
 def remove_global_buf_alloc(
     func: tirx.PrimFunc,
-) -> Tuple[tirx.PrimFunc, List[relax.TensorStructInfo]]:
+) -> Tuple[tirx.PrimFunc, List[relax.TensorStructInfo]]:  # noqa: UP006
     """Remove the global buffer allocation for a given TIR PrimFunc."""
     assert isinstance(func.body, tirx.SBlockRealize)
     params = list(func.params)
@@ -153,13 +153,13 @@ def _has_symbolic_var(tensor_sinfo: relax.TensorStructInfo) -> bool:
     return False
 
 
-def _resolve_tir_var_mapping(  # pylint: disable=too-many-locals
+def _resolve_tir_var_mapping(
     func: tirx.PrimFunc,
     call: relax.Call,
-    tensor_sinfo: List[relax.TensorStructInfo],
-) -> Tuple[List[relax.TensorStructInfo], bool]:
+    tensor_sinfo: List[relax.TensorStructInfo],  # noqa: UP006
+) -> Tuple[List[relax.TensorStructInfo], bool]:  # noqa: UP006
     """Resolve the TIR symbolic var relationship across sides of PrimFunc and Relax Function"""
-    var_map: Dict[tirx.Var, tirx.PrimExpr] = {}
+    var_map: Dict[tirx.Var, tirx.PrimExpr] = {}  # noqa: UP006
 
     n_arg = len(call.args[1].fields)
     for i in range(n_arg):
@@ -174,7 +174,7 @@ def _resolve_tir_var_mapping(  # pylint: disable=too-many-locals
 
     ret_tensors = call.sinfo_args[0]
     ret_tensors = (
-        [ret_tensors]  # type: ignore[assignment]
+        [ret_tensors]
         if isinstance(ret_tensors, relax.TensorStructInfo)
         else list(ret_tensors.fields)
     )

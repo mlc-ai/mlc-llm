@@ -1,11 +1,11 @@
-# pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Iterable, List, Optional, Sequence, Tuple
+from collections.abc import Iterable, Sequence
+from typing import List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
-from langchain.embeddings import OpenAIEmbeddings  # pylint: disable=import-error
-from langchain_community.embeddings.openai import (  # pylint: disable=import-error
+from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.embeddings.openai import (
     async_embed_with_retry,
     embed_with_retry,
 )
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class MLCEmbeddings(OpenAIEmbeddings):
-    def _chunk_tokens(self, texts: Sequence[str]) -> Tuple[List[List], List[int]]:
+    def _chunk_tokens(self, texts: Sequence[str]) -> Tuple[List[List], List[int]]:  # noqa: UP006
         """Tokenize and chunk texts to fit in the model's context window."""
         if not self.embedding_ctx_length:
             raise ValueError(
@@ -24,7 +24,7 @@ class MLCEmbeddings(OpenAIEmbeddings):
             )
 
         try:
-            import tiktoken  # pylint: disable=import-outside-toplevel
+            import tiktoken
         except ImportError as err:
             raise ImportError(
                 "Could not import tiktoken python package. "
@@ -57,14 +57,17 @@ class MLCEmbeddings(OpenAIEmbeddings):
         return tokens, indices
 
     def _batch_embed(
-        self, inputs: Sequence, *, chunk_size: Optional[int] = None
-    ) -> List[List[float]]:
-        batched_embeddings: List[List[float]] = []
+        self,
+        inputs: Sequence,
+        *,
+        chunk_size: Optional[int] = None,  # noqa: UP045
+    ) -> List[List[float]]:  # noqa: UP006
+        batched_embeddings: List[List[float]] = []  # noqa: UP006
         _chunk_size = chunk_size or self.chunk_size
         _iter: Iterable = range(0, len(inputs), _chunk_size)
         if self.show_progress_bar:
             try:
-                from tqdm import tqdm  # pylint: disable=import-outside-toplevel
+                from tqdm import tqdm
 
                 _iter = tqdm(_iter)
             except ImportError:
@@ -80,14 +83,17 @@ class MLCEmbeddings(OpenAIEmbeddings):
         return batched_embeddings
 
     async def _abatch_embed(
-        self, inputs: Sequence, *, chunk_size: Optional[int] = None
-    ) -> List[List[float]]:
-        batched_embeddings: List[List[float]] = []
+        self,
+        inputs: Sequence,
+        *,
+        chunk_size: Optional[int] = None,  # noqa: UP045
+    ) -> List[List[float]]:  # noqa: UP006
+        batched_embeddings: List[List[float]] = []  # noqa: UP006
         _chunk_size = chunk_size or self.chunk_size
         _iter: Iterable = range(0, len(inputs), _chunk_size)
         if self.show_progress_bar:
             try:
-                from tqdm import tqdm  # pylint: disable=import-outside-toplevel
+                from tqdm import tqdm
 
                 _iter = tqdm(_iter)
             except ImportError:
@@ -104,17 +110,17 @@ class MLCEmbeddings(OpenAIEmbeddings):
 
     # please refer to
     # https://github.com/openai/openai-cookbook/blob/main/examples/Embedding_long_inputs.ipynb
-    def _get_len_safe_embeddings(  # pylint: disable=too-many-locals,unused-argument
+    def _get_len_safe_embeddings(
         self,
-        texts: List[str],
+        texts: List[str],  # noqa: UP006
         *,
         engine: str,
-        chunk_size: Optional[int] = None,
-    ) -> List[List[float]]:
+        chunk_size: Optional[int] = None,  # noqa: UP045
+    ) -> List[List[float]]:  # noqa: UP006
         tokens, indices = self._chunk_tokens(texts)
         batched_embeddings = self._batch_embed(tokens, chunk_size=chunk_size)
-        results: List[List[List[float]]] = [[] for _ in range(len(texts))]
-        num_tokens_in_batch: List[List[int]] = [[] for _ in range(len(texts))]
+        results: List[List[List[float]]] = [[] for _ in range(len(texts))]  # noqa: UP006
+        num_tokens_in_batch: List[List[int]] = [[] for _ in range(len(texts))]  # noqa: UP006
         for idx, tokens_i, batched_emb in zip(indices, tokens, batched_embeddings):
             results[idx].append(batched_emb)
             num_tokens_in_batch[idx].append(len(tokens_i))
@@ -124,9 +130,7 @@ class MLCEmbeddings(OpenAIEmbeddings):
             self,
             input="",
             **self._invocation_params,
-        )["data"][
-            0
-        ]["embedding"]
+        )["data"][0]["embedding"]
         for _result, num_tokens in zip(results, num_tokens_in_batch):
             if len(_result) == 0:
                 average = empty_average
@@ -139,18 +143,18 @@ class MLCEmbeddings(OpenAIEmbeddings):
 
     # please refer to
     # https://github.com/openai/openai-cookbook/blob/main/examples/Embedding_long_inputs.ipynb
-    async def _aget_len_safe_embeddings(  # pylint: disable=too-many-locals,unused-argument
+    async def _aget_len_safe_embeddings(
         self,
-        texts: List[str],
+        texts: List[str],  # noqa: UP006
         *,
         engine: str,
-        chunk_size: Optional[int] = None,
-    ) -> List[List[float]]:
+        chunk_size: Optional[int] = None,  # noqa: UP045
+    ) -> List[List[float]]:  # noqa: UP006
         tokens, indices = self._chunk_tokens(texts)
         batched_embeddings = await self._abatch_embed(tokens, chunk_size=chunk_size)
 
-        results: List[List[List[float]]] = [[] for _ in range(len(texts))]
-        num_tokens_in_batch: List[List[int]] = [[] for _ in range(len(texts))]
+        results: List[List[List[float]]] = [[] for _ in range(len(texts))]  # noqa: UP006
+        num_tokens_in_batch: List[List[int]] = [[] for _ in range(len(texts))]  # noqa: UP006
         for idx, tokens_i, batched_emb in zip(indices, tokens, batched_embeddings):
             results[idx].append(batched_emb)
             num_tokens_in_batch[idx].append(len(tokens_i))
@@ -162,9 +166,7 @@ class MLCEmbeddings(OpenAIEmbeddings):
                 input="",
                 **self._invocation_params,
             )
-        )[
-            "data"
-        ][0]["embedding"]
+        )["data"][0]["embedding"]
         for _result, num_tokens in zip(results, num_tokens_in_batch):
             if len(_result) == 0:
                 average = empty_average
@@ -176,8 +178,10 @@ class MLCEmbeddings(OpenAIEmbeddings):
         return embeddings
 
     def embed_documents(
-        self, texts: List[str], chunk_size: Optional[int] = None
-    ) -> List[List[float]]:
+        self,
+        texts: List[str],  # noqa: UP006
+        chunk_size: Optional[int] = None,  # noqa: UP045
+    ) -> List[List[float]]:  # noqa: UP006
         """Call out to OpenAI's embedding endpoint for embedding search docs.
 
         Args:
@@ -200,8 +204,10 @@ class MLCEmbeddings(OpenAIEmbeddings):
         return [(np.array(e) / np.linalg.norm(e)).tolist() for e in embeddings]
 
     async def aembed_documents(
-        self, texts: List[str], chunk_size: Optional[int] = 0
-    ) -> List[List[float]]:
+        self,
+        texts: List[str],  # noqa: UP006
+        chunk_size: Optional[int] = 0,  # noqa: UP045
+    ) -> List[List[float]]:  # noqa: UP006
         """Call out to OpenAI's embedding endpoint async for embedding search docs.
 
         Args:
@@ -221,7 +227,7 @@ class MLCEmbeddings(OpenAIEmbeddings):
         embeddings = await self._abatch_embed(texts, chunk_size=chunk_size)
         return [(np.array(e) / np.linalg.norm(e)).tolist() for e in embeddings]
 
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> List[float]:  # noqa: UP006
         """Call out to OpenAI's embedding endpoint for embedding query text.
 
         Args:
@@ -232,7 +238,7 @@ class MLCEmbeddings(OpenAIEmbeddings):
         """
         return self.embed_documents([text])[0]
 
-    async def aembed_query(self, text: str) -> List[float]:
+    async def aembed_query(self, text: str) -> List[float]:  # noqa: UP006
         """Call out to OpenAI's embedding endpoint async for embedding query text.
 
         Args:

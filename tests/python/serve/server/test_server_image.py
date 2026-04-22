@@ -1,7 +1,6 @@
-# pylint: disable=missing-function-docstring,too-many-arguments,too-many-locals,too-many-branches
 import json
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple  # noqa: UP035
 
 import pytest
 import regex
@@ -32,18 +31,18 @@ def is_json_or_json_prefix(s: str) -> bool:
 
 
 def check_openai_nonstream_response(
-    response: Dict,
+    response: Dict,  # noqa: UP006
     *,
     is_chat_completion: bool,
     model: str,
     object_str: str,
     num_choices: int,
-    finish_reasons: List[str],
+    finish_reasons: List[str],  # noqa: UP006
     completion_tokens: Optional[int] = None,
     echo_prompt: Optional[str] = None,
     suffix: Optional[str] = None,
-    stop: Optional[List[str]] = None,
-    require_substr: Optional[List[str]] = None,
+    stop: Optional[List[str]] = None,  # noqa: UP006
+    require_substr: Optional[List[str]] = None,  # noqa: UP006
     json_mode: bool = False,
 ):
     assert response["model"] == model
@@ -52,7 +51,7 @@ def check_openai_nonstream_response(
     choices = response["choices"]
     assert isinstance(choices, list)
     assert len(choices) <= num_choices
-    texts: List[str] = ["" for _ in range(num_choices)]
+    texts: List[str] = ["" for _ in range(num_choices)]  # noqa: UP006
     for choice in choices:
         idx = choice["index"]
         assert choice["finish_reason"] in finish_reasons
@@ -88,18 +87,18 @@ def check_openai_nonstream_response(
 
 
 def check_openai_stream_response(
-    responses: List[Dict],
+    responses: List[Dict],  # noqa: UP006
     *,
     is_chat_completion: bool,
     model: str,
     object_str: str,
     num_choices: int,
-    finish_reasons: List[str],
+    finish_reasons: List[str],  # noqa: UP006
     completion_tokens: Optional[int] = None,
     echo_prompt: Optional[str] = None,
     suffix: Optional[str] = None,
-    stop: Optional[List[str]] = None,
-    require_substr: Optional[List[str]] = None,
+    stop: Optional[List[str]] = None,  # noqa: UP006
+    require_substr: Optional[List[str]] = None,  # noqa: UP006
     json_mode: bool = False,
 ):
     assert len(responses) > 0
@@ -186,11 +185,11 @@ CHAT_COMPLETION_MESSAGES = [
         },
         {
             "role": "assistant",
-            "content": "The image represents a serene and peaceful scene of a pier extending over a body of water, such as a lake or a river.er. The pier is made of wood and has a bench on it, providing a place for people to sit and enjoy the view. The pier is situated in a natural environment, surrounded by trees and mountains in the background. This setting creates a tranquil atmosphere, inviting visitors to relax and appreciate the beauty of the landscape.",
+            "content": "The image represents a serene and peaceful scene of a pier extending over a body of water, such as a lake or a river.er. The pier is made of wood and has a bench on it, providing a place for people to sit and enjoy the view. The pier is situated in a natural environment, surrounded by trees and mountains in the background. This setting creates a tranquil atmosphere, inviting visitors to relax and appreciate the beauty of the landscape.",  # noqa: E501
         },
         {
             "role": "user",
-            "content": "What country is the image set in? Give me 10 ranked guesses and reasons why.",
+            "content": "What country is the image set in? Give me 10 ranked guesses and reasons why.",  # noqa: E501
         },
     ],
 ]
@@ -199,10 +198,10 @@ CHAT_COMPLETION_MESSAGES = [
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("messages", CHAT_COMPLETION_MESSAGES)
 def test_openai_v1_chat_completions(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
+    served_model: Tuple[str, str],  # noqa: UP006
+    launch_server,
     stream: bool,
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, str]],  # noqa: UP006
 ):
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.

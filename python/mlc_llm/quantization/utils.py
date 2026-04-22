@@ -1,6 +1,7 @@
 """Common utilities for quantization"""
 
-from typing import Callable, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Callable, List, Optional  # noqa: UP035
 
 from tvm import IRModule, relax, te, tirx
 from tvm.relax.frontend import nn
@@ -11,14 +12,14 @@ from tvm.target import Target
 from mlc_llm.support import tensor_parallel as tp
 
 
-def convert_uint_to_float(  # pylint: disable=too-many-arguments
+def convert_uint_to_float(
     weight: te.Tensor,
     bits: int,
     num_elem_per_storage: int,
     storage_dtype: str,
     model_dtype: str,
     axis: int = -1,
-    out_shape: Optional[List[tirx.PrimExpr]] = None,
+    out_shape: Optional[List[tirx.PrimExpr]] = None,  # noqa: UP006
     ft_reorder: Optional[bool] = False,
 ) -> te.Tensor:
     """Convert a quantized uint weight to an unquantized float weight."""
@@ -49,7 +50,7 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
 
 def is_final_fc(name: str) -> bool:
     """Determines whether the parameter is the last layer based on its name."""
-    # TODO: use more specious condition to determine final fc  # pylint: disable=fixme
+    # TODO: use more specious condition to determine final fc
     return name in ["head", "lm_head", "lm_head.linear", "embed_out"]
 
 
@@ -60,15 +61,13 @@ def is_moe_gate(name: str, node: nn.Linear) -> bool:
 
 def compile_quantize_func(mod: IRModule, device) -> Callable:
     """Compile a quantization function for a given device."""
-    device_type = device._DEVICE_TYPE_TO_NAME[  # pylint: disable=protected-access
-        device.dlpack_device_type()
-    ]
+    device_type = device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]
     if device_type in ["cuda", "rocm", "metal", "vulkan", "opencl"]:
         target = Target.current()
         if target is None:
             target = Target.from_device(device)
         with target:
-            mod = dl.ApplyDefaultSchedule(  # type: ignore   # pylint: disable=not-callable
+            mod = dl.ApplyDefaultSchedule(
                 dl.gpu.Reduction(),
                 dl.gpu.GeneralReduction(),
                 dl.gpu.Fallback(),
@@ -79,7 +78,7 @@ def compile_quantize_func(mod: IRModule, device) -> Callable:
     else:
         raise NotImplementedError(f"Device type {device_type} is not supported")
     ex = relax.build(mod, target=target)
-    vm = relax.VirtualMachine(ex, device)  # pylint: disable=invalid-name
+    vm = relax.VirtualMachine(ex, device)
     return vm["main"]
 
 
@@ -95,7 +94,7 @@ def apply_sharding(shard_strategy, name: str, weight: nn.Parameter):
         raise NotImplementedError(f"Unknowing sharding strategy: {shard_strategy}")
 
 
-def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
+def convert_uint_packed_fp8_to_float(
     weight: te.Tensor,
     num_elem_per_storage: int,
     storage_dtype: str,
@@ -141,7 +140,7 @@ def pack_weight(
     weight_dtype: str,
     storage_dtype: str,
     out_shape: Optional[Sequence[tirx.PrimExpr]] = None,
-):  # pylint: disable=too-many-arguments
+):
     """Convert a tensor to a packed format by packing consecutive bits.
     This can be useful for sub-byte quantization.
 
@@ -172,7 +171,7 @@ def pack_weight(
             tirx.ceildiv(k, num_elem_per_storage),
             *shape[axis + 1 :],
         )
-    r = te.reduce_axis((0, num_elem_per_storage), name="r")  # pylint: disable=invalid-name
+    r = te.reduce_axis((0, num_elem_per_storage), name="r")
     packed_weight = te.compute(
         shape=out_shape,
         fcompute=lambda *idx: tirx.sum(

@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, List, Optional, Tuple  # noqa: UP035
 
 from tvm import IRModule, relax
 from tvm.contrib import ndk, tar, xcode
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# TODO: add help message on how to specify the target manually # pylint: disable=fixme
+# TODO: add help message on how to specify the target manually
 HELP_MSG = """TBD"""
 FOUND = green("Found")
 NOT_FOUND = red("Not found")
@@ -32,7 +32,7 @@ def detect_target_and_host(
     target_hint: str,
     host_hint: str = "auto",
     enable_subgroups: Optional[bool] = None,
-) -> Tuple[Target, BuildFunc]:
+) -> Tuple[Target, BuildFunc]:  # noqa: UP006
     """Detect the configuration for the target device and its host, for example, target GPU and
     the host CPU.
 
@@ -80,7 +80,7 @@ def _apply_webgpu_subgroups(target: Target, enable_subgroups: Optional[bool]) ->
     return Target(target_dict)
 
 
-def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
+def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:  # noqa: UP006
     if hint in ["iphone", "macabi", "android", "webgpu", "mali", "opencl"]:
         hint += ":generic"
     if hint == "auto" or hint in AUTO_DETECT_DEVICES:
@@ -103,8 +103,8 @@ def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
         return target, _build_default()
     if hint in PRESET:
         preset = PRESET[hint]
-        target = Target(preset["target"])  # type: ignore[index]
-        build = preset.get("build", _build_default)  # type: ignore[attr-defined]
+        target = Target(preset["target"])
+        build = preset.get("build", _build_default)
         return target, build()
     if _is_device(hint):
         logger.info("Detecting target device: %s", hint)
@@ -144,7 +144,7 @@ def _is_device(device: str):
 
 def _add_system_lib_prefix(mod: IRModule, prefix: str, is_system_lib: bool) -> IRModule:
     if is_system_lib and prefix:
-        mod = mod.with_attrs({"system_lib_prefix": prefix})  # type: ignore[dict-item]
+        mod = mod.with_attrs({"system_lib_prefix": prefix})
     elif is_system_lib:
         logger.warning(
             "%s is not specified when building a static library",
@@ -330,7 +330,7 @@ def _build_default():
     return build
 
 
-def detect_cuda_arch_list(target: Target) -> List[int]:
+def detect_cuda_arch_list(target: Target) -> List[int]:  # noqa: UP006
     """Detect the CUDA architecture list from the target."""
 
     def convert_to_num(arch_str):
@@ -364,9 +364,9 @@ def _register_cuda_hook(target: Target):
         logger.info("Generating code for CUDA architecture: %s", multi_arch)
 
     @register_global_func("tvm_callback_cuda_compile", override=True)
-    def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
+    def tvm_callback_cuda_compile(code, target):
         """use nvcc to generate fatbin code for better optimization"""
-        from tvm.contrib import nvcc  # pylint: disable=import-outside-toplevel
+        from tvm.contrib import nvcc
 
         if multi_arch is None:
             ptx = nvcc.compile_cuda(code, target_format="fatbin")

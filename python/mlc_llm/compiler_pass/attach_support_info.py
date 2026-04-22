@@ -1,7 +1,7 @@
 """A couple of passes that simply supportive information onto the IRModule."""
 
 from math import lcm
-from typing import Any, Dict, List
+from typing import Any, Dict, List  # noqa: UP035
 
 import tvm
 from tvm import IRModule, relax, tirx
@@ -10,10 +10,10 @@ from tvm.relax.expr_functor import PyExprVisitor, visitor
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachVariableBounds")
-class AttachVariableBounds:  # pylint: disable=too-few-public-methods
+class AttachVariableBounds:
     """Attach variable bounds to each Relax function, which primarily helps with memory planning."""
 
-    def __init__(self, variable_bounds: Dict[str, int]):
+    def __init__(self, variable_bounds: Dict[str, int]):  # noqa: UP006
         # Specifically for RWKV workloads, which contains -1 max_seq_len
         self.variable_bounds = {k: v for k, v in variable_bounds.items() if v > 0}
         self.non_negative_var = ["vocab_size"]
@@ -29,10 +29,10 @@ class AttachVariableBounds:  # pylint: disable=too-few-public-methods
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachAdditionalPrimFuncs")
-class AttachAdditionalPrimFuncs:  # pylint: disable=too-few-public-methods
+class AttachAdditionalPrimFuncs:
     """Attach extra TIR PrimFuncs to the IRModule"""
 
-    def __init__(self, functions: Dict[str, tirx.PrimFunc]):
+    def __init__(self, functions: Dict[str, tirx.PrimFunc]):  # noqa: UP006
         self.functions = functions
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
@@ -43,7 +43,7 @@ class AttachAdditionalPrimFuncs:  # pylint: disable=too-few-public-methods
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachMemoryPlanAttr")
-class AttachMemoryPlanAttr:  # pylint: disable=too-few-public-methods
+class AttachMemoryPlanAttr:
     """Attach memory planning attribute for dynamic function output planning to Relax functions."""
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
@@ -55,10 +55,10 @@ class AttachMemoryPlanAttr:  # pylint: disable=too-few-public-methods
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachCUDAGraphCaptureHints")
-class AttachCUDAGraphSymbolicCaptureHints:  # pylint: disable=too-few-public-methods
+class AttachCUDAGraphSymbolicCaptureHints:
     """Attach CUDA graph capture hints to the IRModule"""
 
-    def __init__(self, hints: Dict[str, List[str]]):
+    def __init__(self, hints: Dict[str, List[str]]):  # noqa: UP006
         self.hints = hints
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
@@ -76,7 +76,7 @@ class AttachCUDAGraphSymbolicCaptureHints:  # pylint: disable=too-few-public-met
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachPipelineParallelStages")
-class AttachPipelineParallelStages:  # pylint: disable=too-few-public-methods
+class AttachPipelineParallelStages:
     """Attach number of pipeline stages to relax functions."""
 
     def __init__(self, pipeline_parallel_shards: int):
@@ -105,10 +105,10 @@ class AttachPipelineParallelStages:  # pylint: disable=too-few-public-methods
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachSequenceLengthPaddingFactor")
-class AttachSequenceLengthPaddingFactor:  # pylint: disable=too-few-public-methods
+class AttachSequenceLengthPaddingFactor:
     """Attach sequence length padding factor to the metadata"""
 
-    def __init__(self, target: tvm.target.Target, metadata: Dict[str, Any]):
+    def __init__(self, target: tvm.target.Target, metadata: Dict[str, Any]):  # noqa: UP006
         self.target = target
         self.metadata = metadata
 
@@ -116,7 +116,7 @@ class AttachSequenceLengthPaddingFactor:  # pylint: disable=too-few-public-metho
         """Entrypoint"""
 
         @visitor
-        class _Visitor(PyExprVisitor):  # pylint: disable=abstract-method
+        class _Visitor(PyExprVisitor):
             def __init__(self, target: tvm.target.Target) -> None:
                 self.padding_factor = 1
                 self.target = target
@@ -135,7 +135,7 @@ class AttachSequenceLengthPaddingFactor:  # pylint: disable=too-few-public-metho
                         self.visit_expr(func)
                 return self.padding_factor
 
-            def visit_call_(self, call: relax.Call) -> None:  # pylint: disable=arguments-renamed
+            def visit_call_(self, call: relax.Call) -> None:
                 super().visit_call_(call)
                 if call.op != self._op_call_dps_packed:
                     return

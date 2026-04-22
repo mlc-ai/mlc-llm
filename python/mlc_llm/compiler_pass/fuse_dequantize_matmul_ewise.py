@@ -6,7 +6,7 @@ from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcar
 
 
 @tvm.transform.module_pass(opt_level=0, name="FuseDequantizeMatmulEwise")
-class FuseDequantizeMatmulEwise:  # pylint: disable=too-few-public-methods
+class FuseDequantizeMatmulEwise:
     """A compiler pass that fuses dequantize + matmul + elementwise."""
 
     def transform_module(
@@ -35,7 +35,6 @@ class FuseDequantizeMatmulEwise:  # pylint: disable=too-few-public-methods
 
 
 def _pattern(match_ewise: int, n_aux_tensor: int):
-    # pylint: disable=invalid-name
     w_scaled = wildcard()
     x = wildcard()
     w = is_op("relax.call_tir")(
@@ -48,7 +47,6 @@ def _pattern(match_ewise: int, n_aux_tensor: int):
         TuplePattern([x, w] + [wildcard() for _ in range(match_ewise)]),
         add_constraint=False,
     )
-    # pylint: enable=invalid-name
     annotations = {
         "w_scaled": w_scaled,
         "x": x,

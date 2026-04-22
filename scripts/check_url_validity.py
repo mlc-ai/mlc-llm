@@ -6,7 +6,7 @@ import requests
 
 
 def find_urls_in_file(file_path):
-    with open(file_path, "r") as file:
+    with open(file_path) as file:
         content = file.read()
 
     # Regular expression pattern to match URLs
@@ -27,14 +27,14 @@ def main():
     # traversal the directory and find all rst files
     doc_directory = Path(args.directory)
     for file_path in doc_directory.glob("**/*.rst"):
-        print("Checking {}...".format(file_path))
+        print(f"Checking {file_path}...")
         for url in find_urls_in_file(file_path):
             try:
                 r = requests.get(url)
                 if r.status_code == 404:
-                    print("404 not found: {}".format(url))
+                    print(f"404 not found: {url}")
             except Exception as e:
-                print("Error connecting {}, error: {}".format(url, e))
+                print(f"Error connecting {url}, error: {e}")
 
 
 if __name__ == "__main__":

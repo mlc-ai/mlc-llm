@@ -3,16 +3,17 @@ Adapted from https://gist.github.com/xenova/a452a6474428de0182b17605a98631ee
 Generator of mlc-chat-config.json and tokenizer configuration.
 """
 
-# pylint: disable=import-error
 # isort: off
 import json
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional  # noqa: UP035
 
 
 def bpe(
-    mergeable_ranks: Dict[bytes, int], token: bytes, max_rank: Optional[int] = None
-) -> List[bytes]:
+    mergeable_ranks: Dict[bytes, int],  # noqa: UP006
+    token: bytes,
+    max_rank: Optional[int] = None,
+) -> List[bytes]:  # noqa: UP006
     """Adapted from https://github.com/openai/tiktoken/issues/60#issuecomment-1499977960"""
     parts = [bytes([b]) for b in token]
     while True:
@@ -26,14 +27,14 @@ def bpe(
         if min_rank is None or (max_rank is not None and min_rank >= max_rank):
             break
         assert min_idx is not None
-        parts = parts[:min_idx] + [parts[min_idx] + parts[min_idx + 1]] + parts[min_idx + 2 :]
+        parts = [*parts[:min_idx], parts[min_idx] + parts[min_idx + 1], *parts[min_idx + 2 :]]
     return parts
 
 
 def generate_vocab_and_merges(encoder, mergeable_ranks):
     """Generate vocab and merges in huggingface tokenizers format"""
 
-    from transformers.models.gpt2.tokenization_gpt2 import (  # pylint: disable=import-outside-toplevel
+    from transformers.models.gpt2.tokenization_gpt2 import (
         bytes_to_unicode,
     )
 
@@ -56,7 +57,7 @@ def generate_vocab_and_merges(encoder, mergeable_ranks):
         merges.append(" ".join(map(token_bytes_to_string, merged)))
 
     # Also add special tokens
-    vocab.update(encoder._special_tokens)  # pylint: disable=protected-access
+    vocab.update(encoder._special_tokens)
 
     return vocab, merges
 
@@ -64,9 +65,9 @@ def generate_vocab_and_merges(encoder, mergeable_ranks):
 def convert_tiktoken(model_path, output_dir, context_window_size=None):
     """Convert tiktoken tokenizers to huggingface tokenizers style"""
     try:
-        from transformers import AutoTokenizer  # pylint: disable=import-outside-toplevel
+        from transformers import AutoTokenizer
     except ImportError:
-        raise ImportError(  # pylint: disable=raise-missing-from
+        raise ImportError(
             'Converting tiktoken tokenizer requires the "transformers" package.'
             'Please install the "transformers" package to convert toktoken tokenizer'
         )
@@ -86,7 +87,7 @@ def convert_tiktoken(model_path, output_dir, context_window_size=None):
             "normalized": False,
             "special": True,
         }
-        for content, id in encoder._special_tokens.items()  # pylint: disable=protected-access
+        for content, id in encoder._special_tokens.items()
     ]
 
     tokenizer_template = {

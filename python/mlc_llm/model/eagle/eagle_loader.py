@@ -40,8 +40,8 @@ def awq(model_config: EagleConfig, quantization: Quantization) -> ExternMapping:
         The parameter mapping from MLC to AWQ.
     """
     model, _ = awq_quant(model_config, quantization)
-    _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
-        spec=model.get_default_spec(),  # type: ignore[attr-defined]
+    _, _named_params, _ = model.export_tvm(
+        spec=model.get_default_spec(),
         allow_extern=True,
     )
     named_parameters = dict(_named_params)

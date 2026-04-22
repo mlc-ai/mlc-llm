@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name,missing-docstring
 import pytest
 
 from mlc_llm.model import MODEL_PRESETS, MODELS
@@ -10,7 +9,7 @@ def test_phi_creation(model_name: str):
     config = model_info.config.from_dict(MODEL_PRESETS[model_name])
     model = model_info.model(config)
     mod, named_params = model.export_tvm(
-        spec=model.get_default_spec(),  # type: ignore
+        spec=model.get_default_spec(),
     )
     mod.show(black_format=False)
     for name, param in named_params:

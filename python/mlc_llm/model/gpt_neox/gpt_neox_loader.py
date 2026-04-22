@@ -33,7 +33,7 @@ def huggingface(model_config: GPTNeoXConfig, quantization: Quantization) -> Exte
     model = GPTNeoXForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
-    _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
+    _, _named_params, _ = model.export_tvm(
         spec=model.get_default_spec(),
         allow_extern=True,
     )
@@ -49,7 +49,7 @@ def huggingface(model_config: GPTNeoXConfig, quantization: Quantization) -> Exte
         mapping.add_unused(f"{attn}.bias")
 
         # change the layout of query_key_value
-        def transform_qkv_layout(w, dtype):  # pylint: disable=invalid-name
+        def transform_qkv_layout(w, dtype):
             num_attention_heads = model_config.num_attention_heads
             head_dim = model_config.head_dim
 

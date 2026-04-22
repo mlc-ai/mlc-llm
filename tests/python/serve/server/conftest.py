@@ -1,6 +1,5 @@
-# pylint: disable=missing-module-docstring,missing-function-docstring
 import os
-from typing import Tuple
+from typing import Tuple  # noqa: UP035
 
 import pytest
 
@@ -8,7 +7,7 @@ from mlc_llm.serve import PopenServer
 
 
 @pytest.fixture(scope="session")
-def served_model() -> Tuple[str, str]:
+def served_model() -> Tuple[str, str]:  # noqa: UP006
     model_lib = os.environ.get("MLC_SERVE_MODEL_LIB")
     if model_lib is None:
         raise ValueError(
@@ -21,7 +20,7 @@ def served_model() -> Tuple[str, str]:
 
 
 @pytest.fixture(scope="session")
-def launch_server(served_model):  # pylint: disable=redefined-outer-name
+def launch_server(served_model):
     """A pytest session-level fixture which launches the server in a subprocess."""
     server = PopenServer(
         model=served_model[0],

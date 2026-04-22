@@ -36,7 +36,7 @@ class APIEndPoint:
 class OpenAIChatEndPoint(APIEndPoint):
     """The backend of sending HTTP requests in OpenAI API through "v1/chat/completions"."""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         host: str,
         port: int,
@@ -45,7 +45,7 @@ class OpenAIChatEndPoint(APIEndPoint):
     ) -> None:
         super().__init__(include_server_metrics=include_server_metrics)
 
-        import aiohttp  # pylint: disable=import-outside-toplevel,import-error
+        import aiohttp
 
         self.timeout = timeout
         self.client: aiohttp.ClientSession = None
@@ -55,7 +55,7 @@ class OpenAIChatEndPoint(APIEndPoint):
             self.headers["Authorization"] = f"Bearer {os.getenv('MLC_LLM_API_KEY')}"
 
     async def __aenter__(self) -> Self:
-        import aiohttp  # pylint: disable=import-outside-toplevel,import-error
+        import aiohttp
 
         self.client = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(self.timeout))
         return self
@@ -63,9 +63,7 @@ class OpenAIChatEndPoint(APIEndPoint):
     async def __aexit__(self, exc_type, exc_value, tb) -> None:
         await self.client.close()
 
-    async def __call__(  # pylint: disable=too-many-branches,too-many-statements,too-many-locals
-        self, request_record: RequestRecord
-    ) -> RequestRecord:
+    async def __call__(self, request_record: RequestRecord) -> RequestRecord:
         payload = request_record.chat_cmpl.model_dump()
         if self.timeout is not None and "timeout" not in payload:
             payload["timeout"] = self.timeout
@@ -108,7 +106,6 @@ class OpenAIChatEndPoint(APIEndPoint):
                             first_chunk_output_str = content
                         if self.include_server_metrics and data["usage"] is not None:
                             # fmt: off
-                            # pylint: disable=line-too-long
                             server_metrics = ServerMetrics(
                                 input_tokens=data["usage"]["extra"]["prompt_tokens"],
                                 prefill_tokens=data["usage"]["extra"]["prefill_tokens"],
@@ -116,10 +113,9 @@ class OpenAIChatEndPoint(APIEndPoint):
                                 end_to_end_latency_s=data["usage"]["extra"]["end_to_end_latency_s"],
                                 prefill_tokens_per_s=data["usage"]["extra"]["prefill_tokens_per_s"],
                                 inter_token_latency_s=data["usage"]["extra"]["inter_token_latency_s"],
-                                time_per_output_token_s=1 / data["usage"]["extra"]["decode_tokens_per_s"],
+                                time_per_output_token_s=1 / data["usage"]["extra"]["decode_tokens_per_s"],  # noqa: E501
                                 time_to_first_token_s=data["usage"]["extra"]["ttft_s"],
                             )
-                            # pylint: enable=line-too-long
                             # fmt: on
 
                         if content is not None:
@@ -129,7 +125,6 @@ class OpenAIChatEndPoint(APIEndPoint):
                     generated_text = data["choices"][0]["message"]["content"]
                     if self.include_server_metrics and data["usage"] is not None:
                         # fmt: off
-                        # pylint: disable=line-too-long
                         server_metrics = ServerMetrics(
                             input_tokens=data["usage"]["extra"]["prompt_tokens"],
                             prefill_tokens=data["usage"]["extra"]["prefill_tokens"],
@@ -137,12 +132,11 @@ class OpenAIChatEndPoint(APIEndPoint):
                             end_to_end_latency_s=data["usage"]["extra"]["end_to_end_latency_s"],
                             prefill_tokens_per_s=data["usage"]["extra"]["prefill_tokens_per_s"],
                             inter_token_latency_s=data["usage"]["extra"]["inter_token_latency_s"],
-                            time_per_output_token_s=1 / data["usage"]["extra"]["decode_tokens_per_s"],
+                            time_per_output_token_s=1 / data["usage"]["extra"]["decode_tokens_per_s"],  # noqa: E501
                             time_to_first_token_s=data["usage"]["extra"]["ttft_s"],
                         )
-                        # pylint: enable=line-too-long
                         # fmt: on
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             error_msg = "API endpoint errored when sending request: " + traceback.format_exc()
             logger.info(error_msg)
             finish_time = time.monotonic()
@@ -186,7 +180,7 @@ class OpenAIChatEndPoint(APIEndPoint):
 class OpenAIEndPoint(APIEndPoint):
     """The backend of sending HTTP requests in OpenAI API through "v1/completions"."""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         host: str,
         port: int,
@@ -196,7 +190,7 @@ class OpenAIEndPoint(APIEndPoint):
     ) -> None:
         super().__init__(include_server_metrics=include_server_metrics)
 
-        import aiohttp  # pylint: disable=import-outside-toplevel,import-error
+        import aiohttp
 
         self.timeout = timeout
         self.client: aiohttp.ClientSession = None
@@ -204,13 +198,13 @@ class OpenAIEndPoint(APIEndPoint):
         self.headers = {"Content-Type": "application/json"}
         if os.getenv("MLC_LLM_API_KEY"):
             self.headers["Authorization"] = f"Bearer {os.getenv('MLC_LLM_API_KEY')}"
-        assert (
-            not include_server_metrics
-        ), '"include_server_metrics" only works for "openai-chat" endpoint for now'
+        assert not include_server_metrics, (
+            '"include_server_metrics" only works for "openai-chat" endpoint for now'
+        )
         self.no_debug_config = no_debug_config
 
     async def __aenter__(self) -> Self:
-        import aiohttp  # pylint: disable=import-outside-toplevel,import-error
+        import aiohttp
 
         self.client = aiohttp.ClientSession()
         return self
@@ -218,12 +212,10 @@ class OpenAIEndPoint(APIEndPoint):
     async def __aexit__(self, exc_type, exc_value, tb) -> None:
         await self.client.close()
 
-    async def __call__(  # pylint: disable=too-many-branches,too-many-statements
-        self, request_record: RequestRecord
-    ) -> RequestRecord:
-        assert (
-            len(request_record.chat_cmpl.messages) == 1
-        ), 'Endpoint "openai" does not support system prompt and multi-round conversation.'
+    async def __call__(self, request_record: RequestRecord) -> RequestRecord:
+        assert len(request_record.chat_cmpl.messages) == 1, (
+            'Endpoint "openai" does not support system prompt and multi-round conversation.'
+        )
         assert isinstance(request_record.chat_cmpl.messages[0].content, str)
         payload = {
             "model": request_record.chat_cmpl.model,
@@ -274,7 +266,7 @@ class OpenAIEndPoint(APIEndPoint):
                 else:
                     data = await response.json()
                     generated_text = data["choices"][0]["message"]["content"]
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             error_msg = "API endpoint errored when sending request: " + traceback.format_exc()
             logger.info(error_msg)
             finish_time = time.monotonic()
@@ -318,12 +310,10 @@ class OpenAIEndPoint(APIEndPoint):
 class TensorRTLLMEndPoint(APIEndPoint):
     """The backend of sending HTTP requests in TensorRT-LLM API."""
 
-    def __init__(  # pylint: disable=too-many-arguments
-        self, host: str, port: int, timeout: Optional[float] = None
-    ) -> None:
+    def __init__(self, host: str, port: int, timeout: Optional[float] = None) -> None:
         super().__init__(include_server_metrics=False)
 
-        import aiohttp  # pylint: disable=import-outside-toplevel,import-error
+        import aiohttp
 
         self.timeout = timeout
         self.client: aiohttp.ClientSession = None
@@ -331,7 +321,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
         self.url_no_stream = f"http://{host}:{port}/v2/models/ensemble/generate"
 
     async def __aenter__(self) -> Self:
-        import aiohttp  # pylint: disable=import-outside-toplevel,import-error
+        import aiohttp
 
         self.client = aiohttp.ClientSession()
         return self
@@ -339,9 +329,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
     async def __aexit__(self, exc_type, exc_value, tb) -> None:
         await self.client.close()
 
-    async def __call__(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
-        self, request_record: RequestRecord
-    ) -> RequestRecord:
+    async def __call__(self, request_record: RequestRecord) -> RequestRecord:
         assert len(request_record.chat_cmpl.messages) == 1
         assert isinstance(request_record.chat_cmpl.messages[0].content, str)
         payload = {
@@ -392,7 +380,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
                 else:
                     data = await response.json()
                     generated_text = data["text_output"]
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             error_msg = "API endpoint errored when sending request: " + traceback.format_exc()
             logger.info(error_msg)
             finish_time = time.monotonic()
@@ -431,7 +419,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
         return request_record
 
 
-# Todo: APIEndPoint with AsyncOpenAI Python interface  # pylint: disable=fixme
+# Todo: APIEndPoint with AsyncOpenAI Python interface
 # class OpenAIPythonEndPoint(APIEndPoint):
 #     pass
 

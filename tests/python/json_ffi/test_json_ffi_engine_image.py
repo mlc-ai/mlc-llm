@@ -1,5 +1,5 @@
 import base64
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional  # noqa: UP035
 
 import requests
 
@@ -35,13 +35,13 @@ image_prompts = [
 def run_chat_completion(
     engine: JSONFFIEngine,
     model: str,
-    prompts: List[List[Dict]] = image_prompts,
-    tools: Optional[List[Dict]] = None,
+    prompts: List[List[Dict]] = image_prompts,  # noqa: UP006
+    tools: Optional[List[Dict]] = None,  # noqa: UP006
 ):
     num_requests = 1
     max_tokens = 64
     n = 1
-    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]  # noqa: UP006
 
     for rid in range(num_requests):
         print(f"chat completion for request {rid}")
@@ -55,7 +55,7 @@ def run_chat_completion(
         ):
             for choice in response.choices:
                 assert choice.delta.role == "assistant"
-                assert isinstance(choice.delta.content[0], Dict)
+                assert isinstance(choice.delta.content[0], Dict)  # noqa: UP006
                 assert choice.delta.content[0]["type"] == "text"
                 output_texts[rid][choice.index] += choice.delta.content[0]["text"]
 
@@ -74,11 +74,11 @@ def run_chat_completion(
 def test_chat_completion():
     # Create engine.
     engine = JSONFFIEngine(
-        model,
+        model,  # noqa: F821
         max_total_sequence_length=1024,
     )
 
-    run_chat_completion(engine, model)
+    run_chat_completion(engine, model)  # noqa: F821
 
     # Test malformed requests.
     for response in engine._raw_chat_completion("malformed_string", n=1, request_id="123"):

@@ -4,7 +4,7 @@ Implementation for GPTNeoX architecture.
 
 import dataclasses
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import tirx
 from tvm.relax.frontend import nn
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class GPTNeoXConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+class GPTNeoXConfig(ConfigBase):
     """Configuration of the GPTNeoX model."""
 
     use_parallel_residual: bool
@@ -39,7 +39,7 @@ class GPTNeoXConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     tensor_parallel_shards: int = 1
     ffn_out_dtype: str = "float32"
     max_batch_size: int = 1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         if self.context_window_size == 0:
@@ -85,10 +85,7 @@ class GPTNeoXConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = min(self.context_window_size, 8192)
 
 
-# pylint: disable=invalid-name,missing-docstring
-
-
-class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class GPTNeoXAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
     def __init__(self, config: GPTNeoXConfig):
@@ -245,7 +242,7 @@ class GPTNeoXModel(nn.Module):
         return hidden_states
 
 
-class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class GPTNeoXForCausalLM(nn.Module):
     def __init__(self, config: GPTNeoXConfig):
         self.gpt_neox = GPTNeoXModel(config)
         self.embed_out = nn.Linear(
@@ -328,7 +325,7 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
 
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+    def create_paged_kv_cache(
         self,
         max_batch_size: tirx.Var,
         max_total_seq_len: tirx.Var,

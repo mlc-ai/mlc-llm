@@ -1,4 +1,3 @@
-# pylint: disable=missing-docstring
 """
 This is the global script that set the version information of TVM.
 This script runs and update all the locations that related to versions
@@ -6,6 +5,7 @@ This script runs and update all the locations that related to versions
 List of affected files:
 - mlc-llm-root/pyproject.toml
 """
+
 import argparse
 import logging
 import os
@@ -17,11 +17,9 @@ import subprocess
 # Current version:
 # We use the version of the incoming release for code
 # that is under development.
-#
 # It is also fallback version to be used when --git-describe
 # is not invoked, or when the repository does not present the
 # git tags in a format that this script can use.
-#
 # Two tag formats are supported:
 # - vMAJ.MIN.PATCH (e.g. v0.8.0) or
 # - vMAJ.MIN.devN (e.g. v0.8.dev0)
@@ -106,7 +104,6 @@ def git_describe_version():
 
     # Development versions:
     # The code will reach this point in case it can't match a full release version, such as v0.7.0.
-    #
     # 1. in case the last known label looks like vMAJ.MIN.devN e.g. v0.8.dev0, we use
     # the current behavior of just using vMAJ.MIN.devNNNN+gGIT_REV
     if dev_pos != -1:
@@ -128,26 +125,26 @@ def update(file_name, pattern, repl, dry_run=False):
     hit_counter = 0
     need_update = False
     with open(file_name) as file:
-        for l in file:
-            result = re.findall(pattern, l)
+        for line in file:
+            result = re.findall(pattern, line)
             if result:
                 assert len(result) == 1
                 hit_counter += 1
                 if result[0] != repl:
-                    l = re.sub(pattern, repl, l)
+                    line = re.sub(pattern, repl, line)
                     need_update = True
                     print("%s: %s -> %s" % (file_name, result[0], repl))
                 else:
                     print("%s: version is already %s" % (file_name, repl))
 
-            update.append(l)
+            update.append(line)
     if hit_counter != 1:
         raise RuntimeError("Cannot find version in %s" % file_name)
 
     if need_update and not dry_run:
         with open(file_name, "w") as output_file:
-            for l in update:
-                output_file.write(l)
+            for line in update:
+                output_file.write(line)
 
 
 def sync_version(pub_ver, local_ver, dry_run):

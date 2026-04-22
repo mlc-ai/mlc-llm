@@ -1,8 +1,7 @@
-# pylint: disable=line-too-long,missing-docstring
 import argparse
 import os
 import random
-from typing import List, Tuple
+from typing import List, Tuple  # noqa: UP035
 
 from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
@@ -24,7 +23,7 @@ def _parse_args():
 
 def generate_requests(
     num_requests: int, input_length: int, output_length: int
-) -> Tuple[List[List[int]], List[GenerationConfig]]:
+) -> Tuple[List[List[int]], List[GenerationConfig]]:  # noqa: UP006
     prompt_ids = []
     for _ in range(num_requests):
         token_ids = []

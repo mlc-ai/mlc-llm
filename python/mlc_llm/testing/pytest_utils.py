@@ -55,7 +55,7 @@ def require_test_model(*models: str):
 
     def _decorator(func: Callable[..., None]):
         wrapped = functools.partial(func, *model_paths)
-        wrapped.__name__ = func.__name__  # type: ignore
+        wrapped.__name__ = func.__name__
 
         if inspect.iscoroutinefunction(wrapped):
             # The function is a coroutine function ("async def func(...)")

@@ -1,6 +1,6 @@
 """The conversation template registry and presets in MLC LLM"""
 
-from typing import Dict, Optional
+from typing import ClassVar, Dict, Optional  # noqa: UP035
 
 from mlc_llm.protocol.conversation_protocol import Conversation, MessagePlaceholders
 
@@ -8,7 +8,7 @@ from mlc_llm.protocol.conversation_protocol import Conversation, MessagePlacehol
 class ConvTemplateRegistry:
     """Global conversation template registry for preset templates."""
 
-    _conv_templates: Dict[str, Conversation] = {}
+    _conv_templates: ClassVar[Dict[str, Conversation]] = {}  # noqa: UP006
 
     @staticmethod
     def register_conv_template(conv_template: Conversation, override: bool = False) -> None:

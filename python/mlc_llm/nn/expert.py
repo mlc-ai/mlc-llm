@@ -17,7 +17,7 @@ class MixtralExperts(nn.Module):
         self.dtype = "float32"
         self.tensor_parallel_shards = tensor_parallel_shards
 
-    def forward(self, x: Tensor, indptr: Tensor):  # pylint: disable=invalid-name,missing-docstring
+    def forward(self, x: Tensor, indptr: Tensor):
         assert x.ndim == 2
         if indptr.ndim == 2:
             assert indptr.shape[0] == 1

@@ -27,7 +27,7 @@ import functools
 
 import numpy as np
 
-from mlc_llm.loader import ExternMapping, QuantizeMapping
+from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
 from .qwen35_model import Qwen35Config, Qwen35LMHeadModel

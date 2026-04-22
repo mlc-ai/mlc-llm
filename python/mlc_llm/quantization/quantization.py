@@ -1,6 +1,6 @@
 """A centralized registry of all existing quantization methods and their configurations."""
 
-from typing import Any, Dict
+from typing import Any, Dict  # noqa: UP035
 
 from .awq_quantization import AWQQuantize
 from .block_scale_quantization import BlockScaleQuantize
@@ -28,7 +28,7 @@ It is also required to have the following method:
         ...
 """
 
-QUANTIZATION: Dict[str, Quantization] = {
+QUANTIZATION: Dict[str, Quantization] = {  # noqa: UP006
     "q0f16": NoQuantize(
         name="q0f16",
         kind="no-quant",

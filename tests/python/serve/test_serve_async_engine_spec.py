@@ -1,7 +1,5 @@
-# pylint: disable=chained-comparison,line-too-long,missing-docstring,
-# pylint: disable=too-many-arguments,too-many-locals
 import asyncio
-from typing import List
+from typing import List  # noqa: UP035
 
 from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve import AsyncMLCEngine, EngineConfig
@@ -12,12 +10,12 @@ prompts = [
     "Introduce the history of Pittsburgh to me. Please elaborate in detail.",
     "Write a three-day Seattle travel plan. Please elaborate in detail.",
     "What is Alaska famous of? Please elaborate in detail.",
-    "What is the difference between Lambda calculus and Turing machine? Please elaborate in detail.",
+    "What is the difference between Lambda calculus and Turing machine? Please elaborate in detail.",  # noqa: E501
     "What are the necessary components to assemble a desktop computer? Please elaborate in detail.",
     "Why is Vitamin D important to human beings? Please elaborate in detail.",
     "Where is milk tea originated from? Please elaborate in detail.",
     "Where is the southernmost place in United States? Please elaborate in detail.",
-    "Do you know AlphaGo? What capabilities does it have, and what achievements has it got? Please elaborate in detail.",
+    "Do you know AlphaGo? What capabilities does it have, and what achievements has it got? Please elaborate in detail.",  # noqa: E501
 ]
 
 
@@ -40,7 +38,7 @@ async def test_engine_generate(model: str, small_model: str):
     max_tokens = 256
     generation_cfg = GenerationConfig(max_tokens=max_tokens)
 
-    output_texts: List[List[str]] = [
+    output_texts: List[List[str]] = [  # noqa: UP006
         ["" for _ in range(generation_cfg.n)] for _ in range(num_requests)
     ]
 
