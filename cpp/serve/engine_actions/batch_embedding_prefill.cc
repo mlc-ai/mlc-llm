@@ -31,6 +31,75 @@ namespace serve {
 
 using namespace tvm::runtime;
 
+namespace {
+
+struct ScheduledItem {
+  EmbeddingRequestState* state;
+  int item_idx;  // index into state->request->items
+};
+
+struct CollectedBatch {
+  std::vector<ScheduledItem> items;
+  int max_len = 0;
+};
+
+/*!
+ * \brief Scan the embedding waiting queue in FIFO order and collect items to
+ * form the next batch. Stops (returns) on the first constraint violation:
+ *  - batch size exceeds max_num_sequence
+ *  - padded token budget exceeds prefill_chunk_size (only once batch has >= 1)
+ *  - pooling/normalize mismatch with the head of the current batch
+ *
+ * Always admits at least one item, so a single oversized request cannot
+ * deadlock the embedding lane.
+ */
+CollectedBatch CollectBatchItems(EngineState estate, int max_batch,
+                                 int64_t max_total_tokens) {
+  std::vector<ScheduledItem> batch_items;
+  int candidate_max_len = 0;
+
+  for (const EmbeddingRequest& req : estate->embedding_waiting_queue) {
+    auto it = estate->embedding_request_states.find(req->id);
+    if (it == estate->embedding_request_states.end()) continue;
+    EmbeddingRequestState& state = it->second;
+
+    // Batch must be homogeneous in pooling_strategy/normalize; stop (not skip) on
+    // mismatch to preserve FIFO order.
+    if (!batch_items.empty()) {
+      const auto& head_req = batch_items[0].state->request;
+      if (state.request->pooling_strategy != head_req->pooling_strategy ||
+          state.request->normalize != head_req->normalize) {
+        return {std::move(batch_items), candidate_max_len};
+      }
+    }
+
+    int num_items = static_cast<int>(state.request->items.size());
+    for (int i = state.completed_items; i < num_items; ++i) {
+      int item_len = static_cast<int>(state.request->items[i].token_ids.size());
+      int new_max_len = std::max(candidate_max_len, item_len);
+      int new_batch_size = static_cast<int>(batch_items.size()) + 1;
+
+      // Admit condition. Always admit at least one item, even if it exceeds
+      // the soft token budget, to prevent a single oversized item from
+      // deadlocking the embedding lane.
+      if (new_batch_size > max_batch) {
+        return {std::move(batch_items), candidate_max_len};
+      }
+      if (!batch_items.empty() &&
+          static_cast<int64_t>(new_batch_size) * new_max_len > max_total_tokens) {
+        return {std::move(batch_items), candidate_max_len};
+      }
+
+      batch_items.push_back({&state, i});
+      candidate_max_len = new_max_len;
+    }
+  }
+
+  return {std::move(batch_items), candidate_max_len};
+}
+
+}  // namespace
+
 /*!
  * \brief The action that processes embedding requests from the embedding waiting queue.
  *
@@ -65,54 +134,14 @@ class BatchEmbeddingPrefillActionObj : public EngineActionObj {
 
     // Collect items from the waiting queue using FIFO order.
     // CRITICAL: iterate embedding_waiting_queue (ordered), NOT the unordered_map.
-    struct ScheduledItem {
-      EmbeddingRequestState* state;
-      int item_idx;  // index into state->request->items
-    };
-    std::vector<ScheduledItem> batch_items;
-    int candidate_max_len = 0;
-
-    for (const EmbeddingRequest& req : estate->embedding_waiting_queue) {
-      auto it = estate->embedding_request_states.find(req->id);
-      if (it == estate->embedding_request_states.end()) continue;
-      EmbeddingRequestState& state = it->second;
-
-      // Batch must be homogeneous in pooling_strategy/normalize; stop (not skip) on
-      // mismatch to preserve FIFO order.
-      if (!batch_items.empty()) {
-        const auto& head_req = batch_items[0].state->request;
-        if (state.request->pooling_strategy != head_req->pooling_strategy ||
-            state.request->normalize != head_req->normalize) {
-          goto done_collecting;
-        }
-      }
-
-      int num_items = static_cast<int>(state.request->items.size());
-      for (int i = state.completed_items; i < num_items; ++i) {
-        int item_len = static_cast<int>(state.request->items[i].token_ids.size());
-        int new_max_len = std::max(candidate_max_len, item_len);
-        int new_batch_size = static_cast<int>(batch_items.size()) + 1;
-
-        // Admit condition. Always admit at least one item, even if it exceeds
-        // the soft token budget, to prevent a single oversized item from
-        // deadlocking the embedding lane.
-        if (new_batch_size > max_batch) goto done_collecting;
-        if (!batch_items.empty() &&
-            static_cast<int64_t>(new_batch_size) * new_max_len > max_total_tokens)
-          goto done_collecting;
-
-        batch_items.push_back({&state, i});
-        candidate_max_len = new_max_len;
-      }
-    }
-  done_collecting:
-
-    if (batch_items.empty()) {
+    CollectedBatch batch = CollectBatchItems(estate, max_batch, max_total_tokens);
+    if (batch.items.empty()) {
       return {};
     }
+    auto& batch_items = batch.items;
 
     int batch_size = static_cast<int>(batch_items.size());
-    int max_len = candidate_max_len;
+    int max_len = batch.max_len;
 
     // Build padded input_ids and attention_mask on host.
     // BERT contract: input_ids [batch_size, max_len] int32, attention_mask [batch_size, max_len] int32.

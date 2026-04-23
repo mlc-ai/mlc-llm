@@ -7,6 +7,8 @@
 
 #include <tvm/ffi/string.h>
 
+#include <deque>
+
 #include "config.h"
 #include "metrics.h"
 #include "prefix_cache.h"
@@ -93,7 +95,7 @@ class EngineStateObj : public Object {
 
   /****************** Embedding Lane ******************/
   /*! \brief The embedding requests waiting to be processed. */
-  std::vector<EmbeddingRequest> embedding_waiting_queue;
+  std::deque<EmbeddingRequest> embedding_waiting_queue;
   /*! \brief The states of all in-flight embedding requests, keyed by request id. */
   std::unordered_map<String, EmbeddingRequestState> embedding_request_states;
   /*! \brief The embedding result callback. */
