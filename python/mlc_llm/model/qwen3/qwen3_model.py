@@ -193,7 +193,7 @@ class Qwen3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
             args=[hidden_states],
         )
 
-        apply_rope_flag = tirx.IntImm("int32", 1)
+        apply_rope_flag = tirx.IntImm("int64", 1)
         rotary_emb = position_embedding.llama_rope_with_position_map(
             theta=self.rope_theta,
             scale=1.0,
