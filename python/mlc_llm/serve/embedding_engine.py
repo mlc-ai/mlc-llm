@@ -208,6 +208,18 @@ def _canonicalize_decoder_inputs(
             tokens.append(eos_token_id)
         if len(tokens) > max_seq_len:
             tokens = tokens[:max_seq_len]
+            # Preserve the kLast pooling sentinel: decoder embedding models are
+            # trained to emit the sentence embedding at the EOS position, so
+            # truncation must not drop the trailing EOS.
+            if eos_token_id is not None:
+                tokens[-1] = eos_token_id
+        if len(tokens) == 0:
+            raise ValueError(
+                "Decoder embedding input tokenized to 0 tokens; the decoder "
+                "lane requires at least one token per input "
+                f"(tokenizer_appends_eos={tokenizer_appends_eos}, "
+                f"eos_token_id={eos_token_id})."
+            )
         result.append(tokens)
     return result
 
@@ -733,6 +745,17 @@ class ThreadedEmbeddingRuntime(EmbeddingRuntime):
         if pooling_strategy:
             self._pooling_strategy = pooling_strategy
 
+        # Decoder lane is kLast-only at the C++ layer (enforced by a fatal
+        # ICHECK in BatchDecoderEmbeddingPrefillAction). Reject at init so a
+        # misconfigured pooling_strategy can't crash the engine on first request.
+        if self._model_type == "decoder" and self._pooling_strategy != "last":
+            raise ValueError(
+                f"Decoder embedding lane requires pooling_strategy='last'; "
+                f"got {self._pooling_strategy!r}. Fix embedding_metadata."
+                f"pooling_strategy in mlc-chat-config.json or pass "
+                f"pooling_strategy='last'."
+            )
+
         # Lane-specific canonicalization state.
         # Encoder lane: CLS/SEP pre/post append, truncate to prefill_chunk_size.
         # Decoder lane: conditional EOS append, truncate to max_seq_len.
@@ -751,16 +774,19 @@ class ThreadedEmbeddingRuntime(EmbeddingRuntime):
             self._decoder_tokenizer_appends_eos, self._decoder_eos_token_id = (
                 _get_decoder_special_tokens(self._tokenizer, model)
             )
-            # Decoder lane truncates to the model's context window rather than the
-            # compiled prefill chunk (the C++ action re-checks batch*seq vs chunk).
-            self._max_seq_len = self._raw_metadata.get("context_window_size", 32768)
-            if self._max_seq_len == -1:
-                self._max_seq_len = self._raw_metadata.get("sliding_window_size", -1)
-            if self._max_seq_len <= 0:
+            # Decoder lane truncates to min(context_window_size, prefill_chunk_size).
+            # The C++ admit loop rejects batch*seq > prefill_chunk_size with no
+            # chunking fallback, so any request past that threshold deadlocks at
+            # the head of the waiting queue.
+            ctx_window = self._raw_metadata.get("context_window_size", 32768)
+            if ctx_window == -1:
+                ctx_window = self._raw_metadata.get("sliding_window_size", -1)
+            if ctx_window <= 0:
                 raise ValueError(
                     f"Decoder embedding model must have a positive context/sliding window; "
-                    f"got max_seq_len={self._max_seq_len}"
+                    f"got context_window_size={ctx_window}"
                 )
+            self._max_seq_len = min(ctx_window, self._prefill_chunk_size)
 
         # FFI functions
         self._f_embedding_request = tvm.get_global_func("mlc.serve.EmbeddingRequest")

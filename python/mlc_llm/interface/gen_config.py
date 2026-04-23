@@ -26,9 +26,20 @@ NOT_FOUND = red("Not found")
 FAILED = red("Failed")
 
 
+# Chat-only sampling fields kept in MLCChatConfig for book-keep but meaningless
+# for embedding tasks. Skipping them on embedding artifacts avoids misleading
+# "Setting temperature: 1.0"-style log lines that suggest sampling applies.
+_CHAT_ONLY_SAMPLING_FIELDS = frozenset(
+    {"temperature", "presence_penalty", "frequency_penalty", "repetition_penalty", "top_p"}
+)
+
+
 def apply_system_defaults_for_missing_fields(mlc_chat_config: MLCChatConfig) -> None:
     """Apply system default value."""
+    model_task = mlc_chat_config.field_model_task
     for key, value in mlc_chat_config.get_system_defaults_for_missing_fields().items():
+        if model_task == "embedding" and key in _CHAT_ONLY_SAMPLING_FIELDS:
+            continue
         setattr(mlc_chat_config, key, value)
         logger.info("[System default] Setting %s: %s", bold(key), value)
 
@@ -114,6 +125,31 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         conversation = conv_template  # type: ignore
     else:
         conversation = conversation_reg.to_json_dict()  # type: ignore
+
+    # Embedding-task artifacts have very different runtime characteristics from chat:
+    # each request is a list-of-texts batch (not N concurrent sessions), and inputs
+    # are bounded short documents (not long generations). Inheriting chat's defaults
+    # (`max_batch_size=128`, `context_window_size=max_position_embeddings=32768`,
+    # `prefill_chunk_size=min(cws, 2048)`) produces ~20 GB temp buffer on compile and
+    # OOMs consumer GPUs at engine reload. Apply embedding-appropriate defaults when
+    # the user did not pass an explicit override. Users wanting long-document
+    # embedding must opt in via the CLI flags (see docs ladder).
+    if model.model_task == "embedding":
+        _CLI_MAX_BATCH_SIZE_DEFAULT = 128  # cli/gen_config.py `--max-batch-size` default
+        if context_window_size is None:
+            # Cap at 1024 for temp-buffer budget, but never exceed the model's HF
+            # max_position_embeddings: bge-base has 512-slot position table and
+            # pushing cws above that makes the compiled graph index past the
+            # weight tensor at runtime.
+            _hf_cfg = model.config.from_file(config)
+            _hf_max = getattr(_hf_cfg, "context_window_size", 0)
+            if _hf_max <= 0:
+                _hf_max = _hf_cfg.kwargs.get("max_position_embeddings", 1024)
+            context_window_size = min(_hf_max, 1024)
+        if prefill_chunk_size is None:
+            prefill_chunk_size = context_window_size
+        if max_batch_size == _CLI_MAX_BATCH_SIZE_DEFAULT:
+            max_batch_size = 8
 
     model_config = ModelConfigOverride(
         context_window_size=context_window_size,

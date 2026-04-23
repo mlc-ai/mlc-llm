@@ -63,10 +63,6 @@ class BatchDecoderEmbeddingPrefillActionObj : public EngineActionObj {
       : model_(std::move(model)), engine_config_(std::move(engine_config)) {}
 
   Array<Request> Step(EngineState estate) final {
-    // This action does not interact with the chat request path.
-    // It returns an empty array since chat post-processing doesn't apply.
-    // The embedding results are delivered through the embedding callback.
-
     if (estate->embedding_waiting_queue.empty()) {
       return {};
     }
