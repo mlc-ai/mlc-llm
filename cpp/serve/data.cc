@@ -298,31 +298,29 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                static_cast<int64_t>(result->prompt_tokens)};
              return ret;
            })
-      .def_packed("mlc.serve.EmbeddingRequest",
-                  [](ffi::PackedArgs args, ffi::Any* rv) {
-                    // args: request_id (String), num_items (int),
-                    //   for each item: item_index (int), num_tokens (int), token_ids...
-                    //   pooling_strategy (int), normalize (bool)
-                    String request_id = args[0].cast<String>();
-                    int num_items = args[1].cast<int>();
-                    int arg_idx = 2;
-                    std::vector<EmbeddingItem> items;
-                    items.reserve(num_items);
-                    for (int i = 0; i < num_items; ++i) {
-                      EmbeddingItem item;
-                      item.item_index = args[arg_idx++].cast<int>();
-                      int num_tokens = args[arg_idx++].cast<int>();
-                      item.token_ids.reserve(num_tokens);
-                      for (int t = 0; t < num_tokens; ++t) {
-                        item.token_ids.push_back(args[arg_idx++].cast<int32_t>());
-                      }
-                      items.push_back(std::move(item));
-                    }
-                    int pooling = args[arg_idx++].cast<int>();
-                    bool normalize = args[arg_idx++].cast<bool>();
-                    *rv = EmbeddingRequest(std::move(request_id), std::move(items),
-                                           static_cast<PoolingStrategy>(pooling), normalize);
-                  });
+      .def("mlc.serve.EmbeddingRequest",
+           [](String request_id, IntTuple flat_token_ids, IntTuple token_lengths, int pooling,
+              bool normalize) {
+             // flat_token_ids is the concatenation of all items' token_ids in
+             // item_index order; token_lengths[i] is the length of item i.
+             int num_items = static_cast<int>(token_lengths.size());
+             std::vector<EmbeddingItem> items;
+             items.reserve(num_items);
+             size_t offset = 0;
+             for (int i = 0; i < num_items; ++i) {
+               EmbeddingItem item;
+               item.item_index = i;
+               int num_tokens = static_cast<int>(token_lengths[i]);
+               item.token_ids.reserve(num_tokens);
+               for (int t = 0; t < num_tokens; ++t) {
+                 item.token_ids.push_back(static_cast<int32_t>(flat_token_ids[offset + t]));
+               }
+               offset += num_tokens;
+               items.push_back(std::move(item));
+             }
+             return EmbeddingRequest(std::move(request_id), std::move(items),
+                                     static_cast<PoolingStrategy>(pooling), normalize);
+           });
 }
 
 }  // namespace serve

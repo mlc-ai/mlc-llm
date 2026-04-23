@@ -102,9 +102,12 @@ class BatchDecoderEmbeddingPrefillActionObj : public EngineActionObj {
         int new_max_len = std::max(candidate_max_len, item_len);
         int new_batch_size = static_cast<int>(batch_items.size()) + 1;
 
-        // Admit condition.
+        // Admit condition. Always admit at least one item, even if it exceeds
+        // the soft token budget, to prevent a single oversized item from
+        // deadlocking the embedding lane.
         if (new_batch_size > max_batch) goto done_collecting;
-        if (static_cast<int64_t>(new_batch_size) * new_max_len > max_total_tokens)
+        if (!batch_items.empty() &&
+            static_cast<int64_t>(new_batch_size) * new_max_len > max_total_tokens)
           goto done_collecting;
 
         batch_items.push_back({&state, i});

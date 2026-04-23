@@ -1048,18 +1048,22 @@ class ThreadedEmbeddingRuntime(EmbeddingRuntime):
         """Build FFI EmbeddingRequest and submit to C++ engine."""
         pooling_int = _POOLING_STRATEGY_MAP.get(self._pooling_strategy, 0)
 
-        # Build packed args for mlc.serve.EmbeddingRequest:
-        # request_id, num_items, then for each item: item_index, num_tokens, token_ids...,
-        # then pooling_strategy (int), normalize (bool)
-        args: List[Any] = [request_id, len(token_lists)]
-        for item_idx, tokens in enumerate(token_lists):
-            args.append(item_idx)
-            args.append(len(tokens))
-            args.extend(tokens)
-        args.append(pooling_int)
-        args.append(self._normalize)
+        # Pack token IDs into a single IntTuple (concatenation of all items)
+        # plus a lengths IntTuple, so the FFI call takes a fixed number of
+        # args regardless of total token count.
+        flat_token_ids: List[int] = []
+        token_lengths: List[int] = []
+        for tokens in token_lists:
+            flat_token_ids.extend(tokens)
+            token_lengths.append(len(tokens))
 
-        emb_request = self._f_embedding_request(*args)
+        emb_request = self._f_embedding_request(
+            request_id,
+            ShapeTuple(flat_token_ids),
+            ShapeTuple(token_lengths),
+            pooling_int,
+            self._normalize,
+        )
         self._ffi["add_embedding_request"](emb_request)
 
     def terminate(self) -> None:
