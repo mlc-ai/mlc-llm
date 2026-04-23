@@ -705,27 +705,9 @@ class TestBackendSelector:
         )
         assert isinstance(rt, _eng_mod.TVMNativeEmbeddingRuntime)
 
-    def test_cpp_forced_rejects_decoder(self, monkeypatch, tmp_path):
-        """MLC_SERVE_EMBEDDING_BACKEND=cpp rejects decoder models."""
+    def test_cpp_forced_routes_decoder_to_threaded(self, monkeypatch, tmp_path):
+        """MLC_SERVE_EMBEDDING_BACKEND=cpp now routes decoder models through ThreadedEmbeddingRuntime."""
         monkeypatch.setenv("MLC_SERVE_EMBEDDING_BACKEND", "cpp")
-        # Write a minimal mlc-chat-config.json with decoder model type
-        config_dir = tmp_path / "model"
-        config_dir.mkdir()
-        import json as _json
-
-        (config_dir / "mlc-chat-config.json").write_text(
-            _json.dumps({"embedding_metadata": {"model_type": "decoder"}})
-        )
-        from mlc_llm.serve.embedding_engine import AsyncMLCEmbeddingEngine
-
-        with pytest.raises(ValueError, match="requires encoder model"):
-            AsyncMLCEmbeddingEngine._select_backend(
-                str(config_dir), "fake.so", "cpu", None
-            )
-
-    def test_auto_decoder_skips_cpp(self, monkeypatch, tmp_path):
-        """auto mode for decoder models goes straight to TVMNativeEmbeddingRuntime."""
-        monkeypatch.setenv("MLC_SERVE_EMBEDDING_BACKEND", "auto")
         config_dir = tmp_path / "model"
         config_dir.mkdir()
         import json as _json
@@ -735,18 +717,53 @@ class TestBackendSelector:
         )
         import mlc_llm.serve.embedding_engine as _eng_mod
 
-        raw_meta = {
-            "model_task": "embedding",
-            "embedding_metadata": {"model_type": "decoder", "pooling_strategy": "last", "normalize": True},
-            "params": [],
-        }
-        _patch_tvm_deps(monkeypatch, raw_meta)
+        threaded_sentinel = object()
+        native_sentinel = object()
+        monkeypatch.setattr(
+            _eng_mod, "ThreadedEmbeddingRuntime", lambda *a, **kw: threaded_sentinel
+        )
+        monkeypatch.setattr(
+            _eng_mod, "TVMNativeEmbeddingRuntime", lambda *a, **kw: native_sentinel
+        )
 
-        # Should not raise — decoder goes to TVMNativeEmbeddingRuntime directly
         rt = _eng_mod.AsyncMLCEmbeddingEngine._select_backend(
             str(config_dir), "fake.so", "cpu", None
         )
-        assert isinstance(rt, _eng_mod.TVMNativeEmbeddingRuntime)
+        assert rt is threaded_sentinel
+
+    def test_auto_decoder_prefers_threaded(self, monkeypatch, tmp_path):
+        """auto mode for decoder models now prefers ThreadedEmbeddingRuntime over TVMNative."""
+        monkeypatch.setenv("MLC_SERVE_EMBEDDING_BACKEND", "auto")
+        config_dir = tmp_path / "model"
+        config_dir.mkdir()
+        import json as _json
+
+        (config_dir / "mlc-chat-config.json").write_text(
+            _json.dumps(
+                {
+                    "embedding_metadata": {
+                        "model_type": "decoder",
+                        "pooling_strategy": "last",
+                        "normalize": True,
+                    }
+                }
+            )
+        )
+        import mlc_llm.serve.embedding_engine as _eng_mod
+
+        threaded_sentinel = object()
+        native_sentinel = object()
+        monkeypatch.setattr(
+            _eng_mod, "ThreadedEmbeddingRuntime", lambda *a, **kw: threaded_sentinel
+        )
+        monkeypatch.setattr(
+            _eng_mod, "TVMNativeEmbeddingRuntime", lambda *a, **kw: native_sentinel
+        )
+
+        rt = _eng_mod.AsyncMLCEmbeddingEngine._select_backend(
+            str(config_dir), "fake.so", "cpu", None
+        )
+        assert rt is threaded_sentinel
 
 
 # ===================================================================
@@ -758,25 +775,13 @@ class TestBackendSelector:
 class TestNegativeCases:
     """Embedding lane should reject chat-only features."""
 
-    def test_thread_encoder_runtime_rejects_decoder(self, monkeypatch, tmp_path):
-        """ThreadEncoderRuntime rejects decoder model type."""
-        config_dir = tmp_path / "model"
-        config_dir.mkdir()
-        import json as _json
+    def test_thread_encoder_runtime_is_alias_for_threaded(self):
+        """ThreadEncoderRuntime is now an alias for the unified ThreadedEmbeddingRuntime,
+        which accepts both encoder and decoder models. The old 'rejects decoder'
+        expectation no longer holds under the current architecture."""
+        from mlc_llm.serve.embedding_engine import ThreadEncoderRuntime, ThreadedEmbeddingRuntime
 
-        (config_dir / "mlc-chat-config.json").write_text(
-            _json.dumps({
-                "model_task": "embedding",
-                "embedding_metadata": {"model_type": "decoder", "pooling_strategy": "last", "normalize": True},
-            })
-        )
-        import mlc_llm.serve.embedding_engine as _eng_mod
-
-        monkeypatch.setattr(_eng_mod, "Tokenizer", lambda path: mock.MagicMock())
-        from mlc_llm.serve.embedding_engine import ThreadEncoderRuntime
-
-        with pytest.raises(ValueError, match="only supports encoder models"):
-            ThreadEncoderRuntime(str(config_dir), "fake.so", "cpu")
+        assert ThreadEncoderRuntime is ThreadedEmbeddingRuntime
 
     def test_thread_encoder_runtime_rejects_missing_metadata(self, monkeypatch, tmp_path):
         """ThreadEncoderRuntime rejects model without embedding_metadata."""
@@ -845,6 +850,241 @@ def test_parity_cpp_vs_tvm_native(embedding_engine):
         cos = cosine_similarity(cpp_emb[i], tvm_emb[i])
         assert cos > 0.99, (
             f"Parity mismatch for item {i} ({texts[i]!r}): cosine={cos:.6f}"
+        )
+
+
+# ===================================================================
+# Phase 4 — Decoder-lane cosine parity (real model required)
+# ===================================================================
+
+
+def test_decoder_threaded_vs_native_parity():
+    """[Decoder only] ThreadedEmbeddingRuntime matches TVMNativeEmbeddingRuntime to
+    cosine >= 0.999 on mixed-length inputs.
+
+    Exercises the Phase-4 C++ BatchDecoderEmbeddingPrefillAction (left-pad kLast
+    gather + batched/single paths) against the legacy Python _embed_decoder as
+    numerical ground truth. Skips only when no artifact is available; a backend
+    init failure when the artifact IS present fails the test (real regression).
+    """
+    _skip_if_no_model()
+
+    import json as _json
+
+    from mlc_llm.serve.embedding_engine import (
+        ThreadedEmbeddingRuntime,
+        TVMNativeEmbeddingRuntime,
+    )
+
+    # Gate on decoder model_type. For encoder artifacts, this parity check is
+    # not applicable (Phase 3 already has its own parity test).
+    with open(os.path.join(EMBEDDING_MODEL_DIR, "mlc-chat-config.json")) as _f:
+        _cfg = _json.load(_f)
+    if _cfg.get("embedding_metadata", {}).get("model_type") != "decoder":
+        pytest.skip("Decoder parity test is not applicable to encoder artifacts")
+
+    # Construct both runtimes explicitly. Init failures propagate (the artifact
+    # is present; failure to spin up either backend is a real regression, not
+    # a skippable condition).
+    threaded = ThreadedEmbeddingRuntime(
+        model=EMBEDDING_MODEL_DIR,
+        model_lib=EMBEDDING_MODEL_LIB,
+        device="auto",
+    )
+    native = TVMNativeEmbeddingRuntime(
+        model=EMBEDDING_MODEL_DIR,
+        model_lib=EMBEDDING_MODEL_LIB,
+        device="auto",
+    )
+
+    try:
+        # Mixed lengths: tiny single-token, medium, long, max-cap. Exercises
+        # the batched left-pad gather path AND the single-item fast path.
+        texts = [
+            "ok",
+            "The quick brown fox jumps over the lazy dog. " * 10,
+            "Machine learning systems research is a fascinating field. " * 60,
+            "Large language models require careful engineering at every layer. " * 100,
+        ]
+
+        t_emb, _ = threaded.embed(texts)
+        n_emb, _ = native.embed(texts)
+
+        assert len(t_emb) == len(n_emb) == len(texts)
+        assert len(t_emb[0]) == len(n_emb[0]), (
+            f"Hidden dim mismatch: threaded={len(t_emb[0])} native={len(n_emb[0])}"
+        )
+
+        for i, text in enumerate(texts):
+            cos = cosine_similarity(t_emb[i], n_emb[i])
+            assert cos >= 0.999, (
+                f"Decoder parity mismatch for item {i} (~{len(text)} chars): "
+                f"cosine={cos:.6f} (expected >= 0.999). The Phase-4 C++ lane "
+                f"output diverges from the legacy Python _embed_decoder path."
+            )
+    finally:
+        # Best-effort cleanup; don't mask test failures on teardown errors.
+        for rt in (threaded, native):
+            terminate = getattr(rt, "terminate", None)
+            if terminate is not None:
+                try:
+                    terminate()
+                except Exception:  # pylint: disable=broad-except
+                    pass
+
+
+# ===================================================================
+# Phase 4 — Decoder-lane canary regression gates (unit, no model needed)
+# ===================================================================
+
+
+@_skip_no_tvm
+class TestDecoderCanaries:
+    """Regression gates for the decoder-lane runtime guards."""
+
+    def test_decoder_rejects_nonlast_pooling_at_init(self, monkeypatch, tmp_path):
+        """Decoder + pooling_strategy != 'last' must raise ValueError at __init__,
+        before any FFI is touched, so misconfiguration fails fast instead of
+        crashing the engine process on first request via the C++ ICHECK."""
+        import json as _json
+
+        config_dir = tmp_path / "model"
+        config_dir.mkdir()
+        (config_dir / "mlc-chat-config.json").write_text(
+            _json.dumps(
+                {
+                    "model_task": "embedding",
+                    "embedding_metadata": {
+                        "model_type": "decoder",
+                        "pooling_strategy": "mean",
+                        "normalize": True,
+                    },
+                    "context_window_size": 4096,
+                    "prefill_chunk_size": 1024,
+                }
+            )
+        )
+
+        import mlc_llm.serve.embedding_engine as _eng_mod
+
+        monkeypatch.setattr(_eng_mod, "detect_device", lambda d: mock.MagicMock())
+        monkeypatch.setattr(_eng_mod, "Tokenizer", lambda path: mock.MagicMock())
+
+        with pytest.raises(ValueError, match="pooling_strategy='last'"):
+            _eng_mod.ThreadedEmbeddingRuntime(str(config_dir), "fake.so", "cpu")
+
+    def test_canonicalize_decoder_preserves_eos_after_truncation(self):
+        """When truncation fires, the final token must stay eos_token_id.
+        Decoder embedding models are trained to emit the sentence embedding at the
+        EOS position; dropping the EOS breaks last-token pooling semantics."""
+        from mlc_llm.serve.embedding_engine import _canonicalize_decoder_inputs
+
+        eos_id = 151643  # representative Qwen3 EOS
+        fake_tokenizer = mock.MagicMock()
+        # Long input so truncation is guaranteed. No EOS in tokenizer output → helper
+        # appends EOS at index 500, then truncates back to 256 and must restore it.
+        fake_tokenizer.encode = mock.MagicMock(return_value=list(range(1000, 1500)))
+
+        result = _canonicalize_decoder_inputs(
+            inputs=["anything"],
+            tokenizer=fake_tokenizer,
+            tokenizer_appends_eos=False,
+            eos_token_id=eos_id,
+            max_seq_len=256,
+        )
+
+        assert len(result) == 1
+        assert len(result[0]) == 256
+        assert result[0][-1] == eos_id, (
+            f"Truncation dropped the EOS sentinel; last token was {result[0][-1]} "
+            f"instead of {eos_id}. Decoder embedding pooling expects EOS at [-1]."
+        )
+
+    def test_canonicalize_decoder_rejects_empty_after_truncate(self):
+        """Post-canonicalization 0-token inputs raise ValueError rather than
+        silently sending a degenerate request into the C++ engine."""
+        from mlc_llm.serve.embedding_engine import _canonicalize_decoder_inputs
+
+        fake_tokenizer = mock.MagicMock()
+        fake_tokenizer.encode = mock.MagicMock(return_value=[])
+
+        with pytest.raises(ValueError, match="tokenized to 0 tokens"):
+            _canonicalize_decoder_inputs(
+                inputs=[""],
+                tokenizer=fake_tokenizer,
+                tokenizer_appends_eos=False,
+                eos_token_id=None,  # no EOS to append → stays empty → raises
+                max_seq_len=128,
+            )
+
+    def test_threaded_decoder_caps_max_seq_len_at_prefill_chunk_size(
+        self, monkeypatch, tmp_path
+    ):
+        """_max_seq_len must clamp to min(context_window_size, prefill_chunk_size).
+
+        Without this cap, Python admits inputs up to context_window_size but the
+        C++ admit loop rejects anything exceeding prefill_chunk_size, deadlocking
+        the waiting queue. We construct the runtime with ctx=32768, pcs=1024 and
+        assert the computed cap is 1024.
+
+        We capture the partial runtime via a subclass before the FFI init (which
+        happens after _max_seq_len is set) raises; this isolates the test from
+        the real FFI surface.
+        """
+        import json as _json
+
+        config_dir = tmp_path / "model"
+        config_dir.mkdir()
+        (config_dir / "mlc-chat-config.json").write_text(
+            _json.dumps(
+                {
+                    "model_task": "embedding",
+                    "embedding_metadata": {
+                        "model_type": "decoder",
+                        "pooling_strategy": "last",
+                        "normalize": True,
+                    },
+                    "context_window_size": 32768,
+                    "prefill_chunk_size": 1024,
+                }
+            )
+        )
+
+        import mlc_llm.serve.embedding_engine as _eng_mod
+
+        monkeypatch.setattr(_eng_mod, "detect_device", lambda d: mock.MagicMock())
+        monkeypatch.setattr(_eng_mod, "Tokenizer", lambda path: mock.MagicMock())
+        monkeypatch.setattr(
+            _eng_mod,
+            "_get_decoder_special_tokens",
+            lambda tok, path: (False, None),
+        )
+
+        # Trip FFI init with a distinctive exception as soon as it's reached.
+        # _max_seq_len (set on line ~789) is computed BEFORE this point.
+        _stop = RuntimeError("unit-test: stopping before real FFI")
+        monkeypatch.setattr(
+            _eng_mod.tvm,
+            "get_global_func",
+            lambda *a, **kw: (_ for _ in ()).throw(_stop),
+        )
+
+        # Subclass so we capture `self` before the FFI boundary exception propagates.
+        captured = {}
+
+        class _Capturing(_eng_mod.ThreadedEmbeddingRuntime):
+            def __init__(self, *a, **kw):  # pylint: disable=super-init-not-called
+                captured["rt"] = self
+                _eng_mod.ThreadedEmbeddingRuntime.__init__(self, *a, **kw)
+
+        with pytest.raises(RuntimeError, match="unit-test"):
+            _Capturing(str(config_dir), "fake.so", "cpu")
+
+        rt = captured.get("rt")
+        assert rt is not None, "Failed to capture partial runtime for inspection"
+        assert rt._max_seq_len == 1024, (
+            f"Expected _max_seq_len = min(32768, 1024) = 1024; got {rt._max_seq_len}. "
+            f"Without this cap, long inputs deadlock the C++ waiting queue."
         )
 
 
