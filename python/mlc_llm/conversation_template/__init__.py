@@ -34,5 +34,6 @@ from . import (
     stablelm,
     tinyllama,
     wizardlm,
+    sarvam,
 )
 from .registry import ConvTemplateRegistry
