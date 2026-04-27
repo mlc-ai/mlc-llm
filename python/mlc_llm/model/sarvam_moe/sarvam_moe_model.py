@@ -156,7 +156,7 @@ class SarvamMoeSparseMoeBlock(nn.Module):
                 intermediate_size=shared_intermediate,
             )
         self.act_fn = ACT2FN[config.hidden_act]
-        self.dtype = "float32"
+        self.dtype = config.dtype
 
     def _expert_forward(self, x: Tensor, indptr: Tensor):
         x1_x2 = self.moe_gate_up_proj(x, indptr)
