@@ -50,6 +50,7 @@ from .rwkv5 import rwkv5_loader, rwkv5_model
 from .rwkv6 import rwkv6_loader, rwkv6_model
 from .stable_lm import stablelm_loader, stablelm_model
 from .starcoder2 import starcoder2_loader, starcoder2_model
+from .sarvam_moe import sarvam_moe_loader, sarvam_moe_model, sarvam_moe_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -746,5 +747,20 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
             pooling_strategy="cls",
             normalize=True,
         ),
+    ),
+    "sarvam_moe": Model(
+        name="sarvam_moe",
+        model=sarvam_moe_model.SarvamMoeForCausalLM,
+        config=sarvam_moe_model.SarvamMoeConfig,
+        source={
+            "huggingface-torch": sarvam_moe_loader.huggingface,
+            "huggingface-safetensor": sarvam_moe_loader.huggingface,
+        },
+        quantize={
+            "no-quant": sarvam_moe_quantization.no_quant,
+            "group-quant": sarvam_moe_quantization.group_quant,
+            "ft-quant": sarvam_moe_quantization.ft_quant,
+            "block-scale-quant": sarvam_moe_quantization.block_scale_quant,
+        },
     ),
 }
