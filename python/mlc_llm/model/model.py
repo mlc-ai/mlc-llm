@@ -748,7 +748,6 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
             normalize=True,
         ),
     ),
-}
     "sarvam_moe": Model(
         name="sarvam_moe",
         model=sarvam_moe_model.SarvamMoeForCausalLM,
@@ -761,5 +760,7 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
             "no-quant": sarvam_moe_quantization.no_quant,
             "group-quant": sarvam_moe_quantization.group_quant,
             "ft-quant": sarvam_moe_quantization.ft_quant,
+            "block-scale-quant": sarvam_moe_quantization.block_scale_quant,
         },
     ),
+}
