@@ -4,7 +4,7 @@ Implementation for Sarvam MoE architecture.
 import dataclasses
 from typing import Any, Dict, Literal, Optional, Tuple
 
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
@@ -156,7 +156,7 @@ class SarvamMoeSparseMoeBlock(nn.Module):
                 intermediate_size=shared_intermediate,
             )
         self.act_fn = ACT2FN[config.hidden_act]
-        self.dtype = config.dtype
+        self.dtype = "float32"
 
     def _expert_forward(self, x: Tensor, indptr: Tensor):
         x1_x2 = self.moe_gate_up_proj(x, indptr)
@@ -457,11 +457,11 @@ class SarvamMoeForCausalLM(nn.Module):
 
     def create_paged_kv_cache(
         self,
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
     ) -> PagedKVCache:
         return PagedKVCache.create_generic(
             attn_kind="mha",
