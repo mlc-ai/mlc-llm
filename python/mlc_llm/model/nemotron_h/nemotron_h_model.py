@@ -6,13 +6,17 @@ Reference: nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16
 import dataclasses
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+from tvm import relax as R
 from tvm import te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm.script import tirx as T
 
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.nn.expert import MixtralExperts
+from mlc_llm.nn.rnn_state import RNNState
 from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
@@ -59,6 +63,8 @@ class NemotronHConfig(ConfigBase):  # pylint: disable=too-many-instance-attribut
     mamba_conv_bias: bool = True
     mamba_proj_bias: bool = False
     mamba_n_groups: int = 8
+    time_step_min: float = 0.001
+    time_step_max: float = 0.1
 
     # Norm
     layer_norm_epsilon: float = 1e-5
@@ -127,6 +133,10 @@ class NemotronHConfig(ConfigBase):  # pylint: disable=too-many-instance-attribut
         return len(self.attention_layer_ids)
 
     @property
+    def num_mamba_layers(self) -> int:
+        return sum(1 for t in self.layers_block_type if t == "mamba")
+
+    @property
     def mamba_intermediate_size(self) -> int:
         return self.mamba_num_heads * self.mamba_head_dim
 
@@ -184,6 +194,67 @@ class NemotronHRMSNormGated(nn.Module):
 # ---------------------------------------------------------------------------
 
 
+def create_mamba2_state_propagate_func(
+    num_heads: int, head_dim: int, ssm_state_size: int, dtype: str
+):
+    """TIR kernel: Mamba2 inter-chunk SSM state propagation.
+
+    new_states[b, h, ci, hd, ds] = sum_{cj=0..nc-1} dc[b, h, ci, cj+1] * states[b, h, cj, hd, ds]
+
+    The equivalent op.matmul fails GPU scheduling for short prefills (the reduction dim
+    nc+1 can be as small as 2; Dlight cannot bind 16 reduction threads to it). Hand-schedule
+    one thread per ssm_state column, looping over head_dim rows and the cj reduction.
+    """
+
+    @T.prim_func
+    def state_propagate(
+        dc_handle: T.handle,
+        states_handle: T.handle,
+        out_handle: T.handle,
+    ):
+        T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
+        batch_size = T.int64()
+        nc_var = T.int64()
+        dc_buf = T.match_buffer(
+            dc_handle, (batch_size, num_heads, nc_var, nc_var + 1), dtype=dtype
+        )
+        states_buf = T.match_buffer(
+            states_handle,
+            (batch_size, num_heads, nc_var, head_dim, ssm_state_size),
+            dtype=dtype,
+        )
+        out_buf = T.match_buffer(
+            out_handle,
+            (batch_size, num_heads, nc_var, head_dim, ssm_state_size),
+            dtype=dtype,
+        )
+        for b in T.thread_binding(batch_size, thread="blockIdx.z"):
+            for h in T.thread_binding(num_heads, thread="blockIdx.y"):
+                for ci in T.thread_binding(nc_var, thread="blockIdx.x"):
+                    for ds in T.thread_binding(ssm_state_size, thread="threadIdx.x"):
+                        for hd in range(head_dim):
+                            with T.sblock("init"):
+                                vb, vh, vci, vhd, vds = T.axis.remap(
+                                    "SSSSS", [b, h, ci, hd, ds]
+                                )
+                                out_buf[vb, vh, vci, vhd, vds] = T.cast(0.0, dtype)
+                            for cj in range(nc_var):
+                                with T.sblock("acc"):
+                                    vb = T.axis.spatial(batch_size, b)
+                                    vh = T.axis.spatial(num_heads, h)
+                                    vci = T.axis.spatial(nc_var, ci)
+                                    vhd = T.axis.spatial(head_dim, hd)
+                                    vds = T.axis.spatial(ssm_state_size, ds)
+                                    vcj = T.axis.opaque(nc_var, cj)
+                                    out_buf[vb, vh, vci, vhd, vds] = out_buf[
+                                        vb, vh, vci, vhd, vds
+                                    ] + dc_buf[vb, vh, vci, vcj + 1] * states_buf[
+                                        vb, vh, vcj, vhd, vds
+                                    ]
+
+    return state_propagate
+
+
 class NemotronHMamba2Mixer(nn.Module):  # pylint: disable=too-many-instance-attributes  # pylint: disable=too-many-instance-attributes
     """
     Mamba-2 selective state space mixer (pure Relax, no custom CUDA kernels).
@@ -200,6 +271,8 @@ class NemotronHMamba2Mixer(nn.Module):  # pylint: disable=too-many-instance-attr
         self.head_dim = config.mamba_head_dim
         self.num_heads = config.mamba_num_heads
         self.chunk_size = config.mamba_chunk_size
+        self.time_step_min = config.time_step_min
+        self.time_step_max = config.time_step_max
 
         # conv_dim = intermediate_size + 2 * n_groups * ssm_state_size
         self.conv_dim = self.intermediate_size + 2 * self.n_groups * self.ssm_state_size
@@ -234,6 +307,8 @@ class NemotronHMamba2Mixer(nn.Module):  # pylint: disable=too-many-instance-attr
         k = self.conv_kernel_size
         x_t = op.permute_dims(x, [0, 2, 1])  # [b, c, s]
 
+        x_dtype = x_t.dtype
+
         def _conv(x_in: te.Tensor, w: te.Tensor):
             j = te.reduce_axis((0, k), name="j")
             return te.compute(
@@ -242,7 +317,7 @@ class NemotronHMamba2Mixer(nn.Module):  # pylint: disable=too-many-instance-attr
                     te.if_then_else(
                         si - k + 1 + j >= 0,
                         x_in[bi, ci, si - k + 1 + j] * w[ci, j],
-                        tirx.const(0, "float32"),
+                        tirx.const(0, x_dtype),
                     ),
                     axis=j,
                 ),
@@ -277,9 +352,18 @@ class NemotronHMamba2Mixer(nn.Module):  # pylint: disable=too-many-instance-attr
             x_bc, indices_or_sections=[self.intermediate_size, self.intermediate_size + gs], axis=2
         )
 
-        # 4. dt = softplus(dt_raw + dt_bias),  A = -exp(A_log)
-        dt = op.softplus(dt_r + self.dt_bias.astype(dtype))  # [b, s, nh]
-        A = op.negative(op.exp(self.A_log.astype(dtype)))  # [nh]
+        # 4. dt = softplus(dt_raw + dt_bias),  A = -exp(A_log).
+        # Compute in fp32: |A|*dt can exceed fp16 range (NemotronH 4B's dt_bias has
+        # entries up to 33.5 and A_log up to ~8.6, giving |dA| ≈ 2e5 which overflows
+        # fp16 to inf and propagates NaN through dA_cumsum). HF reference also runs
+        # this whole SSM math in fp32 then casts at the boundary.
+        # Note: we deliberately don't clamp dt — HF defaults time_step_limit to
+        # (0.0, inf), i.e. no clamp. The high dt_bias values are intentional in
+        # the trained weights.
+        dt = op.softplus(
+            dt_r.astype("float32") + self.dt_bias.astype("float32")
+        )  # [b, s, nh]
+        A = op.negative(op.exp(self.A_log.astype("float32")))  # [nh]
 
         # 5. Reshape and repeat B/C to num_heads
         x = op.reshape(x.astype(dtype), (b, s, self.num_heads, self.head_dim))
@@ -290,9 +374,10 @@ class NemotronHMamba2Mixer(nn.Module):  # pylint: disable=too-many-instance-attr
         C = op.repeat(C, rep, axis=2)
 
         # 6. Discretise: dx = x * dt[...,None],  dA = A * dt
-        dt4 = op.unsqueeze(dt, -1)  # [b, s, nh, 1]
-        dx = x * dt4  # [b, s, nh, hd]
-        dA = op.reshape(A, (1, 1, self.num_heads)) * dt  # [b, s, nh]
+        # dt cast to fp16 for dx (x is fp16); dA stays fp32 to avoid overflow.
+        dt4 = op.unsqueeze(dt.astype(dtype), -1)  # [b, s, nh, 1] fp16
+        dx = x * dt4  # [b, s, nh, hd] fp16
+        dA = op.reshape(A, (1, 1, self.num_heads)) * dt  # [b, s, nh] fp32
 
         # 7. Pad to multiple of chunk_size
         pad = (chunk_size - s % chunk_size) % chunk_size
@@ -318,30 +403,46 @@ class NemotronHMamba2Mixer(nn.Module):  # pylint: disable=too-many-instance-attr
         dA_t = op.permute_dims(dA_c, [0, 3, 1, 2])
         dA_cumsum = op.cumsum(dA_t, axis=-1)
 
-        # Causal mask via L[i,j] = exp(cumsum[i] - cumsum[j])
+        # Causal-masked decay: L[i,j] = exp(cumsum[i] - cumsum[j]) for j <= i, else 0.
+        # Without the mask, exp() of large positive (cumsum[i] - cumsum[j] when i<j and dA
+        # is negative) overflows, producing INF that propagates as NaN through Y_diag.
         dA_i = op.unsqueeze(dA_cumsum, -1)  # [b, nh, nc, cs, 1]
         dA_j = op.unsqueeze(dA_cumsum, -2)  # [b, nh, nc, 1, cs]
-        L = op.exp(dA_i - dA_j).astype(dtype)  # [b, nh, nc, cs, cs]
+
+        def _build_L(dA_diff_t: te.Tensor):
+            return te.compute(
+                dA_diff_t.shape,
+                lambda bi, hi, ci, i, j: tirx.if_then_else(
+                    j <= i,
+                    tirx.exp(dA_diff_t[bi, hi, ci, i, j]),
+                    tirx.const(0.0, "float32"),
+                ),
+                name="L_causal",
+            )
+
+        L = op.tensor_expr_op(_build_L, name_hint="L_causal", args=[dA_i - dA_j]).astype(dtype)
 
         # Permute for matmuls
         dx_t = op.permute_dims(dx_c, [0, 3, 1, 2, 4])  # [b, nh, nc, cs, hd]
         C_t = op.permute_dims(C_c, [0, 3, 1, 2, 4])  # [b, nh, nc, cs, d_state]
         B_t = op.permute_dims(B_c, [0, 3, 1, 2, 4])  # [b, nh, nc, cs, d_state]
 
-        # Intra-chunk: G = C @ B^T, M = G*L, Y_diag = M @ dx
-        G = op.matmul(C_t, op.permute_dims(B_t, [0, 1, 2, 4, 3]))  # [..., cs, cs]
-        M = G.astype(dtype) * L
-        Y_diag = op.matmul(M, dx_t)  # [..., cs, hd]
+        # Intra-chunk: G = C @ B^T, M = G*L, Y_diag = M @ dx. All in fp32 to match
+        # HF reference (entire SSM math in fp32). Stays fp32 through Y_off and D skip.
+        G = op.matmul(
+            C_t.astype("float32"),
+            op.permute_dims(B_t.astype("float32"), [0, 1, 2, 4, 3]),
+        )  # [..., cs, cs] fp32
+        M = G * L.astype("float32")  # [..., cs, cs] fp32
+        Y_diag = op.matmul(M, dx_t.astype("float32"))  # [..., cs, hd] fp32 (no cast back)
 
         # Inter-chunk states
         # Extract last element: split at [chunk_size-1] gives [..., cs-1] and [..., 1]
         _, last_cs = op.split(
             dA_cumsum, indices_or_sections=[self.chunk_size - 1], axis=-1
         )  # [b, nh, nc, 1]
-        decay = op.exp(last_cs - dA_cumsum)  # [b, nh, nc, cs]
-        decay_b = op.unsqueeze(op.permute_dims(decay, [0, 1, 2, 3]), -1) * B_t.astype(
-            dtype
-        )  # [..., cs, d_state]
+        decay = op.exp(last_cs - dA_cumsum).astype(dtype)  # [b, nh, nc, cs] fp16
+        decay_b = op.unsqueeze(decay, -1) * B_t.astype(dtype)  # [..., cs, d_state]
         states = op.matmul(
             op.permute_dims(dx_t.astype(dtype), [0, 1, 2, 4, 3]),  # [..., hd, cs]
             decay_b,  # [..., cs, d_state]
@@ -357,40 +458,71 @@ class NemotronHMamba2Mixer(nn.Module):  # pylint: disable=too-many-instance-attr
             )
 
         lc = op.tensor_expr_op(_last_elem, name_hint="last_elem", args=[dA_cumsum])
-        zero_lc = op.zeros((b, self.num_heads, 1), dtype=dtype)
-        lc_pad = op.concat([zero_lc, lc], -1)  # [b, nh, nc+1]
-        lc_i = op.unsqueeze(lc_pad, -1)
-        lc_j = op.unsqueeze(lc_pad, -2)
-        dc_full = op.exp(lc_i - lc_j)  # [b, nh, nc+1, nc+1]
-        _, dc = op.split(dc_full, indices_or_sections=[1], axis=2)
 
-        zero_st = op.zeros((b, self.num_heads, 1, self.head_dim, self.ssm_state_size), dtype=dtype)
-        st_all = op.concat([zero_st, states], 2)  # [b, nh, nc+1, hd, d_state]
-        st_flat = op.reshape(
-            st_all, (b, self.num_heads, nc + 1, self.head_dim * self.ssm_state_size)
-        )
-        ns_flat = op.matmul(dc, st_flat)  # [b, nh, nc, hd*d_state]
-        new_states = op.reshape(
-            ns_flat, (b, self.num_heads, nc, self.head_dim, self.ssm_state_size)
+        # Cumulative across-chunk decay: LC[c] = sum lc[0..c].
+        LC = op.cumsum(lc, axis=-1)  # [b, nh, nc] fp32
+
+        # new_states[ci] = state at START of chunk ci = state at end of chunk ci-1
+        #               = sum_{c'=0..ci-1} exp(LC[ci-1] - LC[c']) * states[c']
+        # In the kernel's indexing dc[ci, cj+1] * states[cj], we need:
+        #   dc[ci, cj+1] = exp(LC[ci-1] - LC[cj])     for cj in [0, ci-1]
+        #   dc[ci, cj+1] = 0                           for cj >= ci  (causal mask)
+        # Use convention LC[-1] = 0 for the ci=0 row (yields all zeros via the mask).
+        def _build_dc(LC_t: te.Tensor):
+            return te.compute(
+                (b, self.num_heads, nc, nc + 1),
+                lambda bi, hi, ci, cj: tirx.if_then_else(
+                    cj <= ci,  # causal in chunk dim: future chunks contribute 0
+                    tirx.exp(
+                        tirx.if_then_else(
+                            ci > 0, LC_t[bi, hi, ci - 1], tirx.const(0.0, "float32")
+                        )
+                        - tirx.if_then_else(
+                            cj > 0, LC_t[bi, hi, cj - 1], tirx.const(0.0, "float32")
+                        )
+                    ),
+                    tirx.const(0.0, "float32"),
+                ),
+                name="dc_build",
+            )
+
+        dc = op.tensor_expr_op(_build_dc, name_hint="dc_build", args=[LC]).astype(dtype)
+
+        # Inter-chunk state propagation via hand-scheduled TIR kernel (Dlight can't
+        # auto-schedule the equivalent matmul when nc is small).
+        new_states = op.tensor_ir_op(
+            create_mamba2_state_propagate_func(
+                num_heads=self.num_heads,
+                head_dim=self.head_dim,
+                ssm_state_size=self.ssm_state_size,
+                dtype=dtype,
+            ),
+            "mamba2_state_propagate",
+            [dc, states],
+            [
+                Tensor.placeholder(
+                    [b, self.num_heads, nc, self.head_dim, self.ssm_state_size], dtype
+                )
+            ],
         )
 
         # Y_off = (C @ new_states^T) * exp(dA_cumsum)
-        sdo = op.unsqueeze(
-            op.permute_dims(op.exp(dA_cumsum).astype(dtype), [0, 1, 2, 3]), -1
-        )  # [..., cs, 1]
+        # Y_off in fp32 (matches HF reference; SSM math runs entirely in fp32).
+        sdo = op.unsqueeze(op.exp(dA_cumsum), -1)  # [..., cs, 1] fp32
         Y_off = (
             op.matmul(
-                C_t.astype(dtype),
-                op.permute_dims(new_states.astype(dtype), [0, 1, 2, 4, 3]),  # [..., d_state, hd]
+                C_t.astype("float32"),
+                op.permute_dims(new_states.astype("float32"), [0, 1, 2, 4, 3]),
             )
             * sdo
-        )  # [b, nh, nc, cs, hd]
+        )  # [b, nh, nc, cs, hd] fp32
 
-        y = Y_diag + Y_off
+        y = Y_diag + Y_off  # fp32
 
-        # D skip connection
-        D4 = op.reshape(self.D.astype(dtype), (1, self.num_heads, 1, 1, 1))
-        y = y + D4 * dx_t
+        # D skip connection in fp32, then cast result back to model dtype.
+        D4 = op.reshape(self.D.astype("float32"), (1, self.num_heads, 1, 1, 1))
+        y = y + D4 * dx_t.astype("float32")
+        y = y.astype(dtype)  # back to fp16 for downstream norm/out_proj
 
         # Reshape back and trim padding
         y = op.permute_dims(y, [0, 2, 3, 1, 4])  # [b, nc, cs, nh, hd]
@@ -660,6 +792,7 @@ class NemotronHModel(nn.Module):
 class NemotronHForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: NemotronHConfig):
         super().__init__()
+        self.config = config
         self.model = NemotronHModel(config)
         self.tie_word_embeddings = config.tie_word_embeddings
         if not config.tie_word_embeddings:
@@ -729,15 +862,32 @@ class NemotronHForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attr
         return self.get_logits(hidden_states)
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
+        rnn_state: RNNState,
     ):
-        return self.batch_forward(input_embeds, paged_kv_cache, logit_positions), paged_kv_cache
+        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
+        return logits, paged_kv_cache, rnn_state
 
-    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        return self.batch_forward(input_embeds, paged_kv_cache), paged_kv_cache
+    def batch_decode(
+        self,
+        input_embeds: Tensor,
+        paged_kv_cache: PagedKVCache,
+        rnn_state: RNNState,
+    ):
+        logits = self.batch_forward(input_embeds, paged_kv_cache)
+        return logits, paged_kv_cache, rnn_state
 
-    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        return self.batch_forward(input_embeds, paged_kv_cache), paged_kv_cache
+    def batch_verify(
+        self,
+        input_embeds: Tensor,
+        paged_kv_cache: PagedKVCache,
+        rnn_state: RNNState,
+    ):
+        logits = self.batch_forward(input_embeds, paged_kv_cache)
+        return logits, paged_kv_cache, rnn_state
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
@@ -763,9 +913,31 @@ class NemotronHForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attr
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
-            layer_partition=self.model.layer_partition,
             enable_disaggregation=self.disaggregation,
             dtype=self.dtype,
+        )
+
+    def create_rnn_state(
+        self,
+        max_batch_size: tirx.Var,
+        max_history: tirx.Var,
+    ) -> RNNState:
+        n_groups = self.config.mamba_n_groups
+        n_heads = self.config.mamba_num_heads
+        head_dim = self.config.mamba_head_dim
+        state_size = self.config.ssm_state_size
+        d_inner = self.config.mamba_intermediate_size
+        conv_dim = d_inner + 2 * n_groups * state_size
+        conv_ks_m1 = self.config.mamba_d_conv - 1
+        init_values = [
+            R.const(np.zeros((n_heads, head_dim, state_size), "float32")),
+            R.const(np.zeros((conv_ks_m1, conv_dim), self.dtype)),
+        ]
+        return RNNState.create(
+            max_batch_size=max_batch_size,
+            num_hidden_layers=self.config.num_mamba_layers,
+            max_history=max_history,
+            init_values=init_values,
         )
 
     def get_default_spec(self):
@@ -792,16 +964,19 @@ class NemotronHForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attr
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "rnn_state": nn.spec.Object(object_type=RNNState),
                 "$": {"param_mode": "packed", "effect_mode": "none"},
             },
             "batch_decode": {
                 "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "rnn_state": nn.spec.Object(object_type=RNNState),
                 "$": {"param_mode": "packed", "effect_mode": "none"},
             },
             "batch_verify": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "rnn_state": nn.spec.Object(object_type=RNNState),
                 "$": {"param_mode": "packed", "effect_mode": "none"},
             },
             "create_paged_kv_cache": {
@@ -810,6 +985,11 @@ class NemotronHForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attr
                 "prefill_chunk_size": int,
                 "page_size": int,
                 "support_sliding_window": int,
+                "$": {"param_mode": "none", "effect_mode": "none"},
+            },
+            "create_rnn_state": {
+                "max_batch_size": int,
+                "max_history": int,
                 "$": {"param_mode": "none", "effect_mode": "none"},
             },
         }
