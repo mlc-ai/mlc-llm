@@ -189,10 +189,11 @@ class LlamaDecoderLayer(nn.Module):
                 layer.weight.attrs["shard_strategy"] = hint
 
             def _set_bias(layer, hint):
-                # Column-parallel layers shard their bias along the same dim as the weight's
-                # output dim. Row-parallel layers (o_proj, down_proj) replicate the bias
-                # across shards — it is added once to the post-allreduce sum, so no
-                # shard_strategy is required for them.
+                # Column-parallel layers (qkv_proj, gate_up_proj) shard their bias along the
+                # same dim as the weight's output dim. Row-parallel layers (o_proj, down_proj)
+                # keep a full (unsharded) bias and instead divide it by the shard count at
+                # forward time via tp.shard_bias, so the subsequent allreduce(sum) restores
+                # the original value — they don't get a shard_strategy here.
                 layer.bias.attrs["shard_strategy"] = hint
 
             hd = config.head_dim
@@ -225,9 +226,14 @@ class LlamaDecoderLayer(nn.Module):
         _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+        # o_proj and down_proj are row-parallel: their bias must be divided by the shard
+        # count so the following ccl_allreduce(sum) in _apply_residual restores it (no-op
+        # when there is no bias or on a single device).
+        with tp.shard_bias(self.self_attn.o_proj, self.tensor_parallel_shards):
+            out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(out, residual=hidden_states)
-        out = self.mlp(self.post_attention_layernorm(hidden_states))
+        with tp.shard_bias(self.mlp.down_proj, self.tensor_parallel_shards):
+            out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
 
