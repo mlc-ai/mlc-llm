@@ -10,6 +10,8 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+using tvm::Downcast;
+
 /*!
  * \brief The action that prefills requests in the `waiting_queue` of
  * the engine state.
@@ -106,9 +108,8 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
             for (int j = 1; j < static_cast<int>(models_.size()); ++j) {
               TVM_FFI_ICHECK(rsentry->mstates[j]->inputs.size());
               TokenData token_data = Downcast<TokenData>(rsentry->mstates[j]->inputs[0]);
-              rsentry->mstates[j]->inputs.Set(
-                  0, TokenData(
-                         IntTuple(token_data->token_ids.begin() + 1, token_data->token_ids.end())));
+              rsentry->mstates[j]->inputs.Set(0, TokenData(Shape(token_data->token_ids.begin() + 1,
+                                                                 token_data->token_ids.end())));
             }
           }
         }
@@ -307,7 +308,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
                 int ninputs =
                     static_cast<int>(rsentries_for_sample[i]->mstates[mid]->inputs.size());
                 rsentries_for_sample[i]->mstates[mid]->inputs.Set(
-                    ninputs - 1, TokenData(IntTuple(token_ids.begin(), token_ids.end())));
+                    ninputs - 1, TokenData(Shape(token_ids.begin(), token_ids.end())));
               }
             }
           }

@@ -205,7 +205,7 @@ struct SymShapeTuple {
 namespace details {
 
 inline tvm::runtime::DataType DTypeFromString(const std::string& s) {
-  return tvm::runtime::DataType(tvm::runtime::StringToDLDataType(s));
+  return tvm::runtime::DataType(tvm::ffi::StringToDLDataType(s));
 }
 
 inline SymShapeTuple SymShapeTupleFromArray(const Array& shape) {

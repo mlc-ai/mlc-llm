@@ -211,7 +211,7 @@ class BatchDraftActionObj : public EngineActionObj {
         RECORD_EVENT(trace_recorder_, request_ids, "start proposal embedding");
         TVM_FFI_ICHECK_LE(input_tokens.size(), engine_config_->prefill_chunk_size);
         ObjectRef embeddings =
-            models_[model_id]->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
+            models_[model_id]->TokenEmbed({Shape{input_tokens.begin(), input_tokens.end()}});
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal embedding");
 
         // - Invoke model decode.
@@ -325,8 +325,7 @@ class BatchDraftActionObj : public EngineActionObj {
     lengths.reserve(num_rsentries);
 
     auto f_run_prefill = [&model, &input_tokens, &request_internal_ids, &lengths]() {
-      ObjectRef embeddings =
-          model->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
+      ObjectRef embeddings = model->TokenEmbed({Shape{input_tokens.begin(), input_tokens.end()}});
       model->BatchPrefill(embeddings, request_internal_ids, lengths);
     };
 

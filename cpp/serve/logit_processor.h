@@ -7,8 +7,8 @@
 #ifndef MLC_LLM_SERVE_LOGIT_PROCESSOR_H_
 #define MLC_LLM_SERVE_LOGIT_PROCESSOR_H_
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/module.h>
 
 #include "../base.h"
 #include "config.h"
@@ -22,6 +22,8 @@ namespace serve {
 
 using tvm::Device;
 using namespace tvm::runtime;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectRef;
 
 /*!
  * \brief The logit processor class that updates logits with regard

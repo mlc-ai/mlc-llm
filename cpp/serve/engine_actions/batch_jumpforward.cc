@@ -4,7 +4,6 @@
  */
 
 #include <tvm/runtime/nvtx.h>
-#include <tvm/runtime/threading_backend.h>
 
 #include <cmath>
 #include <exception>

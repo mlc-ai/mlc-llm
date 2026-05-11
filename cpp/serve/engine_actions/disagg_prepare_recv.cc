@@ -72,7 +72,7 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
       // - Add the sequence to each model.
       int prefill_length = -1;
       Tensor logits_for_sample{nullptr};
-      std::vector<IntTuple> kv_append_metadata;
+      std::vector<Shape> kv_append_metadata;
       kv_append_metadata.reserve(models_.size());
       for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
         const RequestStateEntry& rsentry = prefill_input.rsentry;
@@ -116,7 +116,7 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
 
         int64_t request_internal_id = mstate->internal_id;
         RECORD_EVENT(trace_recorder_, request_ids, "start prefill");
-        IntTuple compressed_kv_append_metadata = {0};
+        Shape compressed_kv_append_metadata = {0};
         if (prefill_length > 0) {
           compressed_kv_append_metadata =
               models_[model_id]->DisaggPrepareKVRecv(request_internal_id, prefill_length);
@@ -144,7 +144,7 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
         response_body.Set("prefix_matched_length", static_cast<int64_t>(prefix_matched_length));
         // We further flatten the metadata array of all models into a single array.
         tvm::ffi::json::Array kv_append_metadata_arr;
-        for (const IntTuple& compressed_kv_append_metadata : kv_append_metadata) {
+        for (const Shape& compressed_kv_append_metadata : kv_append_metadata) {
           for (int64_t value : compressed_kv_append_metadata) {
             kv_append_metadata_arr.push_back(value);
           }

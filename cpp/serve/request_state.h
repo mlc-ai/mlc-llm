@@ -7,7 +7,7 @@
 #define MLC_LLM_SERVE_REQUEST_STATE_H_
 
 #include <tvm/ffi/container/array.h>
-#include <tvm/runtime/object.h>
+#include <tvm/ffi/object.h>
 #include <tvm/runtime/tensor.h>
 #include <xgrammar/xgrammar.h>
 
@@ -24,6 +24,8 @@ namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectRef;
 
 /*!
  * \brief The state of a request with regard to some single model.

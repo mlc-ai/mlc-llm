@@ -6,13 +6,12 @@
 #include "engine.h"
 
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/nvtx.h>
-#include <tvm/runtime/threading_backend.h>
 #include <xgrammar/xgrammar.h>
 
 #include <cstdlib>
@@ -23,7 +22,9 @@
 #include <unordered_set>
 
 #include "../support/json_parser.h"
+#include "../support/module_vtable.h"
 #include "../support/result.h"
+#include "../support/threading_backend.h"
 #include "../support/utils.h"
 #include "../tokenizers/tokenizers.h"
 #include "engine_actions/action.h"
@@ -42,6 +43,7 @@ namespace serve {
 
 using tvm::Device;
 using namespace tvm::runtime;
+using tvm::Downcast;
 using tvm::ffi::Function;
 
 class EngineModule;
@@ -573,7 +575,7 @@ class EngineImpl : public Engine {
       request->inputs = SplitData(request->inputs, input_length, kv_window_end).first;
       // - Check the invariant: "end - begin" equals the expanded metadata length.
       TVM_FFI_ICHECK_EQ(disagg_config.kv_append_metadata.size(), models_.size());
-      for (const IntTuple& compressed_kv_append_metadata : disagg_config.kv_append_metadata) {
+      for (const Shape& compressed_kv_append_metadata : disagg_config.kv_append_metadata) {
         TVM_FFI_ICHECK(!compressed_kv_append_metadata.empty());
         int num_segments = compressed_kv_append_metadata[0];
         TVM_FFI_ICHECK_EQ(compressed_kv_append_metadata.size(), num_segments * 2 + 1);

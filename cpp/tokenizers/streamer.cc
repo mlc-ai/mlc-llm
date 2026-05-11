@@ -5,9 +5,9 @@
 
 #include "streamer.h"
 
+#include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/int_tuple.h>
 
 #include <algorithm>
 #include <string>
@@ -149,7 +149,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("mlc.tokenizers.TextStreamer",
            [](Tokenizer tokenizer) { return TextStreamer(std::move(tokenizer)); })
       .def("mlc.tokenizers.TextStreamerPut",
-           [](TextStreamer text_streamer, const IntTuple& delta_tokens) {
+           [](TextStreamer text_streamer, const Shape& delta_tokens) {
              return text_streamer->Put(
                  {delta_tokens->data, delta_tokens->data + delta_tokens->size});
            })
@@ -277,13 +277,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](StopStrHandler handler, int token_id) {
              std::vector<int64_t> delta_tokens;
              handler->Put(token_id, &delta_tokens);
-             return IntTuple(std::move(delta_tokens));
+             return Shape(std::move(delta_tokens));
            })
       .def("mlc.tokenizers.StopStringHandlerFinish",
            [](StopStrHandler handler) {
              std::vector<int64_t> remaining_token_ids;
              handler->Finish(&remaining_token_ids);
-             return IntTuple(std::move(remaining_token_ids));
+             return Shape(std::move(remaining_token_ids));
            })
       .def_method("mlc.tokenizers.StopStrHandlerStopTriggered", &StopStrHandlerObj::StopTriggered);
 }

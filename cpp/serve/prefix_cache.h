@@ -5,8 +5,8 @@
 #ifndef MLC_LLM_SERVE_PREFIX_CACHE_H_
 #define MLC_LLM_SERVE_PREFIX_CACHE_H_
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/object.h>
 
 #include <functional>
 #include <optional>
@@ -22,6 +22,8 @@ namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectRef;
 
 /*!
  * \brief The signature of callback removing function.

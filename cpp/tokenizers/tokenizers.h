@@ -9,9 +9,10 @@
 
 #include <tokenizers_cpp.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/object.h>
 
 #include <optional>
 #include <unordered_map>
@@ -24,6 +25,10 @@ namespace llm {
 
 using namespace tvm::runtime;
 using tvm::ffi::Array;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectPtr;
+using tvm::ffi::ObjectRef;
+using tvm::ffi::Shape;
 using tvm::ffi::String;
 
 /*! \brief Useful information of the tokenizer during generation. */

@@ -13,7 +13,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/tensor.h>
 
 #include <string>
@@ -28,7 +27,10 @@ using tvm::Device;
 using namespace tvm::runtime;
 using tvm::ffi::Function;
 using tvm::ffi::Map;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectRef;
 using tvm::ffi::Optional;
+using tvm::ffi::Shape;
 using tvm::ffi::TypedFunction;
 
 //--------------------------------------------------------

@@ -3,8 +3,6 @@
  * \file serve/engine_actions/eagle_batch_verify.cc
  */
 
-#include <tvm/runtime/threading_backend.h>
-
 #include <cmath>
 #include <exception>
 #include <numeric>
@@ -19,6 +17,8 @@
 namespace mlc {
 namespace llm {
 namespace serve {
+
+using tvm::Downcast;
 
 /*!
  * \brief The action that runs verification for requests in the
@@ -121,7 +121,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
 
     RECORD_EVENT(trace_recorder_, request_ids, "start verify embedding");
     ObjectRef embeddings = models_[verify_model_id_]->TokenEmbed(
-        {IntTuple{all_tokens_to_verify.begin(), all_tokens_to_verify.end()}});
+        {Shape{all_tokens_to_verify.begin(), all_tokens_to_verify.end()}});
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify embedding");
 
     RECORD_EVENT(trace_recorder_, request_ids, "start verify");
@@ -240,8 +240,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       }
 
       // - Compute embeddings.
-      ObjectRef embeddings = models_[draft_model_id_]->TokenEmbed(
-          {IntTuple{input_tokens.begin(), input_tokens.end()}});
+      ObjectRef embeddings =
+          models_[draft_model_id_]->TokenEmbed({Shape{input_tokens.begin(), input_tokens.end()}});
       // - Gather hidden states
       ObjectRef hidden_states_for_fully_accepted = models_[draft_model_id_]->GatherHiddenStates(
           hidden_states, hidden_states_positions_for_fully_accepted,
@@ -289,8 +289,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       if (engine_config_->speculative_mode == SpeculativeMode::kEagle) {
         // - Compute embeddings.
         RECORD_EVENT(trace_recorder_, request_ids, "start proposal embedding");
-        embeddings = models_[draft_model_id_]->TokenEmbed(
-            {IntTuple{input_tokens.begin(), input_tokens.end()}});
+        embeddings =
+            models_[draft_model_id_]->TokenEmbed({Shape{input_tokens.begin(), input_tokens.end()}});
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal embedding");
 
         // - Invoke model decode.

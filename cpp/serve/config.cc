@@ -97,7 +97,7 @@ Result<DisaggConfig> DisaggConfig::FromJSON(const tvm::ffi::json::Object& config
       return TResult::Error("kv_append_metadata is not array of integer.");
     }
     tvm::ffi::json::Array kv_append_metadata_arr = parse_result.cast<tvm::ffi::json::Array>();
-    std::vector<IntTuple> kv_append_metadata;
+    std::vector<Shape> kv_append_metadata;
     int ptr = 0;
     while (ptr < static_cast<int>(kv_append_metadata_arr.size())) {
       if (!kv_append_metadata_arr[ptr].try_cast<int64_t>().has_value()) {
@@ -115,7 +115,7 @@ Result<DisaggConfig> DisaggConfig::FromJSON(const tvm::ffi::json::Object& config
         }
         compressed_kv_append_metadata.push_back(kv_append_metadata_arr[ptr + i].cast<int64_t>());
       }
-      kv_append_metadata.push_back(IntTuple(std::move(compressed_kv_append_metadata)));
+      kv_append_metadata.push_back(Shape(std::move(compressed_kv_append_metadata)));
       ptr += num_segments * 2 + 1;
     }
     res.kv_append_metadata = std::move(kv_append_metadata);
@@ -146,7 +146,7 @@ tvm::ffi::json::Object DisaggConfig::AsJSON() const {
   }
   if (!kv_append_metadata.empty()) {
     tvm::ffi::json::Array kv_append_metadata_arr;
-    for (const IntTuple& compressed_kv_append_metadata : kv_append_metadata) {
+    for (const Shape& compressed_kv_append_metadata : kv_append_metadata) {
       for (int64_t value : compressed_kv_append_metadata) {
         kv_append_metadata_arr.push_back(value);
       }

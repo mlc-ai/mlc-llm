@@ -3,7 +3,8 @@
 from typing import List, Tuple, Union  # noqa: UP035
 
 import tvm_ffi
-from tvm.runtime import Object, ShapeTuple
+from tvm.runtime import Object
+from tvm_ffi import Shape
 
 from . import _ffi_api
 
@@ -18,24 +19,24 @@ class PagedRadixTree(Object):
         """
         self.__init_handle_by_constructor__(_ffi_api.PagedRadixTree)
 
-    def match(self, tokens: Union[ShapeTuple, List, Tuple]) -> Tuple[int, ShapeTuple]:  # noqa: UP006
+    def match(self, tokens: Union[Shape, List, Tuple]) -> Tuple[int, Shape]:  # noqa: UP006
         """
         Get all sequences with longest common prefix with given prefix tokens.
 
         Parameters
         ----------
-        tokens : Union[ShapeTuple, List, Tuple]
+        tokens : Union[Shape, List, Tuple]
             The prefix tokens for reference.
 
         Returns
         ------
         matched_offset : int
             The matched prefix length.
-        seq_ids : ShapeTuple
+        seq_ids : Shape
             The array of matched sequence indice.
         """
         if isinstance(tokens, (list, tuple)):
-            tokens = ShapeTuple(tokens)
+            tokens = Shape(tokens)
         output = _ffi_api.PagedRadixTreeMatchPrefix(self, tokens)
         if len(output) == 1:
             return output[0], []
@@ -63,7 +64,7 @@ class PagedRadixTree(Object):
         """
         _ffi_api.PagedRadixTreeRemoveSequence(self, seq_id)
 
-    def extend(self, seq_id: int, tokens: Union[ShapeTuple, List, Tuple]) -> None:  # noqa: UP006
+    def extend(self, seq_id: int, tokens: Union[Shape, List, Tuple]) -> None:  # noqa: UP006
         """
         Extend a sequence with given tokens.
 
@@ -71,11 +72,11 @@ class PagedRadixTree(Object):
         ----------
         seq_id : int
             The sequence ID for index.
-        tokens : Union[ShapeTuple, List, Tuple]
+        tokens : Union[Shape, List, Tuple]
             The given tokens to extend.
         """
         if isinstance(tokens, (list, tuple)):
-            tokens = ShapeTuple(tokens)
+            tokens = Shape(tokens)
         _ffi_api.PagedRadixTreeExtendSequence(self, seq_id, tokens)
 
     def rollback(self, seq_id: int, num_tokens: int) -> None:
@@ -109,7 +110,7 @@ class PagedRadixTree(Object):
         """
         _ffi_api.PagedRadixTreeForkSequence(self, seq_id, parent_seq_id, forked_offset)
 
-    def get(self, seq_id: int) -> ShapeTuple:
+    def get(self, seq_id: int) -> Shape:
         """
         Get a sequence's all tokens.
 
@@ -120,7 +121,7 @@ class PagedRadixTree(Object):
 
         Returns
         ------
-        tokens : ShapeTuple
+        tokens : Shape
             The sequence tokens.
         """
         return _ffi_api.PagedRadixTreeGetSequence(self, seq_id)

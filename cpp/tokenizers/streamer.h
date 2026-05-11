@@ -8,9 +8,9 @@
 #define MLC_LLM_STREAMER_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/object.h>
 
 #include "tokenizers.h"
 
@@ -18,6 +18,8 @@ namespace mlc {
 namespace llm {
 
 using namespace tvm::runtime;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectRef;
 
 /****************** TextStreamer ******************/
 

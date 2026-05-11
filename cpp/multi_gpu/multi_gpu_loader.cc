@@ -35,7 +35,9 @@ using tvm::runtime::vm::TensorCacheMetadata;
 using namespace tvm::runtime;
 using tvm::ffi::Array;
 using tvm::ffi::Function;
+using tvm::ffi::Object;
 using tvm::ffi::Optional;
+using tvm::ffi::Shape;
 using tvm::ffi::TypedFunction;
 using DurationType = std::chrono::microseconds;
 

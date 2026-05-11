@@ -1,15 +1,16 @@
 #include "json_ffi_engine.h"
 
 #include <tvm/ffi/extra/json.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
 
 #include <filesystem>
 #include <fstream>
 
 #include "../serve/model.h"
 #include "../support/json_parser.h"
+#include "../support/module_vtable.h"
 #include "../support/result.h"
 
 namespace mlc {
@@ -17,6 +18,8 @@ namespace llm {
 namespace json_ffi {
 
 using namespace tvm::runtime;
+using tvm::ffi::Object;
+using tvm::ffi::Shape;
 
 JSONFFIEngine::JSONFFIEngine() { engine_ = serve::ThreadedEngine::Create(); }
 
@@ -272,7 +275,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
         choice.index = static_cast<int>(i);
         ChatCompletionMessage delta;
         // Size of delta_output->group_delta_token_ids Array should be 1
-        const IntTuple& delta_token_ids = delta_output->group_delta_token_ids[i];
+        const Shape& delta_token_ids = delta_output->group_delta_token_ids[i];
         std::vector<int32_t> delta_token_ids_vec(delta_token_ids.begin(), delta_token_ids.end());
         std::string content = rstate.streamer[i]->Put(delta_token_ids_vec);
         if (finish_reason.has_value()) {

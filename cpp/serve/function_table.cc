@@ -6,10 +6,10 @@
 
 #include "function_table.h"
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/tensor.h>
 
 #include <cstdlib>
@@ -25,7 +25,9 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-Optional<IntTuple> GetDiscoWorkerCPUBinding(int num_workers) {
+using tvm::Downcast;
+
+Optional<Shape> GetDiscoWorkerCPUBinding(int num_workers) {
   const char* raw_cpu_binding = std::getenv("MLC_DISCO_WORKER_CPU_BINDING");
   if (raw_cpu_binding == nullptr) {
     return std::nullopt;
@@ -47,7 +49,7 @@ Optional<IntTuple> GetDiscoWorkerCPUBinding(int num_workers) {
                << num_workers << "CPU ids but only " << cpu_ids.size() << " are given.";
   }
 
-  return IntTuple{cpu_ids};
+  return Shape{cpu_ids};
 }
 
 Function FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, String name) {
@@ -87,8 +89,8 @@ void FunctionTable::Init(String reload_lib_path, Device device, tvm::ffi::json::
       return SessionFuncAsPackedFunc(sess, func, name);
     };
     if (num_stages == 1) {
-      if (Optional<IntTuple> cpu_ids = GetDiscoWorkerCPUBinding(/*num_workers=*/num_shards)) {
-        IntTuple cpu_ids_value = cpu_ids.value();
+      if (Optional<Shape> cpu_ids = GetDiscoWorkerCPUBinding(/*num_workers=*/num_shards)) {
+        Shape cpu_ids_value = cpu_ids.value();
         sess->CallPacked(sess->GetGlobalFunc("runtime.disco.bind_worker_to_cpu_core"),
                          cpu_ids_value);
       }
@@ -330,8 +332,8 @@ ObjectRef FunctionTable::CopyToWorker0(const Tensor& host_array, String buffer_c
     if (it != cached_buffers.end()) {
       buffer = Downcast<Tensor>((*it).second);
       if (buffer_cache_key == "image") {
-        if (runtime::GetDataSize(*buffer.operator->()) <
-            runtime::GetDataSize(*host_array.operator->())) {
+        if (tvm::ffi::GetDataSize(*buffer.operator->()) <
+            tvm::ffi::GetDataSize(*host_array.operator->())) {
           buffer = Tensor::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
           cached_buffers.Set(buffer_cache_key, buffer);
         }

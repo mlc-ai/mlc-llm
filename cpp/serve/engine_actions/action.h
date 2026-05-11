@@ -20,6 +20,8 @@ namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectRef;
 
 /*!
  * \brief The abstraction of actions that an Engine can take at each time step.
