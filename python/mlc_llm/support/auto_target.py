@@ -364,7 +364,7 @@ def _register_cuda_hook(target: Target):
         logger.info("Generating code for CUDA architecture: %s", multi_arch)
 
     @register_global_func("tvm_callback_cuda_compile", override=True)
-    def tvm_callback_cuda_compile(code, target):
+    def tvm_callback_cuda_compile(code):
         """use nvcc to generate fatbin code for better optimization"""
         from tvm.contrib import nvcc
 

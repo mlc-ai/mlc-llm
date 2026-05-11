@@ -3,8 +3,6 @@
  * \file serve/engine_actions/batch_verify.cc
  */
 
-#include <tvm/runtime/threading_backend.h>
-
 #include <cmath>
 #include <exception>
 #include <numeric>
@@ -114,7 +112,7 @@ class BatchVerifyActionObj : public EngineActionObj {
 
     RECORD_EVENT(trace_recorder_, request_ids, "start verify embedding");
     ObjectRef embeddings = models_[verify_model_id_]->TokenEmbed(
-        {IntTuple{all_tokens_to_verify.begin(), all_tokens_to_verify.end()}});
+        {Shape{all_tokens_to_verify.begin(), all_tokens_to_verify.end()}});
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify embedding");
 
     RECORD_EVENT(trace_recorder_, request_ids, "start verify");
@@ -245,8 +243,8 @@ class BatchVerifyActionObj : public EngineActionObj {
             rsentries[rsentry_id]->mstates[draft_model_id_]->internal_id);
       }
       // - Compute embeddings.
-      ObjectRef embeddings = models_[draft_model_id_]->TokenEmbed(
-          {IntTuple{input_tokens.begin(), input_tokens.end()}});
+      ObjectRef embeddings =
+          models_[draft_model_id_]->TokenEmbed({Shape{input_tokens.begin(), input_tokens.end()}});
       // - Invoke model decode.
       Tensor logits =
           models_[draft_model_id_]->BatchDecode(embeddings, fully_accepted_request_internal_ids);

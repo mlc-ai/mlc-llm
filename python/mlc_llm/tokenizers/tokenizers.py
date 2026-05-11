@@ -8,7 +8,6 @@ import json
 from dataclasses import asdict, dataclass
 from typing import List, Literal  # noqa: UP035
 
-import tvm
 import tvm_ffi
 from tvm.runtime import Object
 
@@ -109,7 +108,7 @@ class Tokenizer(Object):
         text : str
             The decoded text string.
         """
-        return _ffi_api.TokenizerDecode(self, tvm.runtime.ShapeTuple(token_ids))
+        return _ffi_api.TokenizerDecode(self, tvm_ffi.Shape(token_ids))
 
     @staticmethod
     def detect_tokenizer_info(tokenizer_path: str) -> TokenizerInfo:

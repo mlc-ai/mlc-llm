@@ -9,7 +9,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/cast.h>
+#include <tvm/ir/cast.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/tensor.h>
@@ -22,6 +22,7 @@ namespace multi_gpu {
 using namespace tvm::runtime;
 using tvm::Downcast;
 using tvm::ffi::Array;
+using tvm::ffi::ObjectRef;
 using tvm::ffi::Optional;
 using tvm::ffi::Shape;
 

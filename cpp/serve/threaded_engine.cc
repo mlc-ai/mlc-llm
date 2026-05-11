@@ -5,9 +5,9 @@
  */
 #include "threaded_engine.h"
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -15,6 +15,7 @@
 #include <optional>
 
 #include "../support/json_parser.h"
+#include "../support/module_vtable.h"
 #include "../support/result.h"
 #include "engine.h"
 #include "request.h"
@@ -25,6 +26,7 @@ namespace serve {
 
 using tvm::Device;
 using namespace tvm::runtime;
+using tvm::Downcast;
 
 /*! \brief The threaded engine instruction kind. */
 enum class InstructionKind : int {

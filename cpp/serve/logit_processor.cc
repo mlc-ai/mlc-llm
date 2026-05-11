@@ -8,7 +8,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/nvtx.h>
-#include <tvm/runtime/threading_backend.h>
 
 namespace mlc {
 namespace llm {

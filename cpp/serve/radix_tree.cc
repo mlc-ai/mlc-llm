@@ -492,7 +492,7 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
    * \return The sequence tokens.
    * \throw Error if sequence ID is not valid.
    */
-  IntTuple GetSequence(int64_t seq_id) {
+  Shape GetSequence(int64_t seq_id) {
     TVM_FFI_ICHECK(seq2page.find(seq_id) != seq2page.end());
     size_t length = GetSequenceLength(seq_id);
     std::vector<int64_t> output(length);
@@ -503,7 +503,7 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
         output[offset + i] = (*page)[i];
       }
     }
-    return IntTuple(output);
+    return Shape(output);
   }
 
   /*!
@@ -807,14 +807,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("mlc.serve.PagedRadixTree", []() { return PagedRadixTree::Create(); })
       .def("mlc.serve.PagedRadixTreeMatchPrefix",
-           [](PagedRadixTree paged_radix_tree, IntTuple tokens) {
+           [](PagedRadixTree paged_radix_tree, Shape tokens) {
              std::vector<int32_t> token_ids{tokens.begin(), tokens.end()};
              auto [offset, seq_ids] = paged_radix_tree->MatchPrefix(token_ids);
              seq_ids.insert(seq_ids.begin(), offset);
-             return IntTuple(seq_ids);
+             return Shape(seq_ids);
            })
       .def("mlc.serve.PagedRadixTreeExtendSequence",
-           [](PagedRadixTree paged_radix_tree, int64_t seq_id, IntTuple tokens) {
+           [](PagedRadixTree paged_radix_tree, int64_t seq_id, Shape tokens) {
              std::vector<int32_t> token_ids{tokens.begin(), tokens.end()};
              paged_radix_tree->ExtendSequence(seq_id, std::move(token_ids));
            })

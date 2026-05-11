@@ -7,12 +7,11 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/object.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/node/cast.h>
-#include <tvm/runtime/int_tuple.h>
-#include <tvm/runtime/object.h>
+#include <tvm/ir/cast.h>
 #include <tvm/runtime/tensor.h>
 
 #include <atomic>
@@ -25,7 +24,11 @@ namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectPtr;
+using tvm::ffi::ObjectRef;
 using tvm::ffi::Optional;
+using tvm::ffi::Shape;
 
 class Model;
 
@@ -103,7 +106,7 @@ class TextData : public Data {
 class TokenDataNode : public DataNode {
  public:
   /*! \brief The token ids. */
-  IntTuple token_ids;
+  Shape token_ids;
 
   int GetLength() const final;
   ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const final;
@@ -118,7 +121,7 @@ class TokenDataNode : public DataNode {
 
 class TokenData : public Data {
  public:
-  explicit TokenData(IntTuple token_ids);
+  explicit TokenData(Shape token_ids);
 
   explicit TokenData(std::vector<int32_t> token_ids);
 

@@ -26,6 +26,9 @@ namespace serve {
 
 using tvm::Device;
 using namespace tvm::runtime;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectRef;
+using tvm::ffi::Shape;
 
 // Declare the sampler class for `Model::CreateSampler`.
 class Sampler;
@@ -105,8 +108,7 @@ class ModelObj : public Object {
    * \return The updated destination embedding array or the computed embeddings.
    * \note When `dst` is undefined, we require `offset` to be 0.
    */
-  virtual ObjectRef TokenEmbed(IntTuple batch_token_ids, ObjectRef* dst = nullptr,
-                               int offset = 0) = 0;
+  virtual ObjectRef TokenEmbed(Shape batch_token_ids, ObjectRef* dst = nullptr, int offset = 0) = 0;
 
   /*!
    * \brief Compute embeddings for the input image.
@@ -277,11 +279,11 @@ class ModelObj : public Object {
   virtual void EnableSlidingWindowForSeq(int64_t seq_id) = 0;
 
   /*! \brief Prepare for the disaggregation KV data receive for the specified sequence and length.*/
-  virtual IntTuple DisaggPrepareKVRecv(int64_t seq_id, int length) = 0;
+  virtual Shape DisaggPrepareKVRecv(int64_t seq_id, int length) = 0;
 
   /*! \brief Prepare for the disaggregation KV data send for the specified sequence and length.*/
-  virtual void DisaggMarkKVSend(int64_t seq_id, int begin_pos,
-                                IntTuple compressed_kv_append_metadata, int dst_group_offset) = 0;
+  virtual void DisaggMarkKVSend(int64_t seq_id, int begin_pos, Shape compressed_kv_append_metadata,
+                                int dst_group_offset) = 0;
 
   /************** Raw Info Query **************/
 

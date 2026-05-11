@@ -9,6 +9,7 @@ namespace llm {
 
 using namespace tvm::runtime;
 using tvm::ffi::Function;
+using tvm::ffi::Object;
 using tvm::ffi::Optional;
 
 ModelMetadata::Param::Preproc ModelMetadata::Param::Preproc::FromJSON(

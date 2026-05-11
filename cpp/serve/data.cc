@@ -49,9 +49,9 @@ std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, 
     TVM_FFI_ICHECK_GT(length_to_truncate, 0);
     TVM_FFI_ICHECK_LT(length_to_truncate, last_data_length);
     TokenData lhs_token_data(
-        IntTuple{token_data->token_ids.begin(), token_data->token_ids.end() - length_to_truncate});
+        Shape{token_data->token_ids.begin(), token_data->token_ids.end() - length_to_truncate});
     TokenData rhs_token_data(
-        IntTuple{token_data->token_ids.end() - length_to_truncate, token_data->token_ids.end()});
+        Shape{token_data->token_ids.end() - length_to_truncate, token_data->token_ids.end()});
     TVM_FFI_ICHECK_EQ(total_length - last_data_length + lhs_token_data->GetLength(), split_pos);
     lhs.pop_back();
     lhs.push_back(lhs_token_data);
@@ -89,7 +89,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /****************** TokenData ******************/
 
-TokenData::TokenData(IntTuple token_ids) {
+TokenData::TokenData(Shape token_ids) {
   ObjectPtr<TokenDataNode> n = tvm::ffi::make_object<TokenDataNode>();
   n->token_ids = std::move(token_ids);
   data_ = std::move(n);
@@ -97,7 +97,7 @@ TokenData::TokenData(IntTuple token_ids) {
 
 TokenData::TokenData(std::vector<int32_t> token_ids) {
   ObjectPtr<TokenDataNode> n = tvm::ffi::make_object<TokenDataNode>();
-  n->token_ids = IntTuple(token_ids.begin(), token_ids.end());
+  n->token_ids = Shape(token_ids.begin(), token_ids.end());
   data_ = std::move(n);
 }
 
@@ -236,7 +236,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("mlc.serve.RequestStreamOutputUnpack", [](RequestStreamOutput output) {
     TVM_FFI_ICHECK(!output->unpacked)
         << "One RequestStreamOutput can be unpacked for at most once.";
-    std::vector<IntTuple> group_delta_token_ids;
+    std::vector<Shape> group_delta_token_ids;
     std::vector<Array<String>> group_delta_logprob_json_strs;
     group_delta_token_ids.reserve(output->group_delta_token_ids.size());
     if (output->group_delta_logprob_json_strs.has_value()) {
@@ -249,7 +249,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       }
     }
     Array<Any> ret = {output->request_id,
-                      Array<IntTuple>(std::move(group_delta_token_ids)),
+                      Array<Shape>(std::move(group_delta_token_ids)),
                       output->group_delta_logprob_json_strs.has_value()
                           ? Array<Array<String>>(std::move(group_delta_logprob_json_strs))
                           : Optional<Array<Array<String>>>(),

@@ -10,7 +10,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/module.h>
+#include <tvm/runtime/logging.h>
 
 #include <unordered_map>
 

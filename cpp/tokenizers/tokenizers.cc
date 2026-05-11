@@ -6,10 +6,10 @@
 #include "tokenizers.h"
 
 #include <tokenizers_cpp.h>
+#include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/logging.h>
 
 #include <array>
@@ -482,20 +482,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("mlc.tokenizers.TokenizerEncode",
            [](const Tokenizer& tokenizer, const String& text) {
              std::vector<int32_t> token_ids = tokenizer->Encode(text);
-             return IntTuple{token_ids.begin(), token_ids.end()};
+             return Shape{token_ids.begin(), token_ids.end()};
            })
       .def("mlc.tokenizers.TokenizerEncodeBatch",
            [](const Tokenizer& tokenizer, const Array<String>& texts) {
              std::vector<std::vector<int32_t>> results = tokenizer->EncodeBatch(texts);
-             Array<IntTuple> ret;
+             Array<Shape> ret;
              ret.reserve(results.size());
              for (const auto& result : results) {
-               ret.push_back(IntTuple{result.begin(), result.end()});
+               ret.push_back(Shape{result.begin(), result.end()});
              }
              return ret;
            })
       .def("mlc.tokenizers.TokenizerDecode",
-           [](const Tokenizer& tokenizer, const IntTuple& token_ids) {
+           [](const Tokenizer& tokenizer, const Shape& token_ids) {
              return tokenizer->Decode({token_ids->data, token_ids->data + token_ids->size});
            })
       .def("mlc.tokenizers.DetectTokenizerInfo",

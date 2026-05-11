@@ -97,10 +97,10 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
       const std::vector<bool>& rsentry_activated, const std::vector<SampleResult>& sample_results);
 
   /*!
-   * \brief Get the concatenated IntTuple of RequestModelState input data, return empty IntTuple if
+   * \brief Get the concatenated Shape of RequestModelState input data, return empty Shape if
    * there is untokenized data.
    * \param mstate The RequestModelState whose input data is to be concatenated.
-   * \return The concatenate IntTuple.
+   * \return The concatenate Shape.
    */
   std::vector<int32_t> GetConcatPrefillInputData(const RequestModelState& mstate);
 

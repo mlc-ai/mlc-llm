@@ -3,7 +3,8 @@
 from typing import List, Union  # noqa: UP035
 
 import tvm_ffi
-from tvm.runtime import Object, ShapeTuple
+from tvm.runtime import Object
+from tvm_ffi import Shape
 
 from . import _ffi_api
 from .tokenizers import Tokenizer
@@ -22,7 +23,7 @@ class TextStreamer(Object):
             tokenizer,
         )
 
-    def put(self, delta_tokens: Union[List[int], ShapeTuple]) -> str:  # noqa: UP006
+    def put(self, delta_tokens: Union[List[int], Shape]) -> str:  # noqa: UP006
         """Put new delta tokens into the streamer, and get the UTF-8-valid
         delta string. The text streamer may hold some of the input delta tokens
         which cannot decode into valid UTF-8 strings. The returned string
@@ -30,7 +31,7 @@ class TextStreamer(Object):
 
         Parameters
         ----------
-        delta_tokens : Union[List[int], ShapeTuple]
+        delta_tokens : Union[List[int], Shape]
             The new tokens to put into the streamer.
 
         Returns
@@ -39,7 +40,7 @@ class TextStreamer(Object):
             The decoded delta string after putting the input new tokens.
         """
         if isinstance(delta_tokens, list):
-            delta_tokens = ShapeTuple(delta_tokens)
+            delta_tokens = Shape(delta_tokens)
         return _ffi_api.TextStreamerPut(self, delta_tokens)
 
     def finish(self) -> str:

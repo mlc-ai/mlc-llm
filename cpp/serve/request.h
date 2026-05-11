@@ -7,9 +7,9 @@
 #define MLC_LLM_SERVE_REQUEST_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/object.h>
 
 #include "../tokenizers/tokenizers.h"
 #include "config.h"
@@ -20,6 +20,8 @@ namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectRef;
 
 /****************** Request ******************/
 

@@ -10,8 +10,9 @@ import tvm
 import tvm_ffi
 from tvm import DataType, relax
 from tvm.contrib import tvmjs
-from tvm.runtime import Device, Module, Object, ShapeTuple
+from tvm.runtime import Device, Module, Object
 from tvm.runtime.vm import VirtualMachine
+from tvm_ffi import Shape
 
 from mlc_llm.conversation_template import ConvTemplateRegistry
 from mlc_llm.interface.help import HELP
@@ -351,7 +352,7 @@ class DebugChat:
         )
         concat_embeddings = self.nd_view_func(
             concat_embeddings,
-            ShapeTuple([1, concat_embeddings.shape[0], concat_embeddings.shape[1]]),
+            Shape([1, concat_embeddings.shape[0], concat_embeddings.shape[1]]),
         )
         input_len = concat_embeddings.shape[1]
 
@@ -359,7 +360,7 @@ class DebugChat:
 
     def _prefill(self, embedding: tvm.runtime.Tensor, input_len: int):
         print("======================= Starts Prefill =======================")
-        seq_len_shape = ShapeTuple([input_len])
+        seq_len_shape = Shape([input_len])
         max_num_sequence = 1
         page_size = 16
         sliding_window_size = (
@@ -383,21 +384,21 @@ class DebugChat:
         support_sliding_window = int(sliding_window_size != -1)
 
         kv_caches = self.create_kv_cache_func(
-            ShapeTuple([max_num_sequence]),
-            ShapeTuple([max_total_sequence_length]),
-            ShapeTuple([prefill_chunk_size]),
-            ShapeTuple([page_size]),
-            ShapeTuple([support_sliding_window]),
+            Shape([max_num_sequence]),
+            Shape([max_total_sequence_length]),
+            Shape([prefill_chunk_size]),
+            Shape([page_size]),
+            Shape([support_sliding_window]),
         )
         self.add_sequence_func(kv_caches, 0)
-        self.begin_forward_func(kv_caches, ShapeTuple([0]), seq_len_shape)
+        self.begin_forward_func(kv_caches, Shape([0]), seq_len_shape)
         logits, kv_caches = self.prefill_func(embedding, kv_caches, self.params)
         self.end_forward_func(kv_caches)
         return logits, kv_caches
 
     def _decode(self, token: int, kv_caches: Object):
         embedding, _ = self._embed([[token]])
-        self.begin_forward_func(kv_caches, ShapeTuple([0]), ShapeTuple([1]))
+        self.begin_forward_func(kv_caches, Shape([0]), Shape([1]))
         logits, kv_caches = self.decode_func(embedding, kv_caches, self.params)
         self.end_forward_func(kv_caches)
         return logits

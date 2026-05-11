@@ -5,12 +5,12 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
 #include <cmath>
 
 #include "../../support/random.h"
+#include "../../support/threading_backend.h"
 #include "sampler.h"
 
 namespace mlc {

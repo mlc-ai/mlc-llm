@@ -140,7 +140,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Android")
 endif()
 
 add_library(mlc_llm_module SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
-target_link_libraries(mlc_llm_module PUBLIC tvm)
+target_link_libraries(mlc_llm_module PUBLIC tvm_runtime)
 target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp)
 
 set_property(

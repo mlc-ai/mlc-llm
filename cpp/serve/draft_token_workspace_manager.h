@@ -20,6 +20,8 @@ namespace serve {
 
 using tvm::Device;
 using namespace tvm::runtime;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectRef;
 
 struct ModelWorkspace;
 

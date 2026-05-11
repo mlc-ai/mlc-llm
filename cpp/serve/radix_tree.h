@@ -5,9 +5,8 @@
 #ifndef MLC_LLM_SERVE_RADIX_TREE_H_
 #define MLC_LLM_SERVE_RADIX_TREE_H_
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/int_tuple.h>
-#include <tvm/runtime/object.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -16,7 +15,9 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-using namespace tvm::runtime;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectRef;
+using tvm::ffi::Shape;
 
 /*!
  * \brief The paged radix tree data structure.
@@ -37,7 +38,7 @@ class PagedRadixTreeObj : public Object {
    * \return The sequence tokens.
    * \throw Error if sequence ID is not valid.
    */
-  virtual IntTuple GetSequence(int64_t seq_id) = 0;
+  virtual Shape GetSequence(int64_t seq_id) = 0;
 
   /*!
    * \brief Get all sequences with longest common prefix with give prefix tokens.

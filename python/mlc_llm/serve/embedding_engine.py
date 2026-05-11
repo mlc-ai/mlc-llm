@@ -9,7 +9,8 @@ from typing import List, Literal, Optional, Tuple, Union  # noqa: UP035
 import numpy as np
 import tvm
 from tvm import relax
-from tvm.runtime import Device, ShapeTuple
+from tvm.runtime import Device
+from tvm_ffi import Shape
 
 from mlc_llm.serve import engine_utils
 from mlc_llm.support.auto_device import detect_device
@@ -374,11 +375,11 @@ class AsyncEmbeddingEngine:
 
         # Create KV cache for the entire batch
         kv_cache = self._create_kv_cache_func(
-            ShapeTuple([batch_size]),
-            ShapeTuple([max_seq_len]),
-            ShapeTuple([prefill_chunk]),
-            ShapeTuple([16]),
-            ShapeTuple([support_sliding]),
+            Shape([batch_size]),
+            Shape([max_seq_len]),
+            Shape([prefill_chunk]),
+            Shape([16]),
+            Shape([support_sliding]),
         )
 
         # Register all sequences
@@ -388,7 +389,7 @@ class AsyncEmbeddingEngine:
             self._kv_state_add_sequence(kv_cache, sid)
 
         # Begin forward with all sequences at once
-        self._kv_state_begin_forward(kv_cache, ShapeTuple(seq_ids), ShapeTuple(seq_lens))
+        self._kv_state_begin_forward(kv_cache, Shape(seq_ids), Shape(seq_lens))
 
         # Concatenate all tokens → embed → batch prefill
         all_tokens = []
@@ -396,7 +397,7 @@ class AsyncEmbeddingEngine:
             all_tokens.extend(tokens)
         token_ids = tvm.runtime.tensor(np.array(all_tokens, dtype=np.int32), device=self.device)
         all_embed = self._embed_func(token_ids, self._params)
-        all_embed = self._nd_reshape(all_embed, ShapeTuple([1, total_tokens, all_embed.shape[-1]]))
+        all_embed = self._nd_reshape(all_embed, Shape([1, total_tokens, all_embed.shape[-1]]))
 
         hidden_states, _ = self._batch_prefill_to_hidden_func(all_embed, kv_cache, self._params)
         # .numpy() copies to CPU, escaping TVM workspace buffer reuse across calls.
@@ -438,11 +439,11 @@ class AsyncEmbeddingEngine:
 
             # Create KV cache for this single sequence
             kv_cache = self._create_kv_cache_func(
-                ShapeTuple([1]),
-                ShapeTuple([max_seq_len]),
-                ShapeTuple([prefill_chunk]),
-                ShapeTuple([16]),
-                ShapeTuple([support_sliding]),
+                Shape([1]),
+                Shape([max_seq_len]),
+                Shape([prefill_chunk]),
+                Shape([16]),
+                Shape([support_sliding]),
             )
             self._kv_state_add_sequence(kv_cache, 0)
 
@@ -458,9 +459,9 @@ class AsyncEmbeddingEngine:
                 )
                 chunk_embed = self._embed_func(token_ids, self._params)
                 chunk_embed = self._nd_reshape(
-                    chunk_embed, ShapeTuple([1, chunk_len, chunk_embed.shape[-1]])
+                    chunk_embed, Shape([1, chunk_len, chunk_embed.shape[-1]])
                 )
-                self._kv_state_begin_forward(kv_cache, ShapeTuple([0]), ShapeTuple([chunk_len]))
+                self._kv_state_begin_forward(kv_cache, Shape([0]), Shape([chunk_len]))
                 hidden, kv_cache = self._prefill_to_hidden_func(chunk_embed, kv_cache, self._params)
                 # .numpy() copies to CPU, escaping TVM buffer aliasing.
                 hidden_np = hidden.numpy()

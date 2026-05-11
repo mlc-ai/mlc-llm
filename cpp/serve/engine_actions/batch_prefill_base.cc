@@ -371,10 +371,10 @@ std::pair<Array<Data>, int> BatchPrefillBaseActionObj::ChunkPrefillInputData(
     // Return the first part for prefill, and keep the second part.
     int chunked_input_length = max_prefill_length - cum_input_length;
     TVM_FFI_ICHECK_GT(input_length, chunked_input_length);
-    TokenData chunked_input(IntTuple{token_input->token_ids.begin(),
-                                     token_input->token_ids.begin() + chunked_input_length});
-    TokenData remaining_input(IntTuple{token_input->token_ids.begin() + chunked_input_length,
-                                       token_input->token_ids.end()});
+    TokenData chunked_input(Shape{token_input->token_ids.begin(),
+                                  token_input->token_ids.begin() + chunked_input_length});
+    TokenData remaining_input(
+        Shape{token_input->token_ids.begin() + chunked_input_length, token_input->token_ids.end()});
     inputs.push_back(chunked_input);
     cum_input_length += chunked_input_length;
     std::vector<Data> remaining_inputs{mstate->inputs.begin() + i + 1, mstate->inputs.end()};

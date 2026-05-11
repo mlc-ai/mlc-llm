@@ -22,6 +22,8 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+using tvm::Downcast;
+
 /*********************** Model Implementation ***********************/
 
 TVM_FFI_STATIC_INIT_BLOCK() { ModelObj::RegisterReflection(); }
@@ -82,7 +84,7 @@ class ModelImpl : public ModelObj {
 
   /*********************** Model Computation  ***********************/
 
-  ObjectRef TokenEmbed(IntTuple token_ids, ObjectRef* dst, int offset) final {
+  ObjectRef TokenEmbed(Shape token_ids, ObjectRef* dst, int offset) final {
     NVTXScopedRange nvtx_scope("TokenEmbed");
     int num_tokens = token_ids.size();
     if (seqlen_padding_factor_ > 1) {
@@ -269,8 +271,8 @@ class ModelImpl : public ModelObj {
     TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Begin forward with the sequence ids and new lengths.
-    IntTuple seq_ids_tuple(seq_ids);
-    IntTuple lengths_tuple(lengths.begin(), lengths.end());
+    Shape seq_ids_tuple(seq_ids);
+    Shape lengths_tuple(lengths.begin(), lengths.end());
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
     if (kind == KVStateKind::kHybrid) {
       TVM_FFI_ICHECK(rnn_state_.defined()) << "RNN state has not been initialized.";
@@ -392,8 +394,8 @@ class ModelImpl : public ModelObj {
     TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Begin forward with the sequence ids and new lengths.
-    IntTuple seq_ids_tuple(seq_ids);
-    IntTuple lengths_tuple(lengths.begin(), lengths.end());
+    Shape seq_ids_tuple(seq_ids);
+    Shape lengths_tuple(lengths.begin(), lengths.end());
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
     if (kind == KVStateKind::kHybrid) {
       ft_.kv_cache_begin_forward_func_(rnn_state_, seq_ids_tuple, lengths_tuple);
@@ -460,8 +462,8 @@ class ModelImpl : public ModelObj {
 
     // Reserve in KV cache for the lengths of the input.
     // Begin forward with the sequence ids and new lengths.
-    IntTuple seq_ids_tuple(seq_ids);
-    IntTuple lengths_tuple(std::vector<int64_t>(/*n=*/seq_ids.size(), /*v=*/1));
+    Shape seq_ids_tuple(seq_ids);
+    Shape lengths_tuple(std::vector<int64_t>(/*n=*/seq_ids.size(), /*v=*/1));
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
     if (kind == KVStateKind::kHybrid) {
       ft_.kv_cache_begin_forward_func_(rnn_state_, seq_ids_tuple, lengths_tuple);
@@ -548,9 +550,9 @@ class ModelImpl : public ModelObj {
 
     // Reserve in KV cache for the lengths of the input.
     // Begin forward with the sequence ids and new lengths.
-    IntTuple seq_ids_tuple(seq_ids);
-    IntTuple lengths_tuple(lengths.begin(), lengths.end());
-    IntTuple token_tree_parent_ptr_tuple(token_tree_parent_ptr);
+    Shape seq_ids_tuple(seq_ids);
+    Shape lengths_tuple(lengths.begin(), lengths.end());
+    Shape token_tree_parent_ptr_tuple(token_tree_parent_ptr);
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple,
                                      token_tree_parent_ptr_tuple);
 
@@ -612,8 +614,8 @@ class ModelImpl : public ModelObj {
 
     // Reserve in KV cache for the lengths of the input.
     // Begin forward with the sequence ids and new lengths.
-    IntTuple seq_ids_tuple(seq_ids);
-    IntTuple lengths_tuple(std::vector<int64_t>(/*n=*/seq_ids.size(), /*v=*/1));
+    Shape seq_ids_tuple(seq_ids);
+    Shape lengths_tuple(std::vector<int64_t>(/*n=*/seq_ids.size(), /*v=*/1));
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
     if (kind == KVStateKind::kHybrid) {
       ft_.kv_cache_begin_forward_func_(rnn_state_, seq_ids_tuple, lengths_tuple);
@@ -689,9 +691,9 @@ class ModelImpl : public ModelObj {
     TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Begin forward with the sequence ids and new lengths.
-    IntTuple seq_ids_tuple(seq_ids);
-    IntTuple lengths_tuple(lengths.begin(), lengths.end());
-    IntTuple token_tree_parent_ptr_tuple(token_tree_parent_ptr);
+    Shape seq_ids_tuple(seq_ids);
+    Shape lengths_tuple(lengths.begin(), lengths.end());
+    Shape token_tree_parent_ptr_tuple(token_tree_parent_ptr);
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple,
                                      token_tree_parent_ptr_tuple);
     if (kind == KVStateKind::kHybrid) {
@@ -790,9 +792,9 @@ class ModelImpl : public ModelObj {
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
     }
     // Begin forward with the sequence ids and new lengths.
-    IntTuple seq_ids_tuple(seq_ids);
-    IntTuple lengths_tuple(lengths.begin(), lengths.end());
-    IntTuple token_tree_parent_ptr_tuple(token_tree_parent_ptr);
+    Shape seq_ids_tuple(seq_ids);
+    Shape lengths_tuple(lengths.begin(), lengths.end());
+    Shape token_tree_parent_ptr_tuple(token_tree_parent_ptr);
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple,
                                      token_tree_parent_ptr_tuple);
     if (kind == KVStateKind::kHybrid) {
@@ -839,11 +841,11 @@ class ModelImpl : public ModelObj {
                      int prefix_cache_max_num_recycling_seqs = 0) final {
     KVStateKind kv_state_kind = GetMetadata().kv_state_kind;
     if (kv_state_kind == KVStateKind::kKVCache) {
-      IntTuple max_num_sequence_tuple{max_num_sequence};
-      IntTuple max_total_sequence_length_tuple{max_total_sequence_length};
-      IntTuple prefill_chunk_size_tuple{prefill_chunk_size};
-      IntTuple page_size_tuple{page_size};
-      IntTuple support_sliding_window{sliding_window_size_ != -1};
+      Shape max_num_sequence_tuple{max_num_sequence};
+      Shape max_total_sequence_length_tuple{max_total_sequence_length};
+      Shape prefill_chunk_size_tuple{prefill_chunk_size};
+      Shape page_size_tuple{page_size};
+      Shape support_sliding_window{sliding_window_size_ != -1};
       kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_total_sequence_length_tuple,
                                             prefill_chunk_size_tuple, page_size_tuple,
                                             support_sliding_window)
@@ -853,8 +855,8 @@ class ModelImpl : public ModelObj {
                             : kv_cache_;
     } else if (kv_state_kind == KVStateKind::kRNNState) {
       // RNN state needs extra slots for prefix cache recycling sequences.
-      IntTuple max_num_sequence_tuple{max_num_sequence + prefix_cache_max_num_recycling_seqs};
-      IntTuple max_history_size_tuple = {std::max(max_history_size, 1)};
+      Shape max_num_sequence_tuple{max_num_sequence + prefix_cache_max_num_recycling_seqs};
+      Shape max_history_size_tuple = {std::max(max_history_size, 1)};
       kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_history_size_tuple)
                       .cast<ObjectRef>();
       local_kv_cache_ = ft_.use_disco
@@ -862,11 +864,11 @@ class ModelImpl : public ModelObj {
                             : kv_cache_;
     } else if (kv_state_kind == KVStateKind::kHybrid) {
       // Hybrid: create both PagedKVCache (for attention layers) and RNNState (for GDN layers).
-      IntTuple max_num_sequence_tuple{max_num_sequence};
-      IntTuple max_total_sequence_length_tuple{max_total_sequence_length};
-      IntTuple prefill_chunk_size_tuple{prefill_chunk_size};
-      IntTuple page_size_tuple{page_size};
-      IntTuple support_sliding_window{sliding_window_size_ != -1};
+      Shape max_num_sequence_tuple{max_num_sequence};
+      Shape max_total_sequence_length_tuple{max_total_sequence_length};
+      Shape prefill_chunk_size_tuple{prefill_chunk_size};
+      Shape page_size_tuple{page_size};
+      Shape support_sliding_window{sliding_window_size_ != -1};
       kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_total_sequence_length_tuple,
                                             prefill_chunk_size_tuple, page_size_tuple,
                                             support_sliding_window)
@@ -877,8 +879,8 @@ class ModelImpl : public ModelObj {
       // Create RNN state for recurrent layers.
       // RNN state needs extra slots for prefix cache recycling sequences that
       // coexist with active sequences (e.g., during ForkSequence).
-      IntTuple rnn_max_batch{max_num_sequence + prefix_cache_max_num_recycling_seqs};
-      IntTuple rnn_max_history{std::max(max_history_size, 1)};
+      Shape rnn_max_batch{max_num_sequence + prefix_cache_max_num_recycling_seqs};
+      Shape rnn_max_history{std::max(max_history_size, 1)};
       rnn_state_ = ft_.create_rnn_state_func_(rnn_max_batch, rnn_max_history).cast<ObjectRef>();
       local_rnn_state_ = ft_.use_disco
                              ? Downcast<DRef>(rnn_state_)->DebugGetFromRemote(0).cast<ObjectRef>()
@@ -935,8 +937,8 @@ class ModelImpl : public ModelObj {
   void CommitAcceptedTokenTreeNodesToKVCache(
       const std::vector<int64_t>& seq_ids,
       const std::vector<int64_t>& accepted_leaf_indices) final {
-    IntTuple seq_ids_tuple(seq_ids);
-    IntTuple accepted_leaf_indices_tuple(accepted_leaf_indices);
+    Shape seq_ids_tuple(seq_ids);
+    Shape accepted_leaf_indices_tuple(accepted_leaf_indices);
     ft_.kv_cache_commit_accepted_token_tree_nodes_func_(kv_cache_, seq_ids_tuple,
                                                         accepted_leaf_indices_tuple);
   }
@@ -951,7 +953,7 @@ class ModelImpl : public ModelObj {
     }
   }
 
-  IntTuple DisaggPrepareKVRecv(int64_t seq_id, int length) final {
+  Shape DisaggPrepareKVRecv(int64_t seq_id, int length) final {
     NVTXScopedRange nvtx_scope("DisaggPrepareKVRecv length=" + std::to_string(length));
 
     TVM_FFI_ICHECK(ft_.kv_cache_disagg_prepare_recv_func_.defined());
@@ -960,17 +962,17 @@ class ModelImpl : public ModelObj {
     // Run KV receive preparation.
     ObjectRef ret;
     ret = ft_.kv_cache_disagg_prepare_recv_func_(kv_cache_, seq_id, length).cast<ObjectRef>();
-    IntTuple compressed_kv_append_metadata;
+    Shape compressed_kv_append_metadata;
     if (ft_.use_disco) {
-      compressed_kv_append_metadata = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<IntTuple>();
+      compressed_kv_append_metadata = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Shape>();
     } else {
-      compressed_kv_append_metadata = Downcast<IntTuple>(ret);
+      compressed_kv_append_metadata = Downcast<Shape>(ret);
     }
 
     return compressed_kv_append_metadata;
   }
 
-  void DisaggMarkKVSend(int64_t seq_id, int begin_pos, IntTuple compressed_kv_append_metadata,
+  void DisaggMarkKVSend(int64_t seq_id, int begin_pos, Shape compressed_kv_append_metadata,
                         int dst_group_offset) final {
     NVTXScopedRange nvtx_scope("DisaggMarkKVSend seq_id=" + std::to_string(seq_id) +
                                " begin_pos=" + std::to_string(begin_pos));

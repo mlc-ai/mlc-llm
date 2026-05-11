@@ -6,12 +6,12 @@
 #define MLC_LLM_SERVE_CONFIG_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/extra/json.h>
+#include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/int_tuple.h>
-#include <tvm/runtime/object.h>
 
 #include <optional>
 
@@ -25,7 +25,11 @@ namespace serve {
 using namespace tvm;
 using namespace tvm::runtime;
 using tvm::ffi::Array;
+using tvm::ffi::Object;
+using tvm::ffi::ObjectPtr;
+using tvm::ffi::ObjectRef;
 using tvm::ffi::Optional;
+using tvm::ffi::Shape;
 using tvm::ffi::String;
 
 /****************** GenerationConfig ******************/
@@ -72,7 +76,7 @@ enum class GrammarExecutionMode : int {
 class DisaggConfig {
  public:
   DisaggRequestKind kind = DisaggRequestKind::kNone;
-  std::vector<IntTuple> kv_append_metadata;
+  std::vector<Shape> kv_append_metadata;
   // "kv_window_begin" and "kv_window_end" denote the KV interval of interests.
   // "kv_window_end" supports Python style negative indexing.
   // The concrete meaning varies for different special request kind:
