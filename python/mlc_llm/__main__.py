@@ -24,7 +24,7 @@ def main():
             "calibrate",
             "router",
         ],
-        help="Subcommand to to run. (choices: %(choices)s)",
+        help="Subcommand to run. (choices: %(choices)s)",
     )
     parsed = parser.parse_args(sys.argv[1:2])
     if parsed.subcommand == "compile":
