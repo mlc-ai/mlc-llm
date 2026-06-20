@@ -3,7 +3,7 @@
  * \file serve/engine_actions/auto_spec_decode.cc
  */
 
-#include <tvm/runtime/nvtx.h>
+#include <tvm/support/cuda/nvtx.h>
 
 #include <numeric>
 
@@ -13,6 +13,8 @@
 namespace mlc {
 namespace llm {
 namespace serve {
+
+using tvm::support::NVTXScopedRange;
 
 /*!
  * \brief The action that first makes a decision on whether to run speculative

@@ -5,8 +5,8 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/cuda/nvtx.h>
 
 #include "../../support/random.h"
 #include "sampler.h"
@@ -14,6 +14,8 @@
 namespace mlc {
 namespace llm {
 namespace serve {
+
+using tvm::support::NVTXScopedRange;
 
 inline bool FlashInferSamplingAvailable(Device device) {
   // Device must be CUDA, and FlashInfer must be enabled.

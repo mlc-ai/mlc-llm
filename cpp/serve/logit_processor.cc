@@ -7,11 +7,13 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/nvtx.h>
+#include <tvm/support/cuda/nvtx.h>
 
 namespace mlc {
 namespace llm {
 namespace serve {
+
+using tvm::support::NVTXScopedRange;
 
 inline void CopyArray(Tensor src, Tensor dst, TVMStreamHandle copy_stream) {
   DLTensor dl_dst = *(dst.operator->());
