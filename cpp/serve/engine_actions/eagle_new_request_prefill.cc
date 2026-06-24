@@ -3,6 +3,8 @@
  * \file serve/engine_actions/eagle_new_request_prefill.cc
  */
 
+#include <tvm/support/cuda/nvtx.h>
+
 #include "../sampler/sampler.h"
 #include "batch_prefill_base.h"
 
@@ -11,6 +13,7 @@ namespace llm {
 namespace serve {
 
 using tvm::Downcast;
+using tvm::support::NVTXScopedRange;
 
 /*!
  * \brief The action that prefills requests in the `waiting_queue` of

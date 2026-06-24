@@ -3,8 +3,6 @@
  * \file serve/engine_actions/batch_prefill_base.h
  */
 
-#include <tvm/support/cuda/nvtx.h>
-
 #include "../config.h"
 #include "../model.h"
 #include "action.h"
@@ -13,8 +11,6 @@
 namespace mlc {
 namespace llm {
 namespace serve {
-
-using tvm::support::NVTXScopedRange;
 
 /*!
  * \brief The base action of that prefills requests in the `waiting_queue` of
