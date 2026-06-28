@@ -8,7 +8,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/nvtx.h>
+#include <tvm/support/cuda/nvtx.h>
 
 #include <fstream>
 #include <unordered_set>
@@ -23,6 +23,7 @@ namespace llm {
 namespace serve {
 
 using tvm::Downcast;
+using tvm::support::NVTXScopedRange;
 
 /*********************** Model Implementation ***********************/
 

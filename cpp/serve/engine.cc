@@ -11,7 +11,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/nvtx.h>
+#include <tvm/support/cuda/nvtx.h>
 #include <xgrammar/xgrammar.h>
 
 #include <cstdlib>
@@ -45,6 +45,7 @@ using tvm::Device;
 using namespace tvm::runtime;
 using tvm::Downcast;
 using tvm::ffi::Function;
+using tvm::support::NVTXScopedRange;
 
 class EngineModule;
 

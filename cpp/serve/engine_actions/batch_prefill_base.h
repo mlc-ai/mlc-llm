@@ -3,8 +3,6 @@
  * \file serve/engine_actions/batch_prefill_base.h
  */
 
-#include <tvm/runtime/nvtx.h>
-
 #include "../config.h"
 #include "../model.h"
 #include "action.h"

@@ -5,13 +5,14 @@
 #include "prefix_cache.h"
 
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/nvtx.h>
+#include <tvm/support/cuda/nvtx.h>
 
 namespace mlc {
 namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
+using tvm::support::NVTXScopedRange;
 
 TVM_FFI_STATIC_INIT_BLOCK() { PrefixCacheObj::RegisterReflection(); }
 

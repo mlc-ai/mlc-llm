@@ -96,10 +96,11 @@ target_link_libraries(mlc_llm_objs PRIVATE tvm_ffi_header)
 add_library(mlc_llm SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
 add_library(mlc_llm_static STATIC $<TARGET_OBJECTS:mlc_llm_objs>)
 add_dependencies(mlc_llm_static tokenizers_cpp sentencepiece-static
-                 tokenizers_c tvm_runtime)
+                 tokenizers_c tvm_runtime tvm_runtime_extra)
 set_target_properties(mlc_llm_static PROPERTIES OUTPUT_NAME mlc_llm)
 
 target_link_libraries(mlc_llm PUBLIC tvm_runtime)
+target_link_libraries(mlc_llm PRIVATE tvm_runtime_extra)
 target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
 
 find_library(FLASH_ATTN_LIBRARY flash_attn
@@ -141,6 +142,7 @@ endif()
 
 add_library(mlc_llm_module SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
 target_link_libraries(mlc_llm_module PUBLIC tvm_runtime)
+target_link_libraries(mlc_llm_module PRIVATE tvm_runtime_extra)
 target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp)
 
 set_property(
@@ -161,6 +163,7 @@ endif()
 # when this option is on, we install all static lib deps into lib
 if(MLC_LLM_INSTALL_STATIC_LIB)
   install(TARGETS mlc_llm_static tokenizers_cpp sentencepiece-static tvm_runtime
+                  tvm_runtime_extra
           LIBRARY DESTINATION lib${LIB_SUFFIX})
   # tokenizers need special handling as it builds from rust
   if(MSVC)
@@ -173,6 +176,7 @@ if(MLC_LLM_INSTALL_STATIC_LIB)
 else()
   install(
     TARGETS tvm_runtime
+            tvm_runtime_extra
             mlc_llm
             mlc_llm_module
             mlc_llm_static

@@ -3,7 +3,7 @@
  * \file serve/engine_actions/batch_decode.cc
  */
 
-#include <tvm/runtime/nvtx.h>
+#include <tvm/support/cuda/nvtx.h>
 
 #include <numeric>
 
@@ -17,6 +17,8 @@
 namespace mlc {
 namespace llm {
 namespace serve {
+
+using tvm::support::NVTXScopedRange;
 
 /*!
  * \brief The action that runs one-step decode for requests in the

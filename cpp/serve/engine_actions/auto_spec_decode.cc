@@ -3,8 +3,6 @@
  * \file serve/engine_actions/auto_spec_decode.cc
  */
 
-#include <tvm/runtime/nvtx.h>
-
 #include <numeric>
 
 #include "../config.h"

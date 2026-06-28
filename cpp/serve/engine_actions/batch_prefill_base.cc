@@ -5,6 +5,8 @@
 
 #include "batch_prefill_base.h"
 
+#include <tvm/support/cuda/nvtx.h>
+
 #include <numeric>
 
 #include "../../support/json_parser.h"
@@ -12,6 +14,8 @@
 namespace mlc {
 namespace llm {
 namespace serve {
+
+using tvm::support::NVTXScopedRange;
 
 bool HasPrefillSpace(int num_required_pages, bool sliding_window_enabled, int new_batch_size,
                      int num_available_pages, int current_total_seq_len, int total_input_length,
