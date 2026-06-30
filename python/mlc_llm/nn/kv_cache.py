@@ -66,28 +66,28 @@ class PagedKVCache(TVMPagedKVCache):
                     ]
                 ),
                 rx.ShapeExpr(layer_partition),
-                rx.PrimValue(num_hidden_layers),
-                rx.PrimValue(num_attention_heads),
-                rx.PrimValue(num_key_value_heads),
-                rx.PrimValue(qk_head_dim),
-                rx.PrimValue(v_head_dim),
-                rx.PrimValue(mla_original_qk_head_dim),
-                rx.PrimValue(mla_original_v_head_dim),
-                rx.PrimValue(rope_mode),
-                rx.PrimValue(rope_scale),
-                rx.PrimValue(rope_theta),
+                rx.prim_value(num_hidden_layers),
+                rx.prim_value(num_attention_heads),
+                rx.prim_value(num_key_value_heads),
+                rx.prim_value(qk_head_dim),
+                rx.prim_value(v_head_dim),
+                rx.prim_value(mla_original_qk_head_dim),
+                rx.prim_value(mla_original_v_head_dim),
+                rx.prim_value(rope_mode),
+                rx.prim_value(rope_scale),
+                rx.prim_value(rope_theta),
                 rx.StringImm(json.dumps(rope_scaling)),
                 (
                     rx.const(np.array(rope_ext_factors, "float32"))
                     if rope_ext_factors is not None
-                    else rx.PrimValue(0)
-                    # NOTE: since relax does not have "Optional" type, we use PrimValue(0)
+                    else rx.prim_value(0)
+                    # NOTE: since relax does not have "Optional" type, we use prim_value(0)
                     # to represent "undefined".
                 ),
-                rx.PrimValue(rotary_dim),
-                rx.PrimValue(int(enable_disaggregation)),
+                rx.prim_value(rotary_dim),
+                rx.prim_value(int(enable_disaggregation)),
                 rx.DataTypeImm(dtype),
-                sinfo_args=rx.ObjectStructInfo(),
+                ty_args=rx.ObjectType(),
             ),
             _name=name,
         )

@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple  # noqa: UP035
 
 from tvm import IRModule, relax
-from tvm.contrib import ndk, tar, xcode
 from tvm.ir.transform import Pass
+from tvm.support import ndk, tar, xcode
 from tvm.target import Target
 from tvm_ffi import get_global_func, register_global_func
 
@@ -366,10 +366,10 @@ def _register_cuda_hook(target: Target):
     @register_global_func("tvm_callback_cuda_compile", override=True)
     def tvm_callback_cuda_compile(code):
         """use nvcc to generate fatbin code for better optimization"""
-        from tvm.contrib import nvcc
+        from tvm.support import nvcc
 
         if multi_arch is None:
-            ptx = nvcc.compile_cuda(code, target_format="fatbin")
+            ptx = nvcc.compile_cuda(code, target_format="fatbin", compiler="nvcc")
         else:
             arch = []
             for compute_version in multi_arch:
@@ -377,7 +377,7 @@ def _register_cuda_hook(target: Target):
                     "-gencode",
                     f"arch=compute_{compute_version},code=sm_{compute_version}",
                 ]
-            ptx = nvcc.compile_cuda(code, target_format="fatbin", arch=arch)
+            ptx = nvcc.compile_cuda(code, target_format="fatbin", arch=arch, compiler="nvcc")
         return ptx
 
 

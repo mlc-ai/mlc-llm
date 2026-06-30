@@ -23,8 +23,8 @@ class AttachAllocEmbeddingTensorFunc:
         if embed_func is None:
             return mod
 
-        hidden_size = embed_func.ret_struct_info.shape[-1]
-        dtype = embed_func.ret_struct_info.dtype
+        hidden_size = embed_func.ret_ty.shape[-1]
+        dtype = relax.DataTypeImm(embed_func.ret_ty.dtype.dtype)
         bb = relax.BlockBuilder(mod)
         with bb.function("alloc_embedding_tensor", []):
             bb.emit_func_output(

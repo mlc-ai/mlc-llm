@@ -85,7 +85,7 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:  # noqa: UP006
     TX = 1024
 
     def _get_topk_func(k_val: int):
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def topk_func(
             var_x: T.handle,
             var_out: T.handle,
@@ -172,7 +172,7 @@ def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor,
                 expr = expr + T.exp(local_top_k_f32[i] - local_top_k_max[0])
             return expr
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def topk_softmax_norm_func(
             var_x: T.handle,
             var_out: T.handle,
@@ -302,7 +302,7 @@ def group_limited_greedy_topk(
         ).reshape(num_tokens, n_group)
     group_idx = gating_topk(group_scores, topk_group)[1]  # (num_tokens, top_k_group)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def group_limited_mask_scores(
         var_scores: T.handle, var_group_idx: T.handle, var_output: T.handle
     ):
@@ -342,7 +342,7 @@ def group_limited_greedy_topk(
     expert_weights, expert_indices = gating_topk(tmp_scores, top_k)
     if topk_method == "noaux_tc":
 
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def gather_scores(var_scores: T.handle, var_expert_indices: T.handle, var_output: T.handle):
             T.func_attr({"tirx.noalias": True})
             scores = T.match_buffer(
@@ -489,7 +489,7 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]
     TX = 1024
     batch_size, experts_per_tok = expert_indices.shape
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func(
         var_cumsum: T.handle,
         var_expert_indices: T.handle,
@@ -576,7 +576,7 @@ def get_indptr(
 
     out_shape = [num_local_experts if inclusive else num_local_experts + 1]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func_exclusive(var_cumsum: T.handle, var_indptr: T.handle, batch_size: T.int64):
         T.func_attr({"tirx.noalias": True})
         cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
@@ -586,7 +586,7 @@ def get_indptr(
                 i = T.axis.spatial(out_shape[0], vi)
                 indptr[i] = T.Select(i > 0, cumsum[i * batch_size - 1], T.int32(0))
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func_inclusive(var_cumsum: T.handle, var_indptr: T.handle, batch_size: T.int64):
         T.func_attr({"tirx.noalias": True})
         cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
@@ -624,7 +624,7 @@ def scatter_output(x: Tensor, indices: Tensor) -> Tensor:
     dtype = x.dtype
     _, hidden_size = x.shape
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func(var_x: T.handle, var_indices: T.handle, var_out: T.handle):
         T.func_attr({"tirx.noalias": True})
         indices_len = T.int64()

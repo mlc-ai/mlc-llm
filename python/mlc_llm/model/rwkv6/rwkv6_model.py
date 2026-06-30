@@ -68,7 +68,7 @@ def create_wkv6_func(
     out_dtype: str,
     state_dtype: str,
 ):
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def wkv_func(
         r: T.handle,
         k: T.handle,

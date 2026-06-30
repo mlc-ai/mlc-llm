@@ -38,7 +38,7 @@ def _pattern():
 
     def _check(context: relax.transform.PatternCheckContext) -> bool:
         transpose_call = context.annotated_expr["wT"]
-        ndim = transpose_call.args[0].struct_info.ndim
+        ndim = transpose_call.args[0].ty.ndim
         if ndim == -1:
             return False
         if ndim == 2 and transpose_call.attrs.axes is None:
@@ -77,13 +77,11 @@ class _TransposeMatmulFuser(PyExprMutator):
             is_a_larger = len(a_shape) > len(b_shape)
             offset = len(a_shape) - len(b_shape) if is_a_larger else len(b_shape) - len(a_shape)
 
-            a_relax = relax.Var("a", relax.TensorStructInfo(a.shape))
+            a_relax = relax.Var("a", relax.TensorType(a.shape))
             bT_shape = list(b.shape)
             bT_shape[-1], bT_shape[-2] = bT_shape[-2], bT_shape[-1]
-            bT_relax = relax.Var("b", relax.TensorStructInfo(bT_shape))
-            output_shape = self.builder_.normalize(
-                relax.op.matmul(a_relax, bT_relax)
-            ).struct_info.shape
+            bT_relax = relax.Var("b", relax.TensorType(bT_shape))
+            output_shape = self.builder_.normalize(relax.op.matmul(a_relax, bT_relax)).ty.shape
 
             def matmul_compute(*idx_spatial):
                 k = te.reduce_axis((0, a_shape[-1]), name="k")
@@ -136,7 +134,7 @@ class _TransposeMatmulFuser(PyExprMutator):
                 "Composite" in function.attrs
                 and function.attrs["Composite"] == "transpose_matmul_fuse"
             ):
-                out_dtype = function.ret_struct_info.dtype
+                out_dtype = function.ret_ty.dtype
                 return self.builder_.call_te(
                     te_transposed_matmul,
                     call.args[1],

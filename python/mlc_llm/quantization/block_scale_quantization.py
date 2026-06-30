@@ -794,7 +794,7 @@ def dequantize_float8_groupwise_scaled_gemv(
             model_dtype
         )
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func(
         x: T.Buffer((1, k), model_dtype),
         w: T.Buffer((n, k), quantize_dtype),

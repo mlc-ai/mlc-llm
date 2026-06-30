@@ -12,7 +12,6 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-using tvm::Downcast;
 using tvm::support::NVTXScopedRange;
 
 /*!
@@ -110,7 +109,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           if (model_id == 0) {
             for (int j = 1; j < static_cast<int>(models_.size()); ++j) {
               TVM_FFI_ICHECK(rsentry->mstates[j]->inputs.size());
-              TokenData token_data = Downcast<TokenData>(rsentry->mstates[j]->inputs[0]);
+              TokenData token_data = rsentry->mstates[j]->inputs[0].as_or_throw<TokenData>();
               rsentry->mstates[j]->inputs.Set(0, TokenData(Shape(token_data->token_ids.begin() + 1,
                                                                  token_data->token_ids.end())));
             }
@@ -304,7 +303,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
             for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
               for (int mid = 1; mid < static_cast<int>(models_.size()); ++mid) {
                 TokenData token_data =
-                    Downcast<TokenData>(rsentries_for_sample[i]->mstates[mid]->inputs.back());
+                    rsentries_for_sample[i]->mstates[mid]->inputs.back().as_or_throw<TokenData>();
                 std::vector<int32_t> token_ids = {token_data->token_ids.begin(),
                                                   token_data->token_ids.end()};
                 token_ids.push_back(sample_results[i].GetTokenId());

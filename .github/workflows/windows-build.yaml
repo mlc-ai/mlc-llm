@@ -36,6 +36,14 @@ jobs:
         conda info
         conda list
         python --version
+    # The wheel is built with scikit-build-core, which uses the Ninja
+    # generator on Windows. Ninja needs cl.exe on PATH, so activate the MSVC
+    # developer environment before building (otherwise CMake aborts with
+    # "CMAKE_C_COMPILER not set, after EnableLanguage").
+    - name: Set up MSVC developer environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
     - name: Build MLC-LLM
       run: >-
         ci/task/build_win.bat

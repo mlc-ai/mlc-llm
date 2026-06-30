@@ -57,7 +57,7 @@ class _PipelineParallelRewriter(PyExprMutator):
                 and func.params[num_input].name_hint == "packed_params"
             ), 'Only the extra "packed_params" parameter is allowed'
             self.old_packed_params_var = func.params[num_input]
-            self.new_main_packed_params_var = relax.Var("packed_params", relax.ObjectStructInfo())
+            self.new_main_packed_params_var = relax.Var("packed_params", relax.ObjectType())
             for required_params in required_func_params:
                 for i, param in enumerate(required_params):
                     if param.same_as(self.old_packed_params_var):
@@ -93,7 +93,7 @@ class _PipelineParallelRewriter(PyExprMutator):
                     relax.op.call_builtin_with_ctx(
                         "mlc.multi_gpu.DispatchFunctionByGroup",
                         args=[dispatch_func_args],
-                        sinfo_args=relax.ObjectStructInfo(),
+                        ty_args=relax.ObjectType(),
                     )
                 )
                 dispatch_func_gv = bb.emit_func_output(output)
@@ -120,7 +120,7 @@ class _PipelineParallelRewriter(PyExprMutator):
         for new_param, old_param in zip(params, required_func_params):
             self.set_var_remap(old_param.vid, new_param)
         # Create new packed params
-        self.new_stage_func_packed_params = relax.Var("packed_params", relax.ObjectStructInfo())
+        self.new_stage_func_packed_params = relax.Var("packed_params", relax.ObjectType())
         self.set_var_remap(self.old_packed_params_var.vid, self.new_stage_func_packed_params)
 
         new_func_outputs = []
@@ -132,7 +132,7 @@ class _PipelineParallelRewriter(PyExprMutator):
                         relax.call_dps_packed(
                             "runtime.disco.recv_from_prev_group",
                             args=[],
-                            out_sinfo=self._update_struct_info(receive_var.struct_info),
+                            out_ty=self._update_struct_info(receive_var.ty),
                         ),
                         name_hint=receive_var.name_hint,
                     )
@@ -158,7 +158,7 @@ class _PipelineParallelRewriter(PyExprMutator):
                     relax.Call(
                         relax.ExternFunc("runtime.disco.send_to_next_group"),
                         args=[new_send_var],
-                        sinfo_args=None,
+                        ty_args=None,
                     )
                 )
             # Create the param for the shape variables.
@@ -171,7 +171,7 @@ class _PipelineParallelRewriter(PyExprMutator):
                 if shape_var_arg not in self.undefined_param_shape_vars_remap:
                     shape_var_params.append(shape_var_param)
                     shape_var_args.append(shape_var_arg)
-            params.append(relax.Var("s", relax.ShapeStructInfo(shape_var_params)))
+            params.append(relax.Var("s", relax.ShapeType(shape_var_params)))
             args.append(relax.ShapeExpr(shape_var_args))
             # Add the packed params.
             params.append(self.new_stage_func_packed_params)
@@ -183,7 +183,7 @@ class _PipelineParallelRewriter(PyExprMutator):
                 (
                     new_func_outputs[0]
                     if len(new_func_outputs) == 1
-                    and isinstance(new_func_outputs[0].struct_info, relax.TupleStructInfo)
+                    and isinstance(new_func_outputs[0].ty, relax.TupleType)
                     else new_func_outputs
                 ),
                 params=params,
@@ -209,10 +209,10 @@ class _PipelineParallelRewriter(PyExprMutator):
             super().visit_var_binding_(binding)
             return
 
-        assert isinstance(binding.var.struct_info, relax.TensorStructInfo)
+        assert isinstance(binding.var.ty, relax.TensorType)
         cur_num_undefined_param_shape_vars = len(self.undefined_param_shape_vars_remap)
         new_tensor_struct_info = self._update_struct_info(
-            binding.var.struct_info, self.undefined_param_shape_vars_remap
+            binding.var.ty, self.undefined_param_shape_vars_remap
         )
         has_new_undefined_shape_var = (
             len(self.undefined_param_shape_vars_remap) != cur_num_undefined_param_shape_vars
@@ -222,13 +222,13 @@ class _PipelineParallelRewriter(PyExprMutator):
             **self.undefined_param_shape_vars_remap,
         }
         ret_sinfo = (
-            new_tensor_struct_info if not has_new_undefined_shape_var else relax.ObjectStructInfo()
+            new_tensor_struct_info if not has_new_undefined_shape_var else relax.ObjectType()
         )
         call = relax.call_pure_packed(
             "vm.builtin.tuple_getitem",
             self.new_stage_func_packed_params,
-            relax.PrimValue(binding.value.index),
-            sinfo_args=ret_sinfo,
+            relax.prim_value(binding.value.index),
+            ty_args=ret_sinfo,
         )
         new_binding_var = self.builder_.emit(call, binding.var.name_hint)
         if has_new_undefined_shape_var:
@@ -243,7 +243,7 @@ class _PipelineParallelRewriter(PyExprMutator):
             call.op,
             call.args,
             call.attrs,
-            sinfo_args=[self._update_struct_info(struct_info) for struct_info in call.sinfo_args],
+            ty_args=[self._update_struct_info(struct_info) for struct_info in call.ty_args],
         )
 
     def _prepare_stage_func_params_and_args(
@@ -253,7 +253,7 @@ class _PipelineParallelRewriter(PyExprMutator):
         params: List[relax.Var] = []  # noqa: UP006
         args: List[relax.Expr] = []  # noqa: UP006
         for required_param in required_func_params:
-            struct_info = self._update_struct_info(required_param.struct_info)
+            struct_info = self._update_struct_info(required_param.ty)
             params.append(relax.Var(required_param.name_hint, struct_info))
             args.append(required_param)
 
@@ -261,30 +261,30 @@ class _PipelineParallelRewriter(PyExprMutator):
 
     def _update_struct_info(
         self,
-        struct_info: relax.StructInfo,
+        struct_info: relax.Type,
         undefined_var_remap: Optional[Dict[tirx.Var, tirx.Var]] = None,  # noqa: UP006
-    ) -> relax.StructInfo:
+    ) -> relax.Type:
         if undefined_var_remap is None:
             undefined_var_remap = self.undefined_shape_vars_remap
-        if isinstance(struct_info, relax.TensorStructInfo):
+        if isinstance(struct_info, relax.TensorType):
             return (
-                relax.TensorStructInfo(
+                relax.TensorType(
                     self._update_shape(struct_info.shape.values, undefined_var_remap),
                     struct_info.dtype,
                 )
                 if struct_info.shape is not None and isinstance(struct_info.shape, relax.ShapeExpr)
                 else struct_info
             )
-        if isinstance(struct_info, relax.ShapeStructInfo):
+        if isinstance(struct_info, relax.ShapeType):
             return (
-                relax.ShapeStructInfo(self._update_shape(struct_info.values, undefined_var_remap))
+                relax.ShapeType(self._update_shape(struct_info.values, undefined_var_remap))
                 if struct_info.values is not None
                 else struct_info
             )
-        if isinstance(struct_info, relax.ObjectStructInfo):
-            return relax.ObjectStructInfo()
-        if isinstance(struct_info, relax.TupleStructInfo):
-            return relax.TupleStructInfo(
+        if isinstance(struct_info, relax.ObjectType):
+            return relax.ObjectType()
+        if isinstance(struct_info, relax.TupleType):
+            return relax.TupleType(
                 [self._update_struct_info(field_sinfo) for field_sinfo in struct_info.fields]
             )
         return struct_info
@@ -296,7 +296,7 @@ class _PipelineParallelRewriter(PyExprMutator):
     ) -> None:
         def _visit_expr(e: tirx.PrimExpr) -> None:
             if isinstance(e, tirx.Var) and e not in undefined_var_remap:
-                new_var = tirx.Var(e.name, e.dtype)
+                new_var = tirx.Var(e.name, e.ty)
                 undefined_var_remap[e] = new_var
 
         tirx.stmt_functor.post_order_visit(expr, _visit_expr)

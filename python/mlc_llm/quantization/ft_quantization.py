@@ -198,9 +198,7 @@ class FTQuantize:
 
                 def _create_quantize_func() -> IRModule:
                     bb = relax.BlockBuilder()
-                    weight_var = relax.Var(
-                        "weight", relax.TensorStructInfo(weight.shape, weight.dtype)
-                    )
+                    weight_var = relax.Var("weight", relax.TensorType(weight.shape, weight.dtype))
                     with bb.function(name="main", params=[weight_var]):
                         with bb.dataflow():
                             lv0 = bb.emit_te(self._quantize, weight_var)
@@ -211,7 +209,7 @@ class FTQuantize:
                                     lv1,
                                     detect_cuda_arch_list(target=target)[0],
                                     DataType(self.quantize_dtype).bits == 4,
-                                    sinfo_args=lv1.struct_info,
+                                    ty_args=lv1.ty,
                                 )
                             )
                             gv = bb.emit_output(relax.Tuple([lv2, lv0[1]]))

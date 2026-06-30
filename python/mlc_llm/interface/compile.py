@@ -125,7 +125,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "name": name,
             # Record dynamic shape as -1 (e.g. vocab_size)
             "shape": [s if isinstance(s, int) else s.name for s in param.shape],
-            "dtype": param.dtype,
+            "dtype": str(param.dtype),
             "preprocs": param.attrs["preprocs"],
             "pipeline_stages": param.attrs.get("pipeline_stages", [0]),
         }

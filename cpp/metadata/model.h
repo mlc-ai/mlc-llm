@@ -6,10 +6,10 @@
 #define MLC_LLM_CPP_MODEL_METADATA_H_
 
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 
 #include <unordered_map>
@@ -20,7 +20,6 @@ namespace llm {
 using tvm::ffi::Module;
 using tvm::ffi::Shape;
 using tvm::ffi::String;
-using tvm::runtime::DataType;
 
 /*! \brief The kind of cache. */
 enum class KVStateKind : int {
@@ -63,14 +62,14 @@ struct ModelMetadata {
       String func_name;
       Shape in_shape;
       Shape out_shape;
-      DataType out_dtype;
+      DLDataType out_dtype;
       static Preproc FromJSON(const tvm::ffi::json::Object& js,
                               const tvm::ffi::json::Object& model_config);
     };
 
     String name;
     Shape shape;
-    DataType dtype;
+    DLDataType dtype;
     std::vector<Preproc> preprocs;
     std::vector<int> pipeline_stages;
     static Param FromJSON(const tvm::ffi::json::Object& param_obj,

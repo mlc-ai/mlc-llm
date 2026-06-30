@@ -23,10 +23,10 @@ def pipeline_stage_boundary(*tensors: Tensor) -> List[Tensor]:  # noqa: UP006
         relax.call_pure_packed(
             "mlc.pipeline_parallel_stage_boundary",
             *[tensor._expr for tensor in tensors],
-            sinfo_args=(
-                tensors[0]._expr.struct_info
+            ty_args=(
+                tensors[0]._expr.ty
                 if len(tensors) == 1
-                else relax.TupleStructInfo([tensor._expr.struct_info for tensor in tensors])
+                else relax.TupleType([tensor._expr.ty for tensor in tensors])
             ),
         ),
         name="pipeline_stage_boundary",

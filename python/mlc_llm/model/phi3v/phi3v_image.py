@@ -28,7 +28,7 @@ class ImageProjection(Module):
             .current()
             .match_cast(
                 image_features._expr,
-                relax.TensorStructInfo([shape_1, image_features.shape[1]], image_features.dtype),
+                relax.TensorType([shape_1, image_features.shape[1]], image_features.dtype),
             ),
             "image_features",
         )
@@ -41,7 +41,7 @@ class ImageProjection(Module):
             .current()
             .match_cast(
                 hidden_states._expr,
-                relax.TensorStructInfo([shape_2, hidden_states.shape[1]], hidden_states.dtype),
+                relax.TensorType([shape_2, hidden_states.shape[1]], hidden_states.dtype),
             ),
             "hidden_states",
         )
@@ -78,7 +78,7 @@ class Phi3ImageEmbedding(Module):
         assert 4 == input_tensor.ndim, "input_tensor should be 4D data tensor"
 
         def create_dyn_repeat_func(dtype):
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def dyn_repeat_4d_tensor_func(  # pylint disable=too-many-locals
                 input_tensor: T.handle,
                 output: T.handle,
@@ -115,7 +115,7 @@ class Phi3ImageEmbedding(Module):
 
     def dyn_concate_dim_2(self, input_1, input_2) -> Tensor:
         def create_dyn_concate_func(dtype):
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def dyn_concate_dim_2_func(input_1: T.handle, input_2: T.handle, output: T.handle):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 n, c, h1, h2, w = T.int64(), T.int64(), T.int64(), T.int64(), T.int64()
@@ -154,7 +154,7 @@ class Phi3ImageEmbedding(Module):
 
     def dyn_concate_dim_1(self, input_1, input_2) -> Tensor:
         def create_dyn_concate_func(dtype):
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def dyn_concate_dim_1_func(input_1: T.handle, input_2: T.handle, output: T.handle):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 c, h1, h2, w = T.int64(), T.int64(), T.int64(), T.int64()
@@ -208,7 +208,7 @@ class Phi3ImageEmbedding(Module):
             .current()
             .match_cast(
                 image_features._expr,
-                relax.TensorStructInfo(
+                relax.TensorType(
                     [
                         image_features.shape[0],
                         new_s1,
@@ -239,7 +239,7 @@ class Phi3ImageEmbedding(Module):
             .current()
             .match_cast(
                 image_features._expr,
-                relax.TensorStructInfo(
+                relax.TensorType(
                     [
                         image_features.shape[0],
                         new_s3,
@@ -301,7 +301,7 @@ class Phi3ImageEmbedding(Module):
             .current()
             .match_cast(
                 combined_image._expr,
-                relax.TensorStructInfo([new_s7, combined_image.shape[1]], combined_image.dtype),
+                relax.TensorType([new_s7, combined_image.shape[1]], combined_image.dtype),
             ),
             "combined_image",
         )

@@ -18,9 +18,9 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
     eps = T.float32(eps)
     add_local_size = hidden_size // TX
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def decode_add_rms(pA: T.handle, pB: T.handle, pC: T.handle, pO: T.handle, pAdd: T.handle):
-        T.func_attr({"tirx.noalias": T.bool(True), "tirx.is_scheduled": 1})
+        T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
         batch_size = T.int32()
         A = T.match_buffer(pA, (batch_size, 1, hidden_size), in_dtype)
         B = T.match_buffer(pB, (batch_size, 1, hidden_size), in_dtype)
@@ -87,9 +87,9 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
     eps = T.float32(eps)
     add_local_size = hidden_size // TX
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def prefill_add_rms(pA: T.handle, pB: T.handle, pC: T.handle, pO: T.handle, pAdd: T.handle):
-        T.func_attr({"tirx.noalias": T.bool(True), "tirx.is_scheduled": 1})
+        T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
         seq_len = T.int32()
         A = T.match_buffer(pA, (1, seq_len, hidden_size), in_dtype)
         B = T.match_buffer(pB, (1, seq_len, hidden_size), in_dtype)
@@ -188,7 +188,7 @@ class _FuseAddRMSNormRewriter(PyExprMutator):
         call = super().visit_call_(call)
 
         # Match the "rms_norm(add(x1, x2), w)" pattern
-        if call.op != tvm.ir.Op.get("relax.nn.rms_norm") or call.struct_info.dtype not in [
+        if call.op != tvm.ir.Op.get("relax.nn.rms_norm") or call.ty.dtype not in [
             "bfloat16",
             "float16",
         ]:
@@ -204,7 +204,7 @@ class _FuseAddRMSNormRewriter(PyExprMutator):
         x1 = y.args[0]
         x2 = y.args[1]
         # Extra check
-        n, _, h = x1.struct_info.shape
+        n, _, h = x1.ty.shape
         h = int(h)
         if h % self.TX != 0:
             return call
@@ -214,13 +214,13 @@ class _FuseAddRMSNormRewriter(PyExprMutator):
         if func_gv is None:
             if is_prefill:
                 func_gv = self.builder_.add_func(
-                    _get_add_rms_norm_prefill(h, eps, self.TX, call.struct_info.dtype),
+                    _get_add_rms_norm_prefill(h, eps, self.TX, call.ty.dtype),
                     "fuse_add_norm_prefill",
                 )
                 self.prefill_norm_gv = func_gv
             else:
                 func_gv = self.builder_.add_func(
-                    _get_add_rms_norm_decode(h, eps, self.TX, call.struct_info.dtype),
+                    _get_add_rms_norm_decode(h, eps, self.TX, call.ty.dtype),
                     "fuse_add_norm_decode",
                 )
                 self.decode_norm_gv = func_gv
@@ -229,7 +229,7 @@ class _FuseAddRMSNormRewriter(PyExprMutator):
             relax.call_tir(
                 func_gv,
                 [x1, x2, weight],
-                out_sinfo=[x1.struct_info, x2.struct_info],
+                out_ty=[x1.ty, x2.ty],
             )
         )
         new_o = relax.TupleGetItem(tuple_output, 0)

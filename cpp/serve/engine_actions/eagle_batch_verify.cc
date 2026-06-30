@@ -18,8 +18,6 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-using tvm::Downcast;
-
 /*!
  * \brief The action that runs verification for requests in the
  * `running_queue` of engine state. Preempt low-priority requests
@@ -256,10 +254,12 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       // next runs of BatchDecode.
       // This is because we do not do sample for this round of batch decode.
       if (hidden_states_for_fully_accepted->IsInstance<DRefObj>()) {
-        Downcast<Session>(Downcast<DRef>(hidden_states_for_fully_accepted)->session)->SyncWorker(0);
+        (hidden_states_for_fully_accepted.as_or_throw<DRef>()->session)
+            .as_or_throw<Session>()
+            ->SyncWorker(0);
       } else {
         Tensor hidden_states_for_fully_accepted_nd =
-            Downcast<Tensor>(hidden_states_for_fully_accepted);
+            hidden_states_for_fully_accepted.as_or_throw<Tensor>();
         DeviceAPI::Get(hidden_states_for_fully_accepted_nd->device)
             ->StreamSync(hidden_states_for_fully_accepted_nd->device, nullptr);
       }

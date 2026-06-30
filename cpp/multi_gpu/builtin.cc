@@ -9,7 +9,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/cast.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/tensor.h>
@@ -20,7 +19,6 @@ namespace llm {
 namespace multi_gpu {
 
 using namespace tvm::runtime;
-using tvm::Downcast;
 using tvm::ffi::Array;
 using tvm::ffi::ObjectRef;
 using tvm::ffi::Optional;
@@ -41,7 +39,7 @@ ObjectRef DispatchFunctionByGroup(tvm::ffi::AnyView vm_arg,
   int group_id = worker->worker_id / group_size;
   TVM_FFI_ICHECK(!funcs_and_args[group_id].empty())
       << "No function is provided for group " << group_id;
-  VMClosure func = Downcast<VMClosure>(funcs_and_args[group_id][0]);
+  VMClosure func = funcs_and_args[group_id][0].as_or_throw<VMClosure>();
 
   int num_args = static_cast<int>(funcs_and_args[group_id].size()) - 1;
   std::vector<tvm::ffi::AnyView> packed_args(num_args);
@@ -52,13 +50,13 @@ ObjectRef DispatchFunctionByGroup(tvm::ffi::AnyView vm_arg,
   }
 
   tvm::ffi::Any rv;
-  vm->InvokeClosurePacked(Downcast<VMClosure>(funcs_and_args[group_id][0]),
+  vm->InvokeClosurePacked(funcs_and_args[group_id][0].as_or_throw<VMClosure>(),
                           tvm::ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
   return rv.cast<ObjectRef>();
 }
 
 ObjectRef SendFromLastGroupToWorker0(Tensor send, Optional<Tensor> recv, Shape shape,
-                                     DataType dtype) {
+                                     DLDataType dtype) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   int worker_id = worker->worker_id;
   int world_size = worker->num_workers;
@@ -71,7 +69,7 @@ ObjectRef SendFromLastGroupToWorker0(Tensor send, Optional<Tensor> recv, Shape s
     RecvFromWorker(recv_arr, sender_id);
     return recv_arr;
   } else if (worker_id == sender_id) {
-    TVM_FFI_ICHECK_EQ(DataType(send->dtype), dtype)
+    TVM_FFI_ICHECK_EQ(send->dtype, dtype)
         << "The src Tensor has mismatched dtype than the expected dtype.";
     TVM_FFI_ICHECK_EQ(send->ndim, shape.size())
         << "The src Tensor has mismatched shape than the expected shape.";

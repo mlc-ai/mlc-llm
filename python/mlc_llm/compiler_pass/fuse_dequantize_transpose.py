@@ -43,9 +43,9 @@ class _DequantizeTransposeFuser(PyExprMutator):
             return call
         # Do not fuse dequantize-transpose for GeMM
         if (
-            call.args[0].struct_info.ndim < 2
-            or not isinstance(call.args[0].struct_info.shape[-2], tirx.IntImm)
-            or call.args[0].struct_info.shape[-2].value != 1
+            call.args[0].ty.ndim < 2
+            or not isinstance(call.args[0].ty.shape[-2], tirx.IntImm)
+            or call.args[0].ty.shape[-2].value != 1
         ):
             return call
 
@@ -53,7 +53,7 @@ class _DequantizeTransposeFuser(PyExprMutator):
         if (
             not isinstance(matmul_rhs, relax.Call)
             or matmul_rhs.op != tvm.ir.Op.get("relax.permute_dims")
-            or matmul_rhs.args[0].struct_info.ndim != 2
+            or matmul_rhs.args[0].ty.ndim != 2
             or matmul_rhs.attrs.axes is not None
         ):
             return call
@@ -63,7 +63,7 @@ class _DequantizeTransposeFuser(PyExprMutator):
             not isinstance(transpose_input, relax.Call)
             or transpose_input.op != tvm.ir.Op.get("relax.call_tir")
             or not transpose_input.args[0].name_hint.startswith("dequantize")
-            or not isinstance(transpose_input.struct_info, relax.TensorStructInfo)
+            or not isinstance(transpose_input.ty, relax.TensorType)
         ):
             return call
 
@@ -102,6 +102,6 @@ class _DequantizeTransposeFuser(PyExprMutator):
         new_func = s_tir.renew_defs(new_func)
         g_var = self.builder_.add_func(new_func, func_name="dequantize")
         dequantize_matmul_rhs = self.builder_.emit(
-            relax.call_tir(g_var, transpose_input.args[1], out_sinfo=matmul_rhs.struct_info)
+            relax.call_tir(g_var, transpose_input.args[1], out_ty=matmul_rhs.ty)
         )
         return relax.op.matmul(call.args[0], dequantize_matmul_rhs, out_dtype=call.attrs.out_dtype)

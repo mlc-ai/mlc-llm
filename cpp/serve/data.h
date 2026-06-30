@@ -11,7 +11,6 @@
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/ir/cast.h>
 #include <tvm/runtime/tensor.h>
 
 #include <atomic>

@@ -32,7 +32,7 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:  # noqa: UP00
         assert args[0].value in ["mha", "mla"]
         attn_kind = args[0].value
     else:
-        assert len(args[0].fields) == args[3].value.value
+        assert len(args[0].fields) == args[3].value
         for i, attention_type in enumerate(args[0].fields):
             assert isinstance(attention_type, relax.StringImm)
             assert attention_type.value in ["mha", "mla", "mha_sliding"]
@@ -43,10 +43,13 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:  # noqa: UP00
     for i in range(3, 18):
         if i in [13, 14, 17]:
             continue
-        assert isinstance(args[i], relax.PrimValue), f"args[{i}] is {type(args[i])}"
-        assert isinstance(args[i].value, (tvm.tirx.IntImm, tvm.tirx.FloatImm))
+        # PrimValue wrappers were phased out of Relax: scalar args are now bare
+        # tirx PrimExprs (IntImm/FloatImm) directly.
+        assert isinstance(args[i], (tvm.tirx.IntImm, tvm.tirx.FloatImm)), (
+            f"args[{i}] is {type(args[i])}"
+        )
     assert isinstance(args[13], relax.StringImm)
-    assert isinstance(args[16], (relax.Constant, relax.PrimValue))
+    assert isinstance(args[16], (relax.Constant, tvm.tirx.IntImm, tvm.tirx.FloatImm))
     assert isinstance(args[17], relax.DataTypeImm)
 
     return {
@@ -57,20 +60,20 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:  # noqa: UP00
         "page_size": args[1].values[3],
         "support_sliding_window": args[1].values[4],
         "layer_partition": args[2],
-        "num_hidden_layers": args[3].value.value,
-        "num_attention_heads": args[4].value.value,
-        "num_key_value_heads": args[5].value.value,
-        "qk_head_dim": args[6].value.value,
-        "v_head_dim": args[7].value.value,
-        "mla_original_qk_head_dim": args[8].value.value,
-        "mla_original_v_head_dim": args[9].value.value,
-        "rope_mode": args[10].value.value,
-        "rope_scale": args[11].value.value,
-        "rope_theta": args[12].value.value,
+        "num_hidden_layers": args[3].value,
+        "num_attention_heads": args[4].value,
+        "num_key_value_heads": args[5].value,
+        "qk_head_dim": args[6].value,
+        "v_head_dim": args[7].value,
+        "mla_original_qk_head_dim": args[8].value,
+        "mla_original_v_head_dim": args[9].value,
+        "rope_mode": args[10].value,
+        "rope_scale": args[11].value,
+        "rope_theta": args[12].value,
         "rope_scaling": json.loads(args[13].value),
         "rope_ext_factors": args[14],
-        "rotary_dim": args[15].value.value,
-        "enable_disaggregation": bool(args[16].value.value),
+        "rotary_dim": args[15].value,
+        "enable_disaggregation": bool(args[16].value),
         "dtype": args[17].value,
     }
 
@@ -150,19 +153,17 @@ class DispatchKVCacheCreation:
         kwargs: Dict[str, Any],  # noqa: UP006
     ) -> List[tvm.runtime.Module]:  # noqa: UP006
         """Create the TIR-based PagedKVCache"""
-        max_batch_size = relax.Var(
-            "max_batch_size_", relax.ShapeStructInfo([kwargs["max_batch_size"]])
-        )
+        max_batch_size = relax.Var("max_batch_size_", relax.ShapeType([kwargs["max_batch_size"]]))
         max_total_seq_len = relax.Var(
-            "max_total_seq_len_", relax.ShapeStructInfo([kwargs["max_total_seq_len"]])
+            "max_total_seq_len_", relax.ShapeType([kwargs["max_total_seq_len"]])
         )
         prefill_chunk_size = relax.Var(
-            "prefill_chunk_size_", relax.ShapeStructInfo([kwargs["prefill_chunk_size"]])
+            "prefill_chunk_size_", relax.ShapeType([kwargs["prefill_chunk_size"]])
         )
-        page_size = relax.Var("page_size_", relax.ShapeStructInfo([kwargs["page_size"]]))
+        page_size = relax.Var("page_size_", relax.ShapeType([kwargs["page_size"]]))
         support_sliding_window = relax.Var(
             "support_sliding_window_",
-            relax.ShapeStructInfo([kwargs["support_sliding_window"]]),
+            relax.ShapeType([kwargs["support_sliding_window"]]),
         )
 
         # Ensure 'enable_disaggregation' is optional
@@ -205,19 +206,17 @@ class DispatchKVCacheCreation:
         ):
             return []
 
-        max_batch_size = relax.Var(
-            "max_batch_size_", relax.ShapeStructInfo([kwargs["max_batch_size"]])
-        )
+        max_batch_size = relax.Var("max_batch_size_", relax.ShapeType([kwargs["max_batch_size"]]))
         max_total_seq_len = relax.Var(
-            "max_total_seq_len_", relax.ShapeStructInfo([kwargs["max_total_seq_len"]])
+            "max_total_seq_len_", relax.ShapeType([kwargs["max_total_seq_len"]])
         )
         prefill_chunk_size = relax.Var(
-            "prefill_chunk_size_", relax.ShapeStructInfo([kwargs["prefill_chunk_size"]])
+            "prefill_chunk_size_", relax.ShapeType([kwargs["prefill_chunk_size"]])
         )
-        page_size = relax.Var("page_size_", relax.ShapeStructInfo([kwargs["page_size"]]))
+        page_size = relax.Var("page_size_", relax.ShapeType([kwargs["page_size"]]))
         support_sliding_window = relax.Var(
             "support_sliding_window_",
-            relax.ShapeStructInfo([kwargs["support_sliding_window"]]),
+            relax.ShapeType([kwargs["support_sliding_window"]]),
         )
 
         try:

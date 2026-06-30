@@ -26,8 +26,8 @@ class AttachCUDAGraphAllocInitFunc:
             bb.emit_func_output(
                 relax.op.call_builtin_with_ctx(
                     "vm.builtin.cuda_graph.get_cached_alloc",
-                    args=[alloc_func_gv, relax.PrimValue(0)],
-                    sinfo_args=relax.ObjectStructInfo(),
+                    args=[alloc_func_gv, relax.prim_value(0)],
+                    ty_args=relax.ObjectType(),
                 )
             )
         return bb.finalize()

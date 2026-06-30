@@ -213,7 +213,7 @@ class GroupQuantize:
 
         def _create_quantize_func() -> IRModule:
             bb = relax.BlockBuilder()
-            weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, weight.dtype))
+            weight_var = relax.Var("weight", relax.TensorType(weight.shape, weight.dtype))
             with bb.function(name="main", params=[weight_var]):
                 with bb.dataflow():
                     lv = bb.emit_te(self._quantize, weight_var, axis, output_transpose)

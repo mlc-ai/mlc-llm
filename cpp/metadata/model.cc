@@ -22,7 +22,7 @@ ModelMetadata::Param::Preproc ModelMetadata::Param::Preproc::FromJSON(
   json::SymShapeTuple sym_in_shape =
       json::LookupOrDefault<json::SymShapeTuple>(js, "in_shape", sym_out_shape);
   preproc.in_shape = sym_in_shape.ToStatic(model_config);
-  preproc.out_dtype = json::Lookup<DataType>(js, "out_dtype");
+  preproc.out_dtype = json::Lookup<DLDataType>(js, "out_dtype");
   return preproc;
 }
 
@@ -30,7 +30,7 @@ ModelMetadata::Param ModelMetadata::Param::FromJSON(const tvm::ffi::json::Object
                                                     const tvm::ffi::json::Object& model_config) {
   Param result;
   result.name = json::Lookup<std::string>(param, "name");
-  result.dtype = json::Lookup<DataType>(param, "dtype");
+  result.dtype = json::Lookup<DLDataType>(param, "dtype");
   // A shape being `-1` means that it is dynamic
   json::SymShapeTuple sym_shape = json::Lookup<json::SymShapeTuple>(param, "shape");
   result.shape = sym_shape.ToStatic(model_config);

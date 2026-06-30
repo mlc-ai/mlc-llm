@@ -31,14 +31,14 @@ def _create_shard_func(bb: relax.BlockBuilder, param: nn.Parameter, tensor_paral
     weight_shape = param.shape
     weight_shape[shard_strategy.dim] = weight_shape[shard_strategy.dim] * tensor_parallel_shards
     sharded_weight_shape = [tensor_parallel_shards, *param.shape]
-    weight_var = relax.Var("weight", relax.TensorStructInfo(weight_shape, param.dtype))
+    weight_var = relax.Var("weight", relax.TensorType(weight_shape, param.dtype))
     with bb.function(name=shard_strategy.name, params=[weight_var]):
         with bb.dataflow():
             lv0 = bb.emit(
                 relax.call_tir(
                     tir_gvar,
                     weight_var,
-                    out_sinfo=relax.TensorStructInfo(sharded_weight_shape, param.dtype),
+                    out_ty=relax.TensorType(sharded_weight_shape, param.dtype),
                 )
             )
             lv1 = bb.emit(relax.op.split(lv0, indices_or_sections=tensor_parallel_shards, axis=0))

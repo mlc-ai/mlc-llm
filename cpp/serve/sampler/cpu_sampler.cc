@@ -41,7 +41,7 @@ TokenProbPair SampleTopPFromProb(Tensor prob, int unit_offset, int input_prob_of
   // of the prob array we sample from.
 
   TVM_FFI_ICHECK(prob.IsContiguous());
-  TVM_FFI_ICHECK(prob.DataType() == DataType::Float(32));
+  TVM_FFI_ICHECK(prob.DataType() == (DLDataType{kDLFloat, 32, 1}));
   TVM_FFI_ICHECK_EQ(prob->device.device_type, DLDeviceType::kDLCPU);
 
   int64_t ndata = prob->shape[prob->ndim - 1];
@@ -176,7 +176,7 @@ void RenormalizeProbByTopP(Tensor prob, int unit_offset, double top_p, double ep
   // We use the `unit_offset` parameter to determine which slice
   // of the prob array we will renormalize.
   TVM_FFI_ICHECK(prob.IsContiguous());
-  TVM_FFI_ICHECK(prob.DataType() == DataType::Float(32));
+  TVM_FFI_ICHECK(prob.DataType() == (DLDataType{kDLFloat, 32, 1}));
   TVM_FFI_ICHECK_EQ(prob->device.device_type, DLDeviceType::kDLCPU);
 
   if (top_p == 1.0) {

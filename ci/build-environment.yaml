@@ -4,6 +4,9 @@ channels:
   - conda-forge
 
 dependencies:
+  # Pin Python: the unpinned env resolved to 3.10, but core deps (numpy,
+  # pandas, networkx, ...) have dropped 3.10 wheels.
+  - python=3.11
   - conda-build
   - anaconda-client
   - libvulkan-headers

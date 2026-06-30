@@ -46,7 +46,7 @@ def gemv(x: Tensor, w: Tensor, indptr: Tensor) -> Tensor:
     assert indptr.shape == [1, experts_per_tok] and indptr.dtype == "int32"
     assert x_leading_dim in [1, experts_per_tok]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func(
         x: T.Buffer((x_leading_dim, in_features), dtype),
         w: T.Buffer((local_experts, out_features, in_features), dtype),
@@ -144,7 +144,7 @@ def dequantize_gemv(
     assert indptr.shape == [1, experts_per_tok] and indptr.dtype == "int32"
     assert x_leading_dim in [1, experts_per_tok]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func(
         x: T.Buffer((x_leading_dim, in_features), model_dtype),
         w: T.Buffer((local_experts, out_features, num_storage), storage_dtype),
@@ -233,7 +233,7 @@ def dequantize_float8_gemv(
     def access_x(x, e, j):
         return x[0, j] if x_leading_dim == 1 else x[e, j]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func_with_scale(
         x: T.Buffer((x_leading_dim, in_features), model_dtype),
         w: T.Buffer((local_experts, out_features, num_storage), storage_dtype),
@@ -257,7 +257,7 @@ def dequantize_float8_gemv(
                             o[e, i] = T.cast(T.float16(0), model_dtype)
                         o[e, i] += access_x(x, e, j) * y[i, j]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func_without_scale(
         x: T.Buffer((x_leading_dim, in_features), model_dtype),
         w: T.Buffer((local_experts, out_features, num_storage), storage_dtype),
@@ -347,7 +347,7 @@ def dequantize_block_scale_float8_gemv(
     def load_x(x, e, j):
         return x[0, j] if x_leading_dim == 1 else x[e, j]
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func(
         x: T.Buffer((x_leading_dim, in_features), model_dtype),
         w: T.Buffer((local_experts, out_features, k), quantize_dtype),
@@ -419,7 +419,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):
     tiles_per_row = (N + BLK_N - 1) // BLK_N
     zero = tirx.const(0, dtype)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func(
         var_x: T.handle,
         var_w: T.handle,
@@ -629,7 +629,7 @@ def dequantize_group_gemm(
     if indptr_dtype == "int64":
         indptr = op.pad(indptr, [1, 0], "constant", 0)
 
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func(
         var_x: T.handle,
         w: T.Buffer((Ne, N, num_storage), storage_dtype),

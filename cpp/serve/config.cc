@@ -839,7 +839,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForKVCache(
   int64_t temp_buffer_bytes = 0;
   for (const ModelMetadata& metadata : model_metadata) {
     for (const ModelMetadata::Param& param : metadata.params) {
-      int64_t param_size = param.dtype.bytes();
+      int64_t param_size = (param.dtype.bits * param.dtype.lanes + 7) / 8;
       for (int64_t v : param.shape) {
         TVM_FFI_ICHECK_GE(v, 0);
         param_size *= v;
@@ -973,7 +973,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
   int64_t temp_buffer_bytes = 0;
   for (const ModelMetadata& metadata : model_metadata) {
     for (const ModelMetadata::Param& param : metadata.params) {
-      int64_t param_size = param.dtype.bytes();
+      int64_t param_size = (param.dtype.bits * param.dtype.lanes + 7) / 8;
       for (int64_t v : param.shape) {
         TVM_FFI_ICHECK_GE(v, 0);
         param_size *= v;

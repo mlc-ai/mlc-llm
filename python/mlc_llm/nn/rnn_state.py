@@ -58,13 +58,13 @@ class RNNState(Object):
         ret = RNNState(
             _expr=rx.call_pure_packed(
                 "vm.builtin.rnn_state_create",
-                rx.PrimValue(num_hidden_layers),
+                rx.prim_value(num_hidden_layers),
                 max_batch_size,
                 max_history,
                 f_gets,
                 f_sets,
                 list(init_values),
-                sinfo_args=[rx.ObjectStructInfo()],
+                ty_args=[rx.ObjectType()],
             ),
             _name=name,
         )
@@ -107,7 +107,7 @@ class RNNState(Object):
                 rx.call_dps_packed(
                     "vm.builtin.rnn_state_get",
                     [self._expr, layer_id, state_id],
-                    out_sinfo=rx.TensorStructInfo(shape, dtype),
+                    out_ty=rx.TensorType(shape, dtype),
                 )
             )
         )
@@ -130,10 +130,10 @@ class RNNState(Object):
                 rx.call_pure_packed(
                     "vm.builtin.rnn_state_set",
                     self._expr,
-                    rx.PrimValue(layer_id),
-                    rx.PrimValue(state_id),
+                    rx.prim_value(layer_id),
+                    rx.prim_value(state_id),
                     value._expr,
-                    sinfo_args=[rx.ObjectStructInfo()],
+                    ty_args=[rx.ObjectType()],
                 )
             ),
             _name="rnn_state_set",
@@ -173,7 +173,7 @@ class RNNState(Object):
         """
 
         def _func_one_dim():
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def f(
                 var_storage: T.handle,
                 var_seq_slot_ids: T.handle,
@@ -202,7 +202,7 @@ class RNNState(Object):
 
         def _func_high_dim():
             # Add a wrapper function to avoid parse the following code when len(shape) = 1
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def f(
                 var_storage: T.handle,
                 var_seq_slot_ids: T.handle,
@@ -270,7 +270,7 @@ class RNNState(Object):
         """
 
         def _func_one_dim():
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def f(
                 var_storage: T.handle,
                 var_seq_slot_ids: T.handle,
@@ -300,7 +300,7 @@ class RNNState(Object):
             return f
 
         def _func_high_dim():
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def f(
                 var_storage: T.handle,
                 var_seq_slot_ids: T.handle,
