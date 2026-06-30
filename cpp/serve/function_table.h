@@ -57,7 +57,7 @@ struct FunctionTable {
 
   void _InitFunctions();
 
-  ObjectRef Empty(Shape shape, DataType dtype, Device device, bool worker0_only) const;
+  ObjectRef Empty(Shape shape, DLDataType dtype, Device device, bool worker0_only) const;
 
   /*!
    * \brief Copy a host array to the worker or local gpu.

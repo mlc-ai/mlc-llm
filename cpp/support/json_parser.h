@@ -6,9 +6,9 @@
 #define MLC_LLM_SUPPORT_JSON_PARSER_H_
 
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 
 #include <optional>
@@ -204,9 +204,7 @@ struct SymShapeTuple {
 
 namespace details {
 
-inline tvm::runtime::DataType DTypeFromString(const std::string& s) {
-  return tvm::runtime::DataType(tvm::ffi::StringToDLDataType(s));
-}
+inline DLDataType DTypeFromString(const std::string& s) { return tvm::ffi::StringToDLDataType(s); }
 
 inline SymShapeTuple SymShapeTupleFromArray(const Array& shape) {
   std::vector<int64_t> result;
@@ -251,12 +249,12 @@ inline ValueType Lookup(const Array& json, int index) {
 }
 
 template <>
-inline tvm::runtime::DataType Lookup(const Object& json, const std::string& key) {
+inline DLDataType Lookup(const Object& json, const std::string& key) {
   return details::DTypeFromString(Lookup<std::string>(json, key));
 }
 
 template <>
-inline tvm::runtime::DataType Lookup(const Array& json, int index) {
+inline DLDataType Lookup(const Array& json, int index) {
   return details::DTypeFromString(Lookup<std::string>(json, index));
 }
 

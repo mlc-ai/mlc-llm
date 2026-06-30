@@ -94,7 +94,7 @@ class ImageProcessor(Module):
         assert 3 == image.shape[1], "image layout should be NCHW"
 
         def create_crop_func(dtype):  # , top, bottom, left, right):
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def crop_func(
                 image: T.handle,
                 out: T.handle,
@@ -147,7 +147,7 @@ class ImageProcessor(Module):
         assert 3 == image.shape[1], "image layout should be NCHW"
 
         def create_rescale_func(rescale_factor, dtype, o_dtype):
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def rescale_func(image: T.handle, out: T.handle):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
@@ -186,7 +186,7 @@ class ImageProcessor(Module):
         assert 3 == image.shape[1], "image layout should be NCHW"
 
         def create_normalize_func(dtype, o_dtype):
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def normalize_func(image: T.handle, out: T.handle):
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
                 image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
@@ -237,7 +237,7 @@ class ImageProcessor(Module):
         assert 3 == image.shape[1], "image layout should be NCHW"
 
         def create_pad_func(left, right, fill=255):
-            @T.prim_func
+            @T.prim_func(s_tir=True)
             def pad_func(image: T.handle, out: T.handle, t: T.int64(), b: T.int64()):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()

@@ -301,7 +301,7 @@ def get_tir_w8a8_block_fp8_matmul(
 
     @I.ir_module
     class BlockFP8Matmul:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_w8a8_block_fp8_matmul(
             var_A: T.handle,
             var_B: T.handle,
@@ -403,7 +403,7 @@ def get_tir_w8a8_block_fp8_group_matmul(
 
     @I.ir_module
     class BlockFP8GroupMatmul:
-        @T.prim_func(private=True)
+        @T.prim_func(private=True, s_tir=True)
         def tir_w8a8_block_fp8_group_gemm(
             var_A: T.handle,
             var_B: T.handle,
@@ -523,7 +523,7 @@ def _compute_expert_id_per_block(
         [(M + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,].
     """
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def tir_compute_expert_id_per_block(
         var_indptr: T.handle,
         var_expert_ids: T.handle,

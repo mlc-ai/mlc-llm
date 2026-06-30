@@ -22,7 +22,6 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-using tvm::Downcast;
 using tvm::support::NVTXScopedRange;
 
 /*********************** Model Implementation ***********************/
@@ -93,7 +92,7 @@ class ModelImpl : public ModelObj {
                    seqlen_padding_factor_;
     }
     // Copy input token ids to device.
-    DLDataType dtype(DataType::Int(32));
+    DLDataType dtype(DLDataType{kDLInt, 32, 1});
     Tensor token_ids_nd;
     {
       NVTXScopedRange nvtx_scope("Allocate token_ids at offset");
@@ -166,7 +165,7 @@ class ModelImpl : public ModelObj {
     ObjectRef hidden_states_dref_or_nd{nullptr};
     if (!ft_.use_disco && hidden_states->IsInstance<DRefObj>()) {
       hidden_states_dref_or_nd =
-          Downcast<DRef>(hidden_states)->DebugGetFromRemote(0).cast<ObjectRef>();
+          hidden_states.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<ObjectRef>();
     } else {
       hidden_states_dref_or_nd = hidden_states;
     }
@@ -176,9 +175,9 @@ class ModelImpl : public ModelObj {
     }
     Tensor logits{nullptr};
     if (ft_.use_disco) {
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Tensor>();
+      logits = ret.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<Tensor>();
     } else {
-      logits = Downcast<Tensor>(ret);
+      logits = ret.as_or_throw<Tensor>();
     }
     // logits: (b * s, v)
     return logits;
@@ -193,9 +192,9 @@ class ModelImpl : public ModelObj {
     ObjectRef ret = ft_.get_logits_func_(hidden_states, params_).cast<ObjectRef>();
     Array<Tensor> logits{nullptr};
     if (ft_.use_disco) {
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Array<Tensor>>();
+      logits = ret.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<Array<Tensor>>();
     } else {
-      logits = Downcast<Array<Tensor>>(ret);
+      logits = ret.as_or_throw<Array<Tensor>>();
     }
     return logits;
   }
@@ -207,7 +206,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd{nullptr};
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (n, h)
-      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
+      Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
       TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
       TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], batch_size * seq_len);
@@ -222,7 +221,7 @@ class ModelImpl : public ModelObj {
     ObjectRef previous_hidden_states_dref_or_nd{nullptr};
     if (!ft_.use_disco && previous_hidden_states->IsInstance<DRefObj>()) {
       previous_hidden_states_dref_or_nd =
-          Downcast<DRef>(previous_hidden_states)->DebugGetFromRemote(0).cast<ObjectRef>();
+          previous_hidden_states.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<ObjectRef>();
     } else {
       previous_hidden_states_dref_or_nd = previous_hidden_states;
     }
@@ -236,7 +235,7 @@ class ModelImpl : public ModelObj {
     if (ft_.use_disco) {
       return ft_.nd_view_func_(fused, out_shape).cast<ObjectRef>();
     } else {
-      Tensor fused_nd = Downcast<Tensor>(fused);
+      Tensor fused_nd = fused.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_EQ(fused_nd->ndim, 2);
       TVM_FFI_ICHECK_EQ(fused_nd->shape[0], batch_size * seq_len);
       return fused_nd.CreateView(out_shape, fused_nd->dtype);
@@ -262,7 +261,7 @@ class ModelImpl : public ModelObj {
     }
     NVTXScopedRange nvtx_scope("BatchPrefill num_seq=" + std::to_string(num_sequences) +
                                " total_len=" + std::to_string(total_length));
-    Tensor logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
+    Tensor logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DLDataType{kDLInt, 32, 1});
 
     TVM_FFI_ICHECK(ft_.prefill_func_.defined())
         << "`prefill_with_embed` function is not found in the model. Please make sure the model is "
@@ -283,7 +282,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
-      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
+      Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
       TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
       TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
@@ -341,13 +340,16 @@ class ModelImpl : public ModelObj {
       if (num_stages_ > 1) {
         // Send the result from the last worker group to worker 0.
         Shape shape{1, num_sequences, vocab_size_};
-        DataType dtype = DataType::Float(32);
+        DLDataType dtype = DLDataType{kDLFloat, 32, 1};
         ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype)
                   .cast<ObjectRef>();
       }
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Tensor>();
+      logits = ret.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<Tensor>();
     } else {
-      logits = Downcast<Array<Tensor>>(ret)[0];
+      // The function returns a (logits, kv_cache) tuple; extract element 0 as a
+      // generic Any before casting to Tensor. Casting the whole tuple to
+      // Array<Tensor> now fails strict element-type checking on the kv_cache.
+      logits = ret.as_or_throw<Array<Any>>()[0].cast<Tensor>();
     }
     if (trace_enabled_) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
@@ -380,7 +382,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embedding_or_hidden_states_dref_or_nd{nullptr};
     Shape hidden_states_shape{1, total_length, hidden_size_};
     if (!ft_.use_disco) {
-      Tensor embedding_or_hidden_states_nd = Downcast<Tensor>(embedding_or_hidden_states);
+      Tensor embedding_or_hidden_states_nd = embedding_or_hidden_states.as_or_throw<Tensor>();
       embedding_or_hidden_states_dref_or_nd = embedding_or_hidden_states_nd.CreateView(
           hidden_states_shape, embedding_or_hidden_states_nd->dtype);
     } else {
@@ -441,7 +443,7 @@ class ModelImpl : public ModelObj {
     if (ft_.use_disco) {
       return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     } else {
-      Tensor hidden_states_nd = Downcast<Tensor>(hidden_states);
+      Tensor hidden_states_nd = hidden_states.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_EQ(hidden_states_nd->ndim, 3);
       TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[0], 1);
       TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[1], total_length);
@@ -473,7 +475,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, b, h)
-      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
+      Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
       TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
       TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], num_sequence);
@@ -505,13 +507,16 @@ class ModelImpl : public ModelObj {
       if (num_stages_ > 1) {
         // Send the result from the last worker group to worker 0.
         Shape shape{num_sequence, 1, vocab_size_};
-        DataType dtype = DataType::Float(32);
+        DLDataType dtype = DLDataType{kDLFloat, 32, 1};
         ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype)
                   .cast<ObjectRef>();
       }
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Tensor>();
+      logits = ret.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<Tensor>();
     } else {
-      logits = Downcast<Array<Tensor>>(ret)[0];
+      // The function returns a (logits, kv_cache) tuple; extract element 0 as a
+      // generic Any before casting to Tensor. Casting the whole tuple to
+      // Array<Tensor> now fails strict element-type checking on the kv_cache.
+      logits = ret.as_or_throw<Array<Any>>()[0].cast<Tensor>();
     }
     if (trace_enabled_) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
@@ -560,7 +565,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
-      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
+      Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
       TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
       TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
@@ -584,10 +589,14 @@ class ModelImpl : public ModelObj {
     }
     Tensor logits;
     if (ft_.use_disco) {
-      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Array<ObjectRef>>();
-      logits = Downcast<Tensor>(result[0]);
+      Array<ObjectRef> result =
+          ret.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<Array<ObjectRef>>();
+      logits = result[0].as_or_throw<Tensor>();
     } else {
-      logits = Downcast<Array<Tensor>>(ret)[0];
+      // The function returns a (logits, kv_cache) tuple; extract element 0 as a
+      // generic Any before casting to Tensor. Casting the whole tuple to
+      // Array<Tensor> now fails strict element-type checking on the kv_cache.
+      logits = ret.as_or_throw<Array<Any>>()[0].cast<Tensor>();
     }
     if (trace_enabled_) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
@@ -661,7 +670,7 @@ class ModelImpl : public ModelObj {
     if (ft_.use_disco) {
       return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     } else {
-      Tensor hidden_states_nd = Downcast<Tensor>(hidden_states);
+      Tensor hidden_states_nd = hidden_states.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_EQ(hidden_states_nd->ndim, 3);
       TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[0], num_sequence);
       TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[1], 1);
@@ -705,7 +714,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
-      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
+      Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
       TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
       TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
@@ -732,13 +741,16 @@ class ModelImpl : public ModelObj {
       if (num_stages_ > 1) {
         // Send the result from the last worker group to worker 0.
         Shape shape{1, total_length, vocab_size_};
-        DataType dtype = DataType::Float(32);
+        DLDataType dtype = DLDataType{kDLFloat, 32, 1};
         ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype)
                   .cast<ObjectRef>();
       }
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Tensor>();
+      logits = ret.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<Tensor>();
     } else {
-      logits = Downcast<Array<Tensor>>(ret)[0];
+      // The function returns a (logits, kv_cache) tuple; extract element 0 as a
+      // generic Any before casting to Tensor. Casting the whole tuple to
+      // Array<Tensor> now fails strict element-type checking on the kv_cache.
+      logits = ret.as_or_throw<Array<Any>>()[0].cast<Tensor>();
     }
     if (trace_enabled_) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
@@ -779,7 +791,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
-      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
+      Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
       TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
       TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
@@ -824,7 +836,7 @@ class ModelImpl : public ModelObj {
 
     Shape out_shape{total_length, hidden_size_};
     if (!ft_.use_disco) {
-      Tensor hidden_states_nd = Downcast<Tensor>(hidden_states);
+      Tensor hidden_states_nd = hidden_states.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_EQ(hidden_states_nd->ndim, 3);
       TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[0], 1);
       TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[1], total_length);
@@ -852,7 +864,7 @@ class ModelImpl : public ModelObj {
                                             support_sliding_window)
                       .cast<ObjectRef>();
       local_kv_cache_ = ft_.use_disco
-                            ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0).cast<ObjectRef>()
+                            ? kv_cache_.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<ObjectRef>()
                             : kv_cache_;
     } else if (kv_state_kind == KVStateKind::kRNNState) {
       // RNN state needs extra slots for prefix cache recycling sequences.
@@ -861,7 +873,7 @@ class ModelImpl : public ModelObj {
       kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_history_size_tuple)
                       .cast<ObjectRef>();
       local_kv_cache_ = ft_.use_disco
-                            ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0).cast<ObjectRef>()
+                            ? kv_cache_.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<ObjectRef>()
                             : kv_cache_;
     } else if (kv_state_kind == KVStateKind::kHybrid) {
       // Hybrid: create both PagedKVCache (for attention layers) and RNNState (for GDN layers).
@@ -875,7 +887,7 @@ class ModelImpl : public ModelObj {
                                             support_sliding_window)
                       .cast<ObjectRef>();
       local_kv_cache_ = ft_.use_disco
-                            ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0).cast<ObjectRef>()
+                            ? kv_cache_.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<ObjectRef>()
                             : kv_cache_;
       // Create RNN state for recurrent layers.
       // RNN state needs extra slots for prefix cache recycling sequences that
@@ -883,9 +895,9 @@ class ModelImpl : public ModelObj {
       Shape rnn_max_batch{max_num_sequence + prefix_cache_max_num_recycling_seqs};
       Shape rnn_max_history{std::max(max_history_size, 1)};
       rnn_state_ = ft_.create_rnn_state_func_(rnn_max_batch, rnn_max_history).cast<ObjectRef>();
-      local_rnn_state_ = ft_.use_disco
-                             ? Downcast<DRef>(rnn_state_)->DebugGetFromRemote(0).cast<ObjectRef>()
-                             : rnn_state_;
+      local_rnn_state_ =
+          ft_.use_disco ? rnn_state_.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<ObjectRef>()
+                        : rnn_state_;
     } else if (kv_state_kind == KVStateKind::kNone) {
       // Do nothing
     } else {
@@ -965,9 +977,9 @@ class ModelImpl : public ModelObj {
     ret = ft_.kv_cache_disagg_prepare_recv_func_(kv_cache_, seq_id, length).cast<ObjectRef>();
     Shape compressed_kv_append_metadata;
     if (ft_.use_disco) {
-      compressed_kv_append_metadata = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Shape>();
+      compressed_kv_append_metadata = ret.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<Shape>();
     } else {
-      compressed_kv_append_metadata = Downcast<Shape>(ret);
+      compressed_kv_append_metadata = ret.as_or_throw<Shape>();
     }
 
     return compressed_kv_append_metadata;
@@ -1015,8 +1027,8 @@ class ModelImpl : public ModelObj {
 
   void SetMaxNumSequence(int max_num_sequence) final {
     this->max_num_sequence_ = max_num_sequence;
-    this->logit_pos_arr_ =
-        Tensor::Empty({max_num_sequence}, DataType::Int(32), Device{DLDeviceType::kDLCPU, 0});
+    this->logit_pos_arr_ = Tensor::Empty({max_num_sequence}, DLDataType{kDLInt, 32, 1},
+                                         Device{DLDeviceType::kDLCPU, 0});
   }
 
   void SetPrefillChunkSize(int prefill_chunk_size) final {
@@ -1026,12 +1038,12 @@ class ModelImpl : public ModelObj {
         preferred_host_device, memory::AllocatorType::kNaive);
     TVM_FFI_ICHECK_NOTNULL(allocator);
     token_ids_storage_ = memory::Storage(
-        allocator->Alloc(preferred_host_device, {prefill_chunk_size_}, DataType::Int(32)),
+        allocator->Alloc(preferred_host_device, {prefill_chunk_size_}, DLDataType{kDLInt, 32, 1}),
         allocator);
     if (this->num_stages_ > 1) {
       // Create a remote Tensor for logits when pipeline parallelism is enabled.
       disco_logits_arr_ =
-          ft_.Empty({prefill_chunk_size_, vocab_size_}, DataType::Float(32), device_,
+          ft_.Empty({prefill_chunk_size_, vocab_size_}, DLDataType{kDLFloat, 32, 1}, device_,
                     /*worker0_only=*/true);
     }
   }
@@ -1072,9 +1084,9 @@ class ModelImpl : public ModelObj {
     if (ft_.use_disco) {
       TVM_FFI_ICHECK(embedding->IsInstance<DRefObj>());
       ObjectRef shape_ref = ft_.nd_get_shape_func_(embedding).cast<ObjectRef>();
-      embedding_shape = Downcast<DRef>(shape_ref)->DebugGetFromRemote(0).cast<Shape>();
+      embedding_shape = shape_ref.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<Shape>();
     } else {
-      Tensor embedding_nd = Downcast<Tensor>(embedding);
+      Tensor embedding_nd = embedding.as_or_throw<Tensor>();
       embedding_shape = embedding_nd.Shape();
     }
     TVM_FFI_ICHECK_NE(prefill_chunk_size_, -1);
@@ -1095,9 +1107,9 @@ class ModelImpl : public ModelObj {
     // Get the shape of the hidden_states tensor for hidden size.
     if (ft_.use_disco) {
       TVM_FFI_ICHECK(hidden_states->IsInstance<DRefObj>());
-      hidden_states_nd = Downcast<DRef>(hidden_states)->DebugGetFromRemote(0).cast<Tensor>();
+      hidden_states_nd = hidden_states.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<Tensor>();
     } else {
-      hidden_states_nd = Downcast<Tensor>(hidden_states);
+      hidden_states_nd = hidden_states.as_or_throw<Tensor>();
     }
     Shape hidden_states_shape = hidden_states_nd.Shape();
     TVM_FFI_ICHECK_NE(prefill_chunk_size_, -1);
@@ -1132,11 +1144,11 @@ class ModelImpl : public ModelObj {
     if ((*dst)->IsInstance<DRefObj>()) {
       dst_view = ft_.nd_view_func_(*dst, out_shape).cast<ObjectRef>();
     } else {
-      Tensor dst_nd = Downcast<Tensor>(*dst);
+      Tensor dst_nd = (*dst).as_or_throw<Tensor>();
       dst_view = dst_nd.CreateView(out_shape, hidden_states_dtype_);
     }
-    Tensor indices_nd =
-        logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
+    Tensor indices_nd = logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())},
+                                                  DLDataType{kDLInt, 32, 1});
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
     TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device = ft_.CopyToWorker0(indices_nd, "logit_pos", {max_num_sequence_});
@@ -1146,8 +1158,8 @@ class ModelImpl : public ModelObj {
 
   void ScatterHiddenStates(const ObjectRef& input, const std::vector<int>& indices,
                            ObjectRef* dst) final {
-    Tensor indices_nd =
-        logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
+    Tensor indices_nd = logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())},
+                                                  DLDataType{kDLInt, 32, 1});
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
     TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device = ft_.CopyToWorker0(indices_nd, "logit_pos", {max_num_sequence_});
@@ -1155,10 +1167,10 @@ class ModelImpl : public ModelObj {
   }
 
   Tensor GatherDraftProbs(const Tensor& input, const std::vector<int>& indices, Tensor* dst) final {
-    Tensor dst_view =
-        dst->CreateView({static_cast<int64_t>(indices.size()), vocab_size_}, DataType::Float(32));
-    Tensor indices_nd =
-        logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
+    Tensor dst_view = dst->CreateView({static_cast<int64_t>(indices.size()), vocab_size_},
+                                      DLDataType{kDLFloat, 32, 1});
+    Tensor indices_nd = logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())},
+                                                  DLDataType{kDLInt, 32, 1});
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
     TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device =
@@ -1168,8 +1180,8 @@ class ModelImpl : public ModelObj {
   }
 
   void ScatterDraftProbs(const Tensor& input, const std::vector<int>& indices, Tensor* dst) final {
-    Tensor indices_nd =
-        logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
+    Tensor indices_nd = logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())},
+                                                  DLDataType{kDLInt, 32, 1});
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
     TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device =
@@ -1181,9 +1193,9 @@ class ModelImpl : public ModelObj {
     ObjectRef result = ft_.get_logits_func_(hidden_states).cast<ObjectRef>();
     Array<Tensor> logits{nullptr};
     if (ft_.use_disco) {
-      logits = Downcast<DRef>(result)->DebugGetFromRemote(0).cast<Array<Tensor>>();
+      logits = result.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<Array<Tensor>>();
     } else {
-      logits = Downcast<Array<Tensor>>(result);
+      logits = result.as_or_throw<Array<Tensor>>();
     }
     return logits;
   }

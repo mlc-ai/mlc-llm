@@ -68,10 +68,9 @@ def fuse_bias(func: relax.Function) -> relax.Function:
                 return expr
             matched_bias = match[bias]
             bias_stride = (
-                matched_bias.struct_info.shape[-1]
+                matched_bias.ty.shape[-1]
                 if bias
-                and not reduce(operator.mul, matched_bias.struct_info.shape, 1)
-                == matched_bias.struct_info.shape[-1]
+                and not reduce(operator.mul, matched_bias.ty.shape, 1) == matched_bias.ty.shape[-1]
                 else 0
             )
             return relax.call_dps_packed(
@@ -88,7 +87,7 @@ def fuse_bias(func: relax.Function) -> relax.Function:
                     args_list[7],  # group_size
                     bias_stride,  # bias_stride
                 ],
-                out_sinfo=match[decode_matmul].struct_info,
+                out_ty=match[decode_matmul].ty,
             )
         return expr
 
@@ -151,7 +150,7 @@ def fuse_activation(func: relax.Function) -> relax.Function:
                     args_list[6],  # k
                     args_list[7],  # group_size
                 ],
-                out_sinfo=match[decode_matmul].struct_info,
+                out_ty=match[decode_matmul].ty,
             )
         if match[decode_matmul].args[0].global_symbol == "fastertransformer.gemm_fp16_int_bias":
             matched_activation = match[pattern]
@@ -177,7 +176,7 @@ def fuse_activation(func: relax.Function) -> relax.Function:
                     args_list[8],  # group_size
                     args_list[9],  # bias_stride
                 ],
-                out_sinfo=match[decode_matmul].struct_info,
+                out_ty=match[decode_matmul].ty,
             )
         return expr
 
@@ -255,7 +254,7 @@ def fuse_residual_binary(func: relax.Function) -> relax.Function:
                     args_list[7],  # k
                     args_list[8],  # group_size
                 ],
-                out_sinfo=match[decode_matmul].struct_info,
+                out_ty=match[decode_matmul].ty,
             )
         return expr
 
@@ -325,7 +324,7 @@ def fuse_residual_unary(func: relax.Function) -> relax.Function:
                     args_list[10],  # k
                     args_list[11],  # group_size
                 ],
-                out_sinfo=match[decode_matmul].struct_info,
+                out_ty=match[decode_matmul].ty,
             )
         return expr
 

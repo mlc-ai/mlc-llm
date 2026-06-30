@@ -239,7 +239,7 @@ def create_gated_delta_net_func(
     K = key_head_dim  # 128
     V = value_head_dim  # 128
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def gdn_func(
         q_handle: T.handle,
         k_handle: T.handle,

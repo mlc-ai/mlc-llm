@@ -239,7 +239,7 @@ class Phi3VForCausalLM(nn.Module):
             .current()
             .match_cast(
                 global_image._expr,
-                relax.TensorStructInfo(
+                relax.TensorType(
                     [global_image.shape[0], global_image.shape[1], 336, 336],
                     global_image.dtype,
                 ),
@@ -264,7 +264,7 @@ class Phi3VForCausalLM(nn.Module):
             .current()
             .match_cast(
                 combined_image._expr,
-                relax.TensorStructInfo([num_crops + 1, c, h, w], combined_image.dtype),
+                relax.TensorType([num_crops + 1, c, h, w], combined_image.dtype),
             ),
             "combined_image",
         )

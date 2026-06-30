@@ -43,7 +43,6 @@ namespace serve {
 
 using tvm::Device;
 using namespace tvm::runtime;
-using tvm::Downcast;
 using tvm::ffi::Function;
 using tvm::support::NVTXScopedRange;
 

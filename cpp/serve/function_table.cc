@@ -25,8 +25,6 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-using tvm::Downcast;
-
 Optional<Shape> GetDiscoWorkerCPUBinding(int num_workers) {
   const char* raw_cpu_binding = std::getenv("MLC_DISCO_WORKER_CPU_BINDING");
   if (raw_cpu_binding == nullptr) {
@@ -297,7 +295,7 @@ void FunctionTable::_InitFunctions() {
   this->scatter_hidden_states_func_ = mod_get_func("scatter_hidden_states");
 }
 
-ObjectRef FunctionTable::Empty(Shape shape, DataType dtype, Device device,
+ObjectRef FunctionTable::Empty(Shape shape, DLDataType dtype, Device device,
                                bool worker0_only) const {
   if (this->use_disco) {
     DRef empty_func = sess->GetGlobalFunc("runtime.disco.empty");
@@ -316,10 +314,11 @@ ObjectRef FunctionTable::CopyToWorker0(const Tensor& host_array, String buffer_c
     Optional<DRef> buffer = std::nullopt;
     auto it = cached_buffers.find(buffer_cache_key);
     if (it != cached_buffers.end()) {
-      buffer = Downcast<DRef>((*it).second);
+      buffer = (*it).second.as_or_throw<DRef>();
     } else {
-      buffer = Downcast<DRef>(this->Empty(max_reserved_shape, host_array.DataType(), null_device,
-                                          /*worker0_only=*/false));
+      buffer = this->Empty(max_reserved_shape, host_array.DataType(), null_device,
+                           /*worker0_only=*/false)
+                   .as_or_throw<DRef>();
       cached_buffers.Set(buffer_cache_key, buffer.value());
     }
     Shape real_shape = host_array.Shape();
@@ -330,7 +329,7 @@ ObjectRef FunctionTable::CopyToWorker0(const Tensor& host_array, String buffer_c
     auto it = cached_buffers.find(buffer_cache_key);
     Tensor buffer{nullptr};
     if (it != cached_buffers.end()) {
-      buffer = Downcast<Tensor>((*it).second);
+      buffer = (*it).second.as_or_throw<Tensor>();
       if (buffer_cache_key == "image") {
         if (tvm::ffi::GetDataSize(*buffer.operator->()) <
             tvm::ffi::GetDataSize(*host_array.operator->())) {

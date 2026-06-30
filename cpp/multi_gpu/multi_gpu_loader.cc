@@ -116,7 +116,7 @@ Tensor BroadcastOrShardAndScatter(Tensor param, const ModelMetadata::Param& para
   }
   Device device = param->device;
   Shape shape = param_info.preprocs.back().out_shape;
-  DataType dtype = param_info.preprocs.back().out_dtype;
+  DLDataType dtype = param_info.preprocs.back().out_dtype;
   TVM_FFI_ICHECK(shape.size() >= 1 && shape[0] == num_shards)
       << "ValueError: The first dimension of the output shape must be equal to the "
       << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
@@ -132,7 +132,7 @@ Tensor ReceiveBroadcastedOrSharded(Device device, const ModelMetadata::Param& pa
   Tensor result;
   if (needs_sharding) {
     Shape shape = param_info.preprocs.back().out_shape;
-    DataType dtype = param_info.preprocs.back().out_dtype;
+    DLDataType dtype = param_info.preprocs.back().out_dtype;
     result = Tensor::Empty(Shape(shape.begin() + 1, shape.end()), dtype, device);
     ScatterFromWorker0(std::nullopt, /*in_group=*/true, result);
   } else {

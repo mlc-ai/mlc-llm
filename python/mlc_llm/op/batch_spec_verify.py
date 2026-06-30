@@ -55,7 +55,7 @@ def batch_spec_verify(vocab_size):
         return T.sblock_alloc_buffer((1,), dtype, scope="local")
 
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func(
         var_draft_probs: T.handle,
         var_draft_tokens: T.handle,

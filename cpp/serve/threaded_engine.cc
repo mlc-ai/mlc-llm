@@ -26,7 +26,6 @@ namespace serve {
 
 using tvm::Device;
 using namespace tvm::runtime;
-using tvm::Downcast;
 
 /*! \brief The threaded engine instruction kind. */
 enum class InstructionKind : int {
@@ -155,7 +154,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
       for (const auto& [kind, arg] : local_instruction_queue) {
         if (kind == InstructionKind::kAddRequest) {
           TVM_FFI_ICHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
-          background_engine_->AddRequest(Downcast<Request>(arg));
+          background_engine_->AddRequest(arg.as_or_throw<Request>());
         } else if (kind == InstructionKind::kAbortRequest) {
           // in a rare case, abort request can happen after unloading
           // aka background engine is nullptr
@@ -163,22 +162,22 @@ class ThreadedEngineImpl : public ThreadedEngine {
           // the engine get unloaded, and then abort was called.
           // it is safe to ignore these abort in such case
           if (background_engine_ != nullptr) {
-            background_engine_->AbortRequest(Downcast<String>(arg));
+            background_engine_->AbortRequest(arg.as_or_throw<String>());
           }
         } else if (kind == InstructionKind::kUnloadEngine) {
           EngineUnloadImpl();
         } else if (kind == InstructionKind::kReloadEngine) {
           EngineUnloadImpl();
-          EngineReloadImpl(Downcast<String>(arg));
+          EngineReloadImpl(arg.as_or_throw<String>());
         } else if (kind == InstructionKind::kResetEngine) {
           if (background_engine_ != nullptr) {
             background_engine_->Reset();
           }
         } else if (kind == InstructionKind::kDebugCallFuncOnAllAllWorker) {
           TVM_FFI_ICHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
-          Array<Any> packed_args = Downcast<Array<Any>>(arg);
+          Array<Any> packed_args = arg.as_or_throw<Array<Any>>();
           background_engine_->DebugCallFuncOnAllAllWorker(
-              Downcast<String>(packed_args[0]), Downcast<Optional<String>>(packed_args[1]));
+              packed_args[0].as_or_throw<String>(), packed_args[1].as_or_throw<Optional<String>>());
         } else {
           LOG(FATAL) << "Cannot reach here";
         }

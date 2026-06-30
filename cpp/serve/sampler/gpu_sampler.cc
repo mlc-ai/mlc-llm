@@ -698,8 +698,8 @@ class GPUSampler : public SamplerObj {
   // Model configurations
   const int max_num_sample_;
   const int vocab_size_;
-  const DLDataType dtype_i32_ = DataType::Int(32);
-  const DLDataType dtype_f32_ = DataType::Float(32);
+  const DLDataType dtype_i32_ = DLDataType{kDLInt, 32, 1};
+  const DLDataType dtype_f32_ = DLDataType{kDLFloat, 32, 1};
   const bool flashinfer_sampling_available_;
   // Functions for sampling on GPU.
   Device device_;

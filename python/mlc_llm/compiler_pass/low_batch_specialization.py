@@ -1,6 +1,7 @@
 """A compiler pass that dispatch low-batch-gemm to gemv schedule."""
 
 import tvm
+import tvm_ffi
 from tvm import tirx
 from tvm.ir.module import IRModule
 from tvm.s_tir import dlight as dl
@@ -29,7 +30,7 @@ class LowBatchGemvSpecialize:
                     )(low_batch_mod)
                     low_batch_funcs.append(low_batch_mod["main"])
                 if any(
-                    tvm.ir.structural_equal(low_batch_func, func)
+                    tvm_ffi.structural_equal(low_batch_func, func)
                     for low_batch_func in low_batch_funcs
                 ):
                     continue

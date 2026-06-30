@@ -171,9 +171,9 @@ def validate_model_lib(
 ) -> None:
     """Validate the model lib prefixes of model libraries."""
     if device == "android":
-        from tvm.contrib import ndk as cc
+        from tvm.support import ndk as cc
     else:
-        from tvm.contrib import cc
+        from tvm.support import cc
 
     with open(app_config_path, encoding="utf-8") as file:
         app_config = json.load(file)

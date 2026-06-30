@@ -49,7 +49,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
         return tvm.tirx.all(lsum >= top_p, top_p > lsum - cmin * lmin)
 
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func(
         var_prob: T.handle,
         var_top_p_arr: T.handle,
@@ -297,7 +297,7 @@ def top_p_renorm(target: tvm.target.Target = None):
         return T.sblock_alloc_buffer((1,), dtype, scope="local")
 
     # fmt: off
-    @T.prim_func(private=True)
+    @T.prim_func(private=True, s_tir=True)
     def _func(
         var_prob: T.handle,
         var_final_pivot: T.handle,

@@ -52,15 +52,15 @@ class _Rewriter(PyExprMutator):
         global_symbol = str(call.args[0].global_symbol)
         assert isinstance(call.args[1], relax.Tuple)
         if global_symbol == "mlc.triton.w8a8_block_fp8_matmul":
-            return self.w8a8_block_fp8_matmul(call.args[1].fields, call.struct_info)
+            return self.w8a8_block_fp8_matmul(call.args[1].fields, call.ty)
         if global_symbol == "mlc.triton.w8a8_block_fp8_group_matmul":
-            return self.w8a8_block_fp8_group_matmul(call.args[1].fields, call.struct_info)
+            return self.w8a8_block_fp8_group_matmul(call.args[1].fields, call.ty)
         raise ValueError(f"Unknown mlc.triton kernel identifier: {global_symbol}")
 
     def w8a8_block_fp8_matmul(
         self,
         args: List[relax.Expr],  # noqa: UP006
-        out_sinfo: relax.StructInfo,
+        out_ty: relax.Type,
     ) -> relax.Expr:
         """Emit the w8a8_block_fp8_matmul triton kernel."""
         assert len(args) == 16
@@ -101,12 +101,12 @@ class _Rewriter(PyExprMutator):
             # Add the TIR function to the IRModule
             gv = self.builder_.add_func(prim_func, func_name)
 
-        return relax.call_tir(gv, [x, weight, x_scale, weight_scale], out_sinfo=out_sinfo)
+        return relax.call_tir(gv, [x, weight, x_scale, weight_scale], out_ty=out_ty)
 
     def w8a8_block_fp8_group_matmul(
         self,
         args: List[relax.Expr],  # noqa: UP006
-        out_sinfo: relax.StructInfo,
+        out_ty: relax.Type,
     ) -> relax.Expr:
         """Emit the w8a8_block_fp8_group_matmul triton kernel."""
         assert len(args) == 19
@@ -152,7 +152,7 @@ class _Rewriter(PyExprMutator):
         return relax.call_tir(
             gv,
             [x, weight, x_scale, weight_scale, expert_ids, indptr],
-            out_sinfo=out_sinfo,
+            out_ty=out_ty,
         )
 
 

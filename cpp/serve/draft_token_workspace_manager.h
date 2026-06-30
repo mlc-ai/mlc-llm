@@ -92,7 +92,7 @@ class DraftTokenWorkspaceManagerObj : public Object {
   int max_num_tokens_;
   int vocab_size_;
   int hidden_size_;
-  DataType hidden_states_dtype_;
+  DLDataType hidden_states_dtype_;
   DLDevice device_;
   const FunctionTable& ft_;
   std::unordered_map<int, int> ref_count_;

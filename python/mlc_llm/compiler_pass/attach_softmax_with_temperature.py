@@ -48,22 +48,22 @@ class _Rewriter(PyExprMutator):
         batch_size = tirx.SizeVar("batch_size", "int64")
         vocab_size = tirx.SizeVar("vocab_size", "int64")
         dtype = "float32"
-        logits = relax.Var("logits", relax.TensorStructInfo([batch_size, 1, vocab_size], dtype))
-        temperature = relax.Var("temperature", relax.TensorStructInfo([batch_size], dtype))
+        logits = relax.Var("logits", relax.TensorType([batch_size, 1, vocab_size], dtype))
+        temperature = relax.Var("temperature", relax.TensorType([batch_size], dtype))
         with self.builder_.function("softmax_with_temperature", params=[logits, temperature]):
             with self.builder_.dataflow():
-                output_struct_info = logits.struct_info
+                output_struct_info = logits.ty
                 new_shape = relax.ShapeExpr([batch_size, vocab_size])
                 logits = relax.call_pure_packed(
                     "vm.builtin.reshape",
                     logits,
                     new_shape,
-                    sinfo_args=relax.TensorStructInfo(new_shape, dtype),
+                    ty_args=relax.TensorType(new_shape, dtype),
                 )
                 f_chunk_lse, f_softmax_with_lse = _get_lse_and_softmax_func(
                     self.target, self.chunk_size, self.active_vocab_size
                 )
-                chunked_result_struct_info = relax.TensorStructInfo(
+                chunked_result_struct_info = relax.TensorType(
                     (batch_size, (vocab_size + self.chunk_size - 1) // self.chunk_size),
                     "float32",
                 )
@@ -71,7 +71,7 @@ class _Rewriter(PyExprMutator):
                     relax.call_tir(
                         self.builder_.add_func(f_chunk_lse, "chunk_lse"),
                         args=[logits, temperature],
-                        out_sinfo=[
+                        out_ty=[
                             chunked_result_struct_info,
                             chunked_result_struct_info,
                         ],
@@ -83,7 +83,7 @@ class _Rewriter(PyExprMutator):
                     relax.call_tir(
                         self.builder_.add_func(f_softmax_with_lse, "softmax_with_chunked_sum"),
                         args=[logits, temperature, chunked_sum, chunked_max],
-                        out_sinfo=logits.struct_info,
+                        out_ty=logits.ty,
                     )
                 )
                 softmax = self.builder_.emit_output(
@@ -91,7 +91,7 @@ class _Rewriter(PyExprMutator):
                         "vm.builtin.reshape",
                         softmax,
                         output_struct_info.shape,
-                        sinfo_args=output_struct_info,
+                        ty_args=output_struct_info,
                     )
                 )
             self.builder_.emit_func_output(softmax)
@@ -116,14 +116,14 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
     # of the max value. The second kernel merges the max and counts, and set the
     # softmax of the maximum values to "max_value / max_count".
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def chunk_lse(
         var_A: T.handle,
         var_temperature: T.handle,
         var_chunked_sum: T.handle,
         var_chunked_max: T.handle,
     ):
-        T.func_attr({"tirx.noalias": T.bool(True)})
+        T.func_attr({"tirx.noalias": True})
         batch_size = T.int64(is_size_var=True)
         vocab_size = T.int64(is_size_var=True)
         num_chunks = T.int64(is_size_var=True)
@@ -181,7 +181,7 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
                 )
                 chunked_max[v0, v1] = temp_max[v0, v1]
 
-    @T.prim_func
+    @T.prim_func(s_tir=True)
     def softmax_with_chunked_sum(
         var_A: T.handle,
         var_temperature: T.handle,
@@ -189,7 +189,7 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
         var_chunked_max: T.handle,
         var_softmax: T.handle,
     ):
-        T.func_attr({"tirx.noalias": T.bool(True), "tirx.is_scheduled": 1})
+        T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
         batch_size = T.int64(is_size_var=True)
         vocab_size = T.int64(is_size_var=True)
         num_chunks = T.int64(is_size_var=True)

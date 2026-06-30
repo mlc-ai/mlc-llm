@@ -88,7 +88,7 @@ class ShardSingleDim:
             "func_name": self.name,
             "in_shape": self._compute_in_shape(shards, weight),
             "out_shape": (shards, *weight.shape),
-            "out_dtype": weight.dtype,
+            "out_dtype": str(weight.dtype),
         }
 
     def _compute_in_shape(self, shards: int, weight: nn.Tensor) -> List[int]:  # noqa: UP006
