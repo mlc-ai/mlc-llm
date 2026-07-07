@@ -40,14 +40,14 @@ class ImageProcessor(Module):
                 long = tirx.Select(w > h, w, h)
                 requested_new_short = params["shortest_edge"]
                 new_short, new_long = (
-                    tirx.generic.cast(requested_new_short, "int64"),
-                    tirx.generic.cast(
+                    tirx.Cast("int64", requested_new_short),
+                    tirx.Cast(
+                        "int64",
                         requested_new_short
                         * tirx.div(
-                            tirx.generic.cast(long, "float32"),
-                            tirx.generic.cast(short, "float32"),
+                            tirx.Cast("float32", long),
+                            tirx.Cast("float32", short),
                         ),
-                        "int64",
                     ),
                 )
                 ret_h = tirx.Select(w <= h, new_long, new_short)
@@ -58,27 +58,27 @@ class ImageProcessor(Module):
                 pad_num = 336 if "pad_num" not in params else params["pad_num"]
                 ratio = tirx.Select(
                     w > h,
-                    tirx.div(tirx.generic.cast(w, "float32"), tirx.generic.cast(h, "float32")),
-                    tirx.div(tirx.generic.cast(h, "float32"), tirx.generic.cast(w, "float32")),
+                    tirx.div(tirx.Cast("float32", w), tirx.Cast("float32", h)),
+                    tirx.div(tirx.Cast("float32", h), tirx.Cast("float32", w)),
                 )
 
-                scale = tirx.ceil(tirx.sqrt(tirx.generic.cast(hd_num, "float32") * ratio))
+                scale = tirx.ceil(tirx.sqrt(tirx.Cast("float32", hd_num) * ratio))
 
                 scale = tirx.Select(
                     (scale * tirx.ceil(tirx.div(scale, ratio))) > hd_num,
                     scale - 1,
                     scale,
                 )
-                scale = tirx.generic.cast(scale, "int64")
+                scale = tirx.Cast("int64", scale)
 
                 new_w = tirx.Select(
                     w >= h,
                     scale * pad_num,
-                    tirx.generic.cast(tirx.div(scale * pad_num, ratio), "int64"),
+                    tirx.Cast("int64", tirx.div(scale * pad_num, ratio)),
                 )
                 new_h = tirx.Select(
                     w >= h,
-                    tirx.generic.cast(tirx.div(new_w, ratio), "int64"),
+                    tirx.Cast("int64", tirx.div(new_w, ratio)),
                     scale * pad_num,
                 )
                 return (new_h, new_w)

@@ -234,5 +234,5 @@ class _FuseAddRMSNormRewriter(PyExprMutator):
         )
         new_o = relax.TupleGetItem(tuple_output, 0)
         new_y = self.builder_.emit(relax.TupleGetItem(tuple_output, 1))
-        self.set_var_remap(call.args[0].vid, new_y)
+        self.set_var_remap(call.args[0], new_y)
         return new_o

@@ -45,8 +45,8 @@ class _Rewriter(PyExprMutator):
 
     def transform(self) -> IRModule:
         """Entry point"""
-        batch_size = tirx.SizeVar("batch_size", "int64")
-        vocab_size = tirx.SizeVar("vocab_size", "int64")
+        batch_size = tirx.Var("batch_size", "int64")
+        vocab_size = tirx.Var("vocab_size", "int64")
         dtype = "float32"
         logits = relax.Var("logits", relax.TensorType([batch_size, 1, vocab_size], dtype))
         temperature = relax.Var("temperature", relax.TensorType([batch_size], dtype))
@@ -124,9 +124,9 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
         var_chunked_max: T.handle,
     ):
         T.func_attr({"tirx.noalias": True})
-        batch_size = T.int64(is_size_var=True)
-        vocab_size = T.int64(is_size_var=True)
-        num_chunks = T.int64(is_size_var=True)
+        batch_size = T.int64()
+        vocab_size = T.int64()
+        num_chunks = T.int64()
         A = T.match_buffer(var_A, (batch_size, vocab_size), dtype="float32")
         temperature = T.match_buffer(var_temperature, (batch_size,), dtype="float32")
         chunked_sum = T.match_buffer(var_chunked_sum, (batch_size, num_chunks), dtype="float32")
@@ -190,9 +190,9 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
         var_softmax: T.handle,
     ):
         T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
-        batch_size = T.int64(is_size_var=True)
-        vocab_size = T.int64(is_size_var=True)
-        num_chunks = T.int64(is_size_var=True)
+        batch_size = T.int64()
+        vocab_size = T.int64()
+        num_chunks = T.int64()
         A = T.match_buffer(var_A, (batch_size, vocab_size), dtype="float32")
         temperature = T.match_buffer(var_temperature, (batch_size,), dtype="float32")
         chunked_sum = T.match_buffer(var_chunked_sum, (batch_size, num_chunks), dtype="float32")

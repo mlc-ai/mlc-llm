@@ -140,7 +140,7 @@ ModelMetadata ModelMetadata::FromJSON(const tvm::ffi::json::Object& metadata,
 ModelMetadata ModelMetadata::FromModule(Module module, const tvm::ffi::json::Object& model_config) {
   std::string json_str = "";
   Optional<Function> pf = module->GetFunction("_metadata");
-  TVM_FFI_ICHECK(pf.defined()) << "ValueError: _metadata function not found in module";
+  TVM_FFI_ICHECK(pf.has_value()) << "ValueError: _metadata function not found in module";
   json_str = pf.value()().cast<String>();
   tvm::ffi::json::Object json = json::ParseToJSONObject(json_str);
   try {

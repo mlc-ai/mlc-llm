@@ -58,8 +58,8 @@ def top_p_pivot(pN, target: tvm.target.Target):
         var_final_lsum: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
-        B = T.int32(is_size_var=True)
-        N = T.int32(is_size_var=True)
+        B = T.int32()
+        N = T.int32()
         prob = T.match_buffer(var_prob, (B, N,), "float32")
         top_p_arr = T.match_buffer(var_top_p_arr, (B,), dtype="float32")
         init_pivots = T.match_buffer(var_init_pivots, (B, pN), "float32")
@@ -160,9 +160,9 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                         T.attr(
                                             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                                             "reduce_scope",
-                                            T.reinterpret("handle", T.uint64(0)),
+                                            T.int32(0),
                                         )
-                                        T.tvm_thread_allreduce(T.uint32(1), total_sum[0], True, total_sum_reduce[0], tx, dtype="handle")  # noqa: E501
+                                        T.tvm_thread_allreduce(T.uint32(1), total_sum[0], True, total_sum_reduce[0], tx, dtype="void")  # noqa: E501
                                     # T.tvm_storage_sync("shared")
 
                                     if tx == 0:
@@ -182,9 +182,9 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                     T.attr(
                                         T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                                         "reduce_scope",
-                                        T.reinterpret("handle", T.uint64(0)),
+                                        T.int32(0),
                                     )
-                                    T.tvm_thread_allreduce(T.uint32(1), lsum[pidx], True, lsum_reduce[0], tx, dtype="handle")  # noqa: E501
+                                    T.tvm_thread_allreduce(T.uint32(1), lsum[pidx], True, lsum_reduce[0], tx, dtype="void")  # noqa: E501
 
                                 # reduce lmin over tx for pivot[j]
                                 with T.sblock("block_cross_thread"):
@@ -193,9 +193,9 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                     T.attr(
                                         T.comm_reducer(lambda x0, y0: T.min(x0, y0), [T.float32(0)]),  # noqa: E501
                                         "reduce_scope",
-                                        T.reinterpret("handle", T.uint64(0)),
+                                        T.int32(0),
                                     )
-                                    T.tvm_thread_allreduce(T.uint32(1), lmin[pidx], True, lmin_reduce[0], tx, dtype="handle")  # noqa: E501
+                                    T.tvm_thread_allreduce(T.uint32(1), lmin[pidx], True, lmin_reduce[0], tx, dtype="void")  # noqa: E501
 
                                 if tx == 0:
                                     # broadcast lmin to all threads
@@ -216,9 +216,9 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                     T.attr(
                                         T.comm_reducer(lambda x0, y0: x0 + y0, [T.int32(0)]),
                                         "reduce_scope",
-                                        T.reinterpret("handle", T.uint64(0)),
+                                        T.int32(0),
                                     )
-                                    T.tvm_thread_allreduce(T.uint32(1), cmin[pidx], True, cmin_reduce[0], tx, dtype="handle")  # noqa: E501
+                                    T.tvm_thread_allreduce(T.uint32(1), cmin[pidx], True, cmin_reduce[0], tx, dtype="void")  # noqa: E501
 
                                 if tx == 0:
                                     # only the leader thread updates cmin
@@ -305,8 +305,8 @@ def top_p_renorm(target: tvm.target.Target = None):
         var_renorm_prob: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
-        B = T.int32(is_size_var=True)
-        N = T.int32(is_size_var=True)
+        B = T.int32()
+        N = T.int32()
         prob = T.match_buffer(var_prob, (B, N,), "float32")
         final_pivot = T.match_buffer(var_final_pivot, (B,), "float32")
         final_lsum = T.match_buffer(var_final_lsum, (B,), "float32")

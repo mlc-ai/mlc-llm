@@ -497,8 +497,8 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]
         var_token_indices: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
-        batch_size = T.SizeVar("batch_size", "int32")
-        cumsum_len = T.SizeVar("cumsum_len", "int32")  # [experts_per_tok * batch_size]
+        batch_size = T.int32()
+        cumsum_len = T.int32()  # [experts_per_tok * batch_size]
         cumsum = T.match_buffer(var_cumsum, [cumsum_len], "int32")
         expert_indices = T.match_buffer(var_expert_indices, [batch_size, experts_per_tok], "int32")
         reverse_indices = T.match_buffer(

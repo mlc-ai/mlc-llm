@@ -101,7 +101,7 @@ def remove_global_buf_alloc(
     alloc_buffers = []
 
     insertion_point = len(params)
-    while params[insertion_point - 1].ty.dtype != "handle":
+    while not isinstance(params[insertion_point - 1].ty, tvm.ir.PointerType):
         insertion_point -= 1
         assert insertion_point >= 1
 
@@ -159,7 +159,7 @@ def _resolve_tir_var_mapping(
     tensor_sinfo: List[relax.TensorType],  # noqa: UP006
 ) -> Tuple[List[relax.TensorType], bool]:  # noqa: UP006
     """Resolve the TIR symbolic var relationship across sides of PrimFunc and Relax Function"""
-    var_map: Dict[tirx.Var, tirx.PrimExpr] = {}  # noqa: UP006
+    var_map: Dict[tirx.Var, tirx.Expr] = {}  # noqa: UP006
 
     n_arg = len(call.args[1].fields)
     for i in range(n_arg):

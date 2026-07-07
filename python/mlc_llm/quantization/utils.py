@@ -19,7 +19,7 @@ def convert_uint_to_float(
     storage_dtype: str,
     model_dtype: str,
     axis: int = -1,
-    out_shape: Optional[List[tirx.PrimExpr]] = None,  # noqa: UP006
+    out_shape: Optional[List[tirx.Expr]] = None,  # noqa: UP006
     ft_reorder: Optional[bool] = False,
 ) -> te.Tensor:
     """Convert a quantized uint weight to an unquantized float weight."""
@@ -101,7 +101,7 @@ def convert_uint_packed_fp8_to_float(
     model_dtype: str,
     quant_dtype: str,
     axis: int = -1,
-    out_shape: Optional[Sequence[tirx.PrimExpr]] = None,
+    out_shape: Optional[Sequence[tirx.Expr]] = None,
 ) -> te.Tensor:
     """Unpack a fp8 value from the storage dtype and convert to float."""
     assert quant_dtype in ["float8_e4m3fn", "float8_e5m2"]
@@ -139,7 +139,7 @@ def pack_weight(
     num_elem_per_storage: int,
     weight_dtype: str,
     storage_dtype: str,
-    out_shape: Optional[Sequence[tirx.PrimExpr]] = None,
+    out_shape: Optional[Sequence[tirx.Expr]] = None,
 ):
     """Convert a tensor to a packed format by packing consecutive bits.
     This can be useful for sub-byte quantization.
@@ -156,7 +156,7 @@ def pack_weight(
         The dtype of the input tensor.
     storage_dtype : str
         The dtype of the packed tensor.
-    out_shape : Optional[Sequence[tirx.PrimExpr]]
+    out_shape : Optional[Sequence[tirx.Expr]]
         The output shape of the packed tensor. Zero-padding is added if needed.
     """
     assert weight.dtype == storage_dtype

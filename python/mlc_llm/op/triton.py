@@ -310,7 +310,7 @@ def get_tir_w8a8_block_fp8_matmul(
             var_C: T.handle,
         ):
             T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
-            M = T.SizeVar("M", "int32")
+            M = T.int32()
             A = T.match_buffer(var_A, (M, K), dtype=in_dtype)
             B = T.match_buffer(var_B, (N, K), dtype=in_dtype)
             As = T.match_buffer(var_As, (M, (K + block_k - 1) // block_k), "float32")
@@ -414,7 +414,7 @@ def get_tir_w8a8_block_fp8_group_matmul(
             var_C: T.handle,
         ):
             T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
-            EM = T.SizeVar("EM", "int32")
+            EM = T.int32()
             A = T.match_buffer(var_A, (EM, K), dtype=in_dtype)
             B = T.match_buffer(var_B, (num_experts, N, K), dtype=in_dtype)
             As = T.match_buffer(var_As, (EM, (K + block_k - 1) // block_k), "float32")

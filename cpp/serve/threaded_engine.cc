@@ -43,7 +43,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
   void InitThreadedEngine(Device device, Optional<Function> request_stream_callback,
                           Optional<EventTraceRecorder> trace_recorder) final {
     device_ = device;
-    TVM_FFI_ICHECK(request_stream_callback.defined())
+    TVM_FFI_ICHECK(request_stream_callback.has_value())
         << "ThreadedEngine requires request stream callback function, but it is not given.";
     request_stream_callback_ = request_stream_callback.value();
     trace_recorder_ = trace_recorder;
@@ -232,7 +232,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
   /************** Query/Profile/Debug **************/
 
   GenerationConfig GetDefaultGenerationConfig() const final {
-    TVM_FFI_ICHECK(default_generation_config_.defined())
+    TVM_FFI_ICHECK(default_generation_config_.has_value())
         << "The default generation config has not been set.";
     return default_generation_config_.value();
   }
@@ -245,7 +245,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
   }
 
   EngineConfig GetCompleteEngineConfig() const final {
-    TVM_FFI_ICHECK(complete_engine_config_.defined()) << "The engine config has not been set.";
+    TVM_FFI_ICHECK(complete_engine_config_.has_value()) << "The engine config has not been set.";
     return complete_engine_config_.value();
   }
 

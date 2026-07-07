@@ -118,10 +118,10 @@ class _PipelineParallelRewriter(PyExprMutator):
         # Prepare the func parameters (except the shape variables and packed params)
         params, args = self._prepare_stage_func_params_and_args(required_func_params)
         for new_param, old_param in zip(params, required_func_params):
-            self.set_var_remap(old_param.vid, new_param)
+            self.set_var_remap(old_param, new_param)
         # Create new packed params
         self.new_stage_func_packed_params = relax.Var("packed_params", relax.ObjectType())
-        self.set_var_remap(self.old_packed_params_var.vid, self.new_stage_func_packed_params)
+        self.set_var_remap(self.old_packed_params_var, self.new_stage_func_packed_params)
 
         new_func_outputs = []
         with self.builder_.function(func_name, pure=False):
@@ -136,7 +136,7 @@ class _PipelineParallelRewriter(PyExprMutator):
                         ),
                         name_hint=receive_var.name_hint,
                     )
-                    self.set_var_remap(receive_var.vid, new_receive_var)
+                    self.set_var_remap(receive_var, new_receive_var)
                 # Process the bindings in this stage.
                 for stage_binding in stage_bindings:
                     if stage_binding.var in stage_send_vars or stage_binding.var.same_as(
@@ -147,13 +147,13 @@ class _PipelineParallelRewriter(PyExprMutator):
                             self.visit_expr(stage_binding.value),
                             name_hint=stage_binding.var.name_hint,
                         )
-                        self.set_var_remap(stage_binding.var.vid, new_var)
+                        self.set_var_remap(stage_binding.var, new_var)
                         new_func_outputs.append(new_var)
                     else:
                         self.visit_binding(stage_binding)
             # Emit the calls to send tensors to the next stage.
             for send_var in stage_send_vars:
-                new_send_var = self.get_var_remap(send_var.vid)
+                new_send_var = self.get_var_remap(send_var)
                 self.builder_.emit(
                     relax.Call(
                         relax.ExternFunc("runtime.disco.send_to_next_group"),
@@ -235,7 +235,7 @@ class _PipelineParallelRewriter(PyExprMutator):
             new_binding_var = self.builder_.match_cast(
                 new_binding_var, new_tensor_struct_info, binding.var.name_hint + "_cast"
             )
-        self.set_var_remap(binding.var.vid, new_binding_var)
+        self.set_var_remap(binding.var, new_binding_var)
 
     def visit_call_(self, call: relax.Call) -> relax.Call:
         call = super().visit_call_(call)
@@ -291,10 +291,10 @@ class _PipelineParallelRewriter(PyExprMutator):
 
     def _copy_undefined_var(
         self,
-        expr: tirx.PrimExpr,
+        expr: tirx.Expr,
         undefined_var_remap: Dict[tirx.Var, tirx.Var],  # noqa: UP006
     ) -> None:
-        def _visit_expr(e: tirx.PrimExpr) -> None:
+        def _visit_expr(e: tirx.Expr) -> None:
             if isinstance(e, tirx.Var) and e not in undefined_var_remap:
                 new_var = tirx.Var(e.name, e.ty)
                 undefined_var_remap[e] = new_var
@@ -303,9 +303,9 @@ class _PipelineParallelRewriter(PyExprMutator):
 
     def _update_shape(
         self,
-        shape: List[tirx.PrimExpr],  # noqa: UP006
+        shape: List[tirx.Expr],  # noqa: UP006
         undefined_var_remap: Dict[tirx.Var, tirx.Var],  # noqa: UP006
-    ) -> List[tirx.PrimExpr]:  # noqa: UP006
+    ) -> List[tirx.Expr]:  # noqa: UP006
         new_shape = []
         for v in shape:
             self._copy_undefined_var(v, undefined_var_remap)

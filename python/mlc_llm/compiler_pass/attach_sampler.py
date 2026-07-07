@@ -67,9 +67,9 @@ class AttachGPUSamplingFunc:
 
 
 def _attach_multinomial_sampling_func(bb: relax.BlockBuilder):
-    batch_size = tirx.SizeVar("batch_size", "int64")
-    num_samples = tirx.SizeVar("num_samples", "int64")
-    vocab_size = tirx.SizeVar("vocab_size", "int64")
+    batch_size = tirx.Var("batch_size", "int64")
+    num_samples = tirx.Var("num_samples", "int64")
+    vocab_size = tirx.Var("vocab_size", "int64")
     probs = relax.Var("probs", relax.TensorType((batch_size, vocab_size), "float32"))
     uniform_samples = relax.Var("uniform_samples", relax.TensorType((num_samples,), "float32"))
     sample_indices = relax.Var("sample_indices", relax.TensorType((num_samples,), "int32"))
@@ -116,8 +116,8 @@ def _attach_multinomial_sampling_func(bb: relax.BlockBuilder):
 
 
 def _attach_argsort_func(bb: relax.BlockBuilder):
-    batch_size = tirx.SizeVar("batch_size", "int64")
-    vocab_size = tirx.SizeVar("vocab_size", "int64")
+    batch_size = tirx.Var("batch_size", "int64")
+    vocab_size = tirx.Var("vocab_size", "int64")
     probs = relax.Var("probs", relax.TensorType((batch_size, vocab_size), "float32"))
     with bb.function("argsort_probs", [probs]):
         with bb.dataflow():
@@ -140,7 +140,7 @@ def _attach_argsort_func(bb: relax.BlockBuilder):
 @T.prim_func(s_tir=True)
 def full(var_result: T.handle, value: T.int32):
     """The filling function for top k."""
-    batch_size = T.int32(is_size_var=True)
+    batch_size = T.int32()
     result = T.match_buffer(var_result, (batch_size, 1), "int32")
     for i in T.serial(batch_size):
         with T.sblock("block"):
@@ -149,9 +149,9 @@ def full(var_result: T.handle, value: T.int32):
 
 
 def _attach_sample_with_top_p(bb: relax.BlockBuilder):
-    batch_size = tirx.SizeVar("batch_size", "int64")
-    num_samples = tirx.SizeVar("num_samples", "int64")
-    vocab_size = tirx.SizeVar("vocab_size", "int64")
+    batch_size = tirx.Var("batch_size", "int64")
+    num_samples = tirx.Var("num_samples", "int64")
+    vocab_size = tirx.Var("vocab_size", "int64")
     sorted_probs = relax.Var("sorted_probs", relax.TensorType((batch_size, vocab_size), "float32"))
     sorted_indices = relax.Var(
         "sorted_indices", relax.TensorType((batch_size, vocab_size), "int32")
@@ -227,8 +227,8 @@ def _attach_sample_with_top_p(bb: relax.BlockBuilder):
 
 
 def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Target):
-    batch_size = tirx.SizeVar("batch_size", "int64")
-    vocab_size = tirx.SizeVar("vocab_size", "int64")
+    batch_size = tirx.Var("batch_size", "int64")
+    vocab_size = tirx.Var("vocab_size", "int64")
     num_pivots = 3
     probs = relax.Var("probs", relax.TensorType((batch_size, vocab_size), "float32"))
     top_p = relax.Var("top_p", relax.TensorType((batch_size,), "float32"))
@@ -256,10 +256,10 @@ def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Targ
 
 
 def _attach_take_probs_func(bb: relax.BlockBuilder):
-    batch_size = tirx.SizeVar("batch_size", "int64")
-    num_samples = tirx.SizeVar("num_samples", "int64")
-    num_positions = tirx.SizeVar("num_positions", "int64")
-    vocab_size = tirx.SizeVar("vocab_size", "int64")
+    batch_size = tirx.Var("batch_size", "int64")
+    num_samples = tirx.Var("num_samples", "int64")
+    num_positions = tirx.Var("num_positions", "int64")
+    vocab_size = tirx.Var("vocab_size", "int64")
     unsorted_probs = relax.Var(
         "unsorted_probs", relax.TensorType((batch_size, vocab_size), "float32")
     )
@@ -281,10 +281,10 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
         var_top_prob_probs: T.handle,
         var_top_prob_indices: T.handle,
     ):
-        batch_size = T.int32(is_size_var=True)
-        num_samples = T.int32(is_size_var=True)
-        num_positions = T.int32(is_size_var=True)
-        vocab_size = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        num_samples = T.int32()
+        num_positions = T.int32()
+        vocab_size = T.int32()
         unsorted_probs = T.match_buffer(var_unsorted_probs, (batch_size, vocab_size), "float32")
         sorted_indices = T.match_buffer(var_sorted_indices, (batch_size, vocab_size), "int32")
         sample_indices = T.match_buffer(var_sample_indices, (num_samples,), "int32")
@@ -344,9 +344,9 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
 
 
 def _attach_batch_verifier(bb: relax.BlockBuilder):
-    num_nodes = tirx.SizeVar("num_nodes", "int64")
-    nbatch = tirx.SizeVar("nbatch", "int64")
-    vocab_size = tirx.SizeVar("vocab_size", "int64")
+    num_nodes = tirx.Var("num_nodes", "int64")
+    nbatch = tirx.Var("nbatch", "int64")
+    vocab_size = tirx.Var("vocab_size", "int64")
     draft_probs = relax.Var("draft_probs", relax.TensorType((num_nodes, vocab_size), "float32"))
     draft_tokens = relax.Var("draft_tokens", relax.TensorType((num_nodes,), "int32"))
     model_probs = relax.Var("model_probs", relax.TensorType((num_nodes, vocab_size), "float32"))

@@ -153,7 +153,7 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id,
 void RemoveRequestStateEntry(EngineState estate, const Array<Model>& models,
                              RequestStateEntry rsentry,
                              Optional<DraftTokenWorkspaceManager> draft_token_workspace_manager) {
-  if (draft_token_workspace_manager.defined()) {
+  if (draft_token_workspace_manager.has_value()) {
     std::vector<int> draft_token_slots;
     for (const RequestModelState& mstate : rsentry->mstates) {
       mstate->RemoveAllDraftTokens(&draft_token_slots);
@@ -363,7 +363,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
   rsentry->status = RequestStateStatus::kPending;
   std::vector<int> draft_token_slots;
   for (RequestModelState mstate : rsentry->mstates) {
-    if (draft_token_workspace_manager.defined()) {
+    if (draft_token_workspace_manager.has_value()) {
       mstate->RemoveAllDraftTokens(&draft_token_slots);
       draft_token_workspace_manager.value()->FreeSlots(draft_token_slots);
     }

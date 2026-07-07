@@ -202,7 +202,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
     TVM_FFI_ICHECK_EQ(probs->shape[0], num_total_token);
     TVM_FFI_ICHECK_EQ(probs->shape[1], 1);
     TVM_FFI_ICHECK_EQ(probs->shape[2], vocab_size_);
-    if (trace_recorder_.defined()) {
+    if (trace_recorder_.has_value()) {
       DeviceAPI::Get(device_)->StreamSync(device_, /*stream=*/nullptr);
     }
     RECORD_EVENT(trace_recorder_, request_ids, "finish softmax");
@@ -262,7 +262,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // - Call kernel.
     apply_logit_bias_func_(logits, pos2seq_id_device, token_ids_device, token_logit_bias_device);
-    if (trace_recorder_.defined()) {
+    if (trace_recorder_.has_value()) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
   }
@@ -364,7 +364,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
     // - Call kernel.
     apply_penalty_func_(logits, seq_ids_device, pos2seq_id_device, token_ids_device,
                         token_cnt_device, penalties_device);
-    if (trace_recorder_.defined()) {
+    if (trace_recorder_.has_value()) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
   }
@@ -452,7 +452,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // - Call kernel.
     apply_bitmask_func_(logits, seq_ids_device, bitmask_device);
-    if (trace_recorder_.defined()) {
+    if (trace_recorder_.has_value()) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
   }

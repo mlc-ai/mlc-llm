@@ -54,9 +54,9 @@ def _get_apply_logit_bias_inplace_cpu():
                 "tirx.is_scheduled": True,
             }
         )
-        batch_size = T.int32(is_size_var=True)
-        vocab_size = T.int32(is_size_var=True)
-        num_token = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        vocab_size = T.int32()
+        num_token = T.int32()
         logits = T.match_buffer(var_logits, (batch_size, vocab_size), "float32")
         # seq_ids
         pos2seq_id = T.match_buffer(var_pos2seq_id, (num_token,), "int32")
@@ -90,9 +90,9 @@ def _get_apply_logit_bias_inplace(target: tvm.target.Target):
                 "tirx.is_scheduled": True,
             }
         )
-        batch_size = T.int32(is_size_var=True)
-        vocab_size = T.int32(is_size_var=True)
-        num_token = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        vocab_size = T.int32()
+        num_token = T.int32()
         logits = T.match_buffer(var_logits, (batch_size, vocab_size), "float32")
         # seq_ids
         pos2seq_id = T.match_buffer(var_pos2seq_id, (num_token,), "int32")
@@ -127,10 +127,10 @@ def _get_apply_penalty_inplace_cpu():
                 "tirx.is_scheduled": True,
             }
         )
-        batch_size = T.int32(is_size_var=True)
-        vocab_size = T.int32(is_size_var=True)
-        num_token = T.int32(is_size_var=True)
-        num_seq = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        vocab_size = T.int32()
+        num_token = T.int32()
+        num_seq = T.int32()
         logits = T.match_buffer(var_logits, (batch_size, vocab_size), "float32")
         seq_ids = T.match_buffer(var_seq_ids, (num_seq,), "int32")
         pos2seq_id = T.match_buffer(var_pos2seq_id, (num_token,), "int32")
@@ -176,10 +176,10 @@ def _get_apply_penalty_inplace(target: tvm.target.Target):
                 "tirx.is_scheduled": True,
             }
         )
-        batch_size = T.int32(is_size_var=True)
-        vocab_size = T.int32(is_size_var=True)
-        num_token = T.int32(is_size_var=True)
-        num_seq = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        vocab_size = T.int32()
+        num_token = T.int32()
+        num_seq = T.int32()
         logits = T.match_buffer(var_logits, (batch_size, vocab_size), "float32")
         seq_ids = T.match_buffer(var_seq_ids, (num_seq,), "int32")
         pos2seq_id = T.match_buffer(var_pos2seq_id, (num_token,), "int32")
@@ -222,9 +222,9 @@ def _get_apply_bitmask_inplace_cpu():
                 "tirx.is_scheduled": True,
             }
         )
-        batch_size = T.int32(is_size_var=True)
-        vocab_size = T.int32(is_size_var=True)
-        num_seq = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        vocab_size = T.int32()
+        num_seq = T.int32()
         logits = T.match_buffer(var_logits, (batch_size, vocab_size), "float32")
         seq_ids = T.match_buffer(var_seq_ids, (num_seq,), "int32")
         bitmask = T.match_buffer(var_bitmask, (batch_size, (vocab_size + 31) // 32), "int32")
@@ -263,9 +263,9 @@ def _get_apply_bitmask_inplace(target: tvm.target.Target):
                 "tirx.is_scheduled": True,
             }
         )
-        batch_size = T.int32(is_size_var=True)
-        vocab_size = T.int32(is_size_var=True)
-        num_seq = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        vocab_size = T.int32()
+        num_seq = T.int32()
         logits = T.match_buffer(var_logits, (batch_size, vocab_size), "float32")
         seq_ids = T.match_buffer(var_seq_ids, (num_seq,), "int32")
         bitmask = T.match_buffer(var_bitmask, (batch_size, (vocab_size + 31) // 32), "int32")

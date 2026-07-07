@@ -427,7 +427,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):
         var_o: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
-        B = T.int32(is_size_var=True)
+        B = T.int32()
         X = T.match_buffer(var_x, (B, K), dtype)
         W = T.match_buffer(var_w, (Ne, N, K), dtype)
         indptr = T.match_buffer(var_indptr, (Ne + 1,), "int32")
@@ -638,7 +638,7 @@ def dequantize_group_gemm(
         var_o: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
-        B = T.int32(is_size_var=True)
+        B = T.int32()
         X = T.match_buffer(var_x, (B, K), model_dtype)
         out = T.match_buffer(var_o, (B, N), model_dtype)
         for _bx in T.thread_binding(CTA_COUNT, thread="blockIdx.x"):
