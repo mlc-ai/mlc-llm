@@ -1,6 +1,7 @@
 """Library information. This is a standalone file that can be used to get various info"""
 
 #! pylint: disable=protected-access
+import ctypes
 import os
 import sys
 
@@ -69,3 +70,39 @@ def find_lib_path(name, optional=False):
             )
             raise RuntimeError(message)
     return lib_found
+
+
+def load_lib(path):
+    """Load a shared library, raising a clear error when a dependency is missing.
+
+    ``ctypes.CDLL`` raises a bare ``OSError`` (e.g. ``libtvm.so: cannot open shared
+    object file``) when the library itself is present but one of its shared
+    dependencies cannot be resolved. ``libtvm.so`` is provided by the ``mlc-ai`` /
+    TVM package rather than by ``mlc-llm`` itself, so this typically points at a
+    missing or mismatched ``mlc-ai`` installation. Wrap the load to turn that opaque
+    failure into an actionable message.
+
+    Parameters
+    ----------
+    path : str
+        The full path to the shared library to load.
+
+    Returns
+    -------
+    lib : ctypes.CDLL
+        The loaded library handle.
+    """
+    try:
+        return ctypes.CDLL(path)
+    except OSError as error:
+        raise RuntimeError(
+            f"Failed to load the MLC LLM library at '{path}'.\n"
+            f"Underlying error: {error}\n"
+            "This usually means one of its shared dependencies (for example "
+            "libtvm.so, which is provided by the `mlc-ai` / TVM package) could not "
+            "be found or is missing from the installation. Please make sure a "
+            "matching `mlc-ai` package is installed, and when installing pip wheels "
+            "ensure its CUDA variant matches (e.g. install `mlc-ai-nightly-cuXYZ` "
+            "alongside `mlc-llm-nightly-cuXYZ`). See "
+            "https://llm.mlc.ai/docs/install/mlc_llm.html for details."
+        ) from error
