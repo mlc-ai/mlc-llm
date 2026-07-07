@@ -39,9 +39,9 @@ def _get_scatter_2d_inplace(dtype: str, global_symbol: str):
     @T.prim_func(s_tir=True)
     def _scatter_2d(var_src: T.handle, var_indices: T.handle, var_dst: T.handle):
         T.func_attr({"global_symbol": global_symbol, "tirx.noalias": True})
-        batch_size = T.int32(is_size_var=True)
-        m = T.int32(is_size_var=True)
-        n = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        m = T.int32()
+        n = T.int32()
         src = T.match_buffer(var_src, (batch_size, n), dtype)
         indices = T.match_buffer(var_indices, (batch_size,), "int32")
         dst = T.match_buffer(var_dst, (m, n), dtype)
@@ -57,9 +57,9 @@ def _get_gather_2d_inplace(dtype: str, global_symbol: str):
     @T.prim_func(s_tir=True)
     def _gather_2d(var_src: T.handle, var_indices: T.handle, var_dst: T.handle):
         T.func_attr({"global_symbol": global_symbol, "tirx.noalias": True})
-        batch_size = T.int32(is_size_var=True)
-        m = T.int32(is_size_var=True)
-        n = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        m = T.int32()
+        n = T.int32()
         src = T.match_buffer(var_src, (m, n), dtype)
         indices = T.match_buffer(var_indices, (batch_size,), "int32")
         dst = T.match_buffer(var_dst, (batch_size, n), dtype)
@@ -72,9 +72,9 @@ def _get_gather_2d_inplace(dtype: str, global_symbol: str):
 
 
 def _add_scatter_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dtype: str):
-    batch_size = tirx.SizeVar("batch_size", "int64")
-    m = tirx.SizeVar("m", "int64")
-    n = tirx.SizeVar("n", "int64")
+    batch_size = tirx.Var("batch_size", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     src = relax.Var("src", ty=TensorType([batch_size, n], dtype))
     indices = relax.Var("indices", ty=TensorType([batch_size], "int32"))
     dst = relax.Var("dst", ty=TensorType([m, n], dtype))
@@ -98,9 +98,9 @@ def _add_scatter_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dt
 
 
 def _add_gather_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dtype: str):
-    batch_size = tirx.SizeVar("batch_size", "int64")
-    m = tirx.SizeVar("m", "int64")
-    n = tirx.SizeVar("n", "int64")
+    batch_size = tirx.Var("batch_size", "int64")
+    m = tirx.Var("m", "int64")
+    n = tirx.Var("n", "int64")
     src = relax.Var("src", ty=TensorType([m, n], dtype))
     indices = relax.Var("indices", ty=TensorType([batch_size], "int32"))
     dst = relax.Var("dst", ty=TensorType([batch_size, n], dtype))

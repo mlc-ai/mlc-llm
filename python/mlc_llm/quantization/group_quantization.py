@@ -157,7 +157,7 @@ class GroupQuantize:
         weight: te.Tensor,
         scale: te.Tensor,
         axis: int,
-        out_shape: Optional[List[tirx.PrimExpr]] = None,  # noqa: UP006
+        out_shape: Optional[List[tirx.Expr]] = None,  # noqa: UP006
     ):
         tir_max_int = tirx.const(self.max_int_value, self.model_dtype)
         float_weight = convert_uint_to_float(
@@ -175,8 +175,8 @@ class GroupQuantize:
         axis = axis if axis >= 0 else len(out_shape) + axis
         return te.compute(
             shape=out_shape,
-            fcompute=lambda *idx: tirx.multiply(
-                tirx.subtract(
+            fcompute=lambda *idx: tirx.Mul(
+                tirx.Sub(
                     float_weight(*idx),
                     tir_max_int,
                 ),

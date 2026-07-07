@@ -72,7 +72,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, tvm::ffi::json::
 
   int num_workers = num_shards * num_stages;
   if (num_workers > 1) {
-    TVM_FFI_ICHECK(session.defined());
+    TVM_FFI_ICHECK(session.has_value());
     this->sess = session.value();
     this->use_disco = true;
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
@@ -100,7 +100,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, tvm::ffi::json::
         this->disco_mod.value()->DebugGetFromRemote(0).cast<Module>(), std::move(model_config));
     this->_InitFunctions();
   } else {
-    TVM_FFI_ICHECK(!session.defined());
+    TVM_FFI_ICHECK(!session.has_value());
     Optional<Module> executable = std::nullopt;
     Optional<Function> fload_exec;
     if (StartsWith(reload_lib_path, "system://")) {
@@ -109,7 +109,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, tvm::ffi::json::
       std::replace(system_lib_prefix.begin(), system_lib_prefix.end(), /*old=*/'-', /*new=*/'_');
       executable = f_load_system_lib(system_lib_prefix + "_").cast<Module>();
       fload_exec = executable.value()->GetFunction("vm_load_executable");
-      TVM_FFI_ICHECK(fload_exec.defined())
+      TVM_FFI_ICHECK(fload_exec.has_value())
           << "Cannot find system lib with " << system_lib_prefix
           << ", please make sure you set model_lib field consistently with the compilation ";
     } else {
@@ -118,13 +118,13 @@ void FunctionTable::Init(String reload_lib_path, Device device, tvm::ffi::json::
       /* precompile opencl kernel programs */
       if (device.device_type == kDLOpenCL) {
         auto f_get = executable.value()->GetFunction("opencl.GetPreCompiledPrograms", true);
-        TVM_FFI_ICHECK(f_get.defined()) << "Cannot find opencl.GetPreCompiledPrograms";
+        TVM_FFI_ICHECK(f_get.has_value()) << "Cannot find opencl.GetPreCompiledPrograms";
         tvm::ffi::String bytes = f_get.value()().cast<String>();
         auto f_set = executable.value()->GetFunction("opencl.SetPreCompiledPrograms", true);
-        TVM_FFI_ICHECK(f_set.defined()) << "Cannot find opencl.SetPreCompiledPrograms";
+        TVM_FFI_ICHECK(f_set.has_value()) << "Cannot find opencl.SetPreCompiledPrograms";
         f_set.value()(tvm::ffi::String(bytes));
       }
-      TVM_FFI_ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
+      TVM_FFI_ICHECK(fload_exec.has_value()) << "TVM runtime cannot find vm_load_executable";
     }
     this->use_disco = false;
     this->local_vm = fload_exec.value()().cast<Module>();

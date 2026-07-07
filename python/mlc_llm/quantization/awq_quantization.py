@@ -135,7 +135,7 @@ class AWQQuantize:
         weight: te.Tensor,
         zeros: te.Tensor,
         scale: te.Tensor,
-        out_shape: Optional[List[tirx.PrimExpr]] = None,  # noqa: UP006
+        out_shape: Optional[List[tirx.Expr]] = None,  # noqa: UP006
     ):
         float_weight = convert_uint_to_float(
             weight,
@@ -164,8 +164,8 @@ class AWQQuantize:
                 if out_shape is None
                 else out_shape
             ),
-            fcompute=lambda i, j: tirx.multiply(
-                tirx.subtract(float_weight[i, j], float_zeros[i, j // self.group_size]),
+            fcompute=lambda i, j: tirx.Mul(
+                tirx.Sub(float_weight[i, j], float_zeros[i, j // self.group_size]),
                 scale[i, j // self.group_size],
             ),
             name="dequantize",

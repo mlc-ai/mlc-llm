@@ -43,7 +43,7 @@ class _Scatter(PyExprMutator):
     def visit_dataflow_var_(self, var: relax.DataflowVar) -> Expr:
         if var in self.var_map:
             new_var = self.builder_.emit(self.var_map[var], name_hint=var.name_hint)
-            self.set_var_remap(var.vid, new_var)
+            self.set_var_remap(var, new_var)
             self.var_map.pop(var)
             return new_var
         return var

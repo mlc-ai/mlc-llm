@@ -64,7 +64,7 @@ ObjectRef SendFromLastGroupToWorker0(Tensor send, Optional<Tensor> recv, Shape s
   TVM_FFI_ICHECK_NE(world_size, group_size) << "Cannot perform when there is only one group.";
   int sender_id = world_size - group_size;
   if (worker_id == 0) {
-    TVM_FFI_ICHECK(recv.defined()) << "The receive Tensor is undefined for worker 0.";
+    TVM_FFI_ICHECK(recv.has_value()) << "The receive Tensor is undefined for worker 0.";
     Tensor recv_arr = recv.value().CreateView(shape, dtype);
     RecvFromWorker(recv_arr, sender_id);
     return recv_arr;
@@ -78,12 +78,12 @@ ObjectRef SendFromLastGroupToWorker0(Tensor send, Optional<Tensor> recv, Shape s
           << "The src Tensor has mismatched shape than the expected shape.";
     }
     SendToWorker(send, /*receiver_id=*/0);
-    return recv;
+    return recv.value_or(Tensor(nullptr));
   }
 
   // We only process for worker 0 and the first worker of the last group.
   // For other workers, we return the input object.
-  return recv;
+  return recv.value_or(Tensor(nullptr));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

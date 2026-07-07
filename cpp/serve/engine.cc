@@ -404,7 +404,7 @@ class EngineImpl : public Engine {
       const auto& [model_str, model_lib] = models_and_model_libs[i];
       Model model = Model::Create(model_lib, model_str, model_configs[i], device, session,
                                   num_shards, model_num_pipeline_stages[i],
-                                  /*trace_enabled=*/trace_recorder.defined());
+                                  /*trace_enabled=*/trace_recorder.has_value());
       n->models_.push_back(model);
     }
     // - Initialize NVSHMEM
@@ -780,7 +780,7 @@ class EngineImpl : public Engine {
       if (!StartsWith(model_lib, "system://")) {
         Module executable = ffi::Module::LoadFromFile(model_lib);
         Optional<Function> fload_exec = executable->GetFunction("vm_load_executable");
-        TVM_FFI_ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
+        TVM_FFI_ICHECK(fload_exec.has_value()) << "TVM runtime cannot find vm_load_executable";
         Module local_vm = fload_exec.value()().cast<Module>();
         local_vm->GetFunction("vm_initialization")
             .value()(static_cast<int>(device.device_type), device.device_id,

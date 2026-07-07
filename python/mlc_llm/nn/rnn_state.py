@@ -74,7 +74,7 @@ class RNNState(Object):
         self,
         layer_id: int,
         state_id: int,
-        shape: Sequence[tirx.PrimExpr],
+        shape: Sequence[tirx.Expr],
         dtype: str,
     ) -> Tensor:
         """Get the state of the RNN layer.
@@ -90,7 +90,7 @@ class RNNState(Object):
             The layer id.
         state_id : int
             The state id.
-        shape : Sequence[tirx.PrimExpr]
+        shape : Sequence[tirx.Expr]
             The shape of the state tensor.
         dtype: str
             The data type of the state tensor.
@@ -180,7 +180,7 @@ class RNNState(Object):
                 var_history_slot_ids: T.handle,
                 var_output: T.handle,
             ):
-                batch_size = T.int32(is_size_var=True)
+                batch_size = T.int32()
                 T.func_attr({"global_symbol": f"rnn_state_get_{state_id}"})
 
                 storage = T.match_buffer(
@@ -209,7 +209,7 @@ class RNNState(Object):
                 var_history_slot_ids: T.handle,
                 var_output: T.handle,
             ):
-                batch_size = T.int32(is_size_var=True)
+                batch_size = T.int32()
                 T.func_attr({"global_symbol": f"rnn_state_get_{state_id}"})
 
                 storage = T.match_buffer(var_storage, (max_batch_size, max_history, *shape), dtype)
@@ -277,7 +277,7 @@ class RNNState(Object):
                 var_history_slot_ids: T.handle,
                 var_data: T.handle,
             ):
-                batch_size = T.int32(is_size_var=True)
+                batch_size = T.int32()
                 T.func_attr({"global_symbol": f"rnn_state_set_{state_id}"})
 
                 storage = T.match_buffer(
@@ -307,7 +307,7 @@ class RNNState(Object):
                 var_history_slot_ids: T.handle,
                 var_data: T.handle,
             ):
-                batch_size = T.int32(is_size_var=True)
+                batch_size = T.int32()
                 T.func_attr({"global_symbol": f"rnn_state_set_{state_id}"})
 
                 storage = T.match_buffer(var_storage, (max_batch_size, max_history, *shape), dtype)

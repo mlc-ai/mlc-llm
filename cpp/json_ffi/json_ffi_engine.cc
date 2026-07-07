@@ -174,7 +174,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
                             Optional<Function> request_stream_callback) {
     DLDevice device{static_cast<DLDeviceType>(device_type), device_id};
     this->device_ = device;
-    TVM_FFI_ICHECK(request_stream_callback.defined())
+    TVM_FFI_ICHECK(request_stream_callback.has_value())
         << "JSONFFIEngine requires request stream callback function, but it is not given.";
     this->request_stream_callback_ = request_stream_callback.value();
 

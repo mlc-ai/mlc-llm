@@ -288,7 +288,7 @@ class PerTensorQuantize:
         self,
         q_weight: te.Tensor,
         scale: Optional[te.Tensor] = None,
-        out_shape: Optional[Sequence[tirx.PrimExpr]] = None,
+        out_shape: Optional[Sequence[tirx.Expr]] = None,
     ) -> te.Tensor:
         if self.use_scale:
             assert scale is not None
@@ -304,7 +304,7 @@ class PerTensorQuantize:
         q_tensor: te.Tensor,
         scale: Optional[te.Tensor],
         quantize_dtype: str,
-        out_shape: Optional[Sequence[tirx.PrimExpr]] = None,
+        out_shape: Optional[Sequence[tirx.Expr]] = None,
     ) -> te.Tensor:
         """Dequantize a fp8 tensor (input or weight) to higher-precision float."""
         if quantize_dtype != self.storage_dtype:

@@ -80,7 +80,7 @@ def _pattern(n_aux_tensor: int, match_tir_vars: bool):
     def _check(ctx: relax.transform.PatternCheckContext) -> bool:
         take = ctx.annotated_expr["take"]
         dequantize = ctx.annotated_expr["dequantize"]
-        if not isinstance(dequantize, relax.expr.Call):
+        if not isinstance(dequantize, relax.Call):
             return False
         if not isinstance(take.args[0], relax.GlobalVar) or not isinstance(
             dequantize.args[0], relax.GlobalVar

@@ -73,8 +73,8 @@ def batch_spec_verify(vocab_size):
         ]
         """
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
-        num_nodes = T.int32(is_size_var=True)
-        nbatch = T.int32(is_size_var=True)
+        num_nodes = T.int32()
+        nbatch = T.int32()
 
         draft_probs = T.match_buffer(var_draft_probs, (num_nodes, vocab_size), "float32")
         draft_tokens = T.match_buffer(var_draft_tokens, (num_nodes,), "int32")
@@ -148,9 +148,9 @@ def batch_spec_verify(vocab_size):
                                         T.attr(
                                             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                                             "reduce_scope",
-                                            T.reinterpret("handle", T.uint64(0)),
+                                            T.int32(0),
                                         )
-                                        T.tvm_thread_allreduce(T.uint32(1), psum[0], True, t0[0], tx, dtype="handle")  # noqa: E501
+                                        T.tvm_thread_allreduce(T.uint32(1), psum[0], True, t0[0], tx, dtype="void")  # noqa: E501
 
                                     if t0[0] < 1e-7:
                                         # accept the proposal, we move to child

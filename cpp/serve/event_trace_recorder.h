@@ -70,7 +70,7 @@ class EventTraceRecorder : public ObjectRef {
 
 /*! \brief Record a event for the input request or list or requests. */
 #define RECORD_EVENT(trace_recorder, request_ids, event)  \
-  if (trace_recorder.defined()) {                         \
+  if (trace_recorder.has_value()) {                       \
     trace_recorder.value()->AddEvent(request_ids, event); \
   }
 
