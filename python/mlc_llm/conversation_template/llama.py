@@ -29,6 +29,38 @@ ConvTemplateRegistry.register_conv_template(
     )
 )
 
+# Llama3.2 -- same as Llama3.1 but includes "Cutting Knowledge Date" and "Today Date" in system
+# template to match the official HuggingFace chat template.
+# See https://github.com/mlc-ai/mlc-llm/issues/3002
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="llama-3_2",
+        system_template=(
+            "<|start_header_id|>system<|end_header_id|>\n\n"
+            "Cutting Knowledge Date: December 2023\n"
+            f"Today Date: {MessagePlaceholders.TODAY_DATE.value}\n\n"
+            f"{MessagePlaceholders.SYSTEM.value}<|eot_id|>"
+        ),
+        system_message="You are a helpful, respectful and honest assistant.",
+        roles={
+            "user": "<|start_header_id|>user",
+            "assistant": "<|start_header_id|>assistant",
+            "tool": "<|start_header_id|>ipython",
+        },
+        seps=["<|eot_id|>"],
+        role_content_sep="<|end_header_id|>\n\n",
+        role_empty_sep="<|end_header_id|>\n\n",
+        stop_str=[],
+        stop_token_ids=[
+            128001,
+            128008,
+            128009,
+        ],  # "<|end_of_text|>", "<|eom_id|>", "<|eot_id|>"
+        system_prefix_token_ids=[128000],  # "<|begin_of_text|>"
+        add_role_after_system_message=True,
+    )
+)
+
 # Llama3.1 -- same as Llama3 except stop token ids and stop str
 ConvTemplateRegistry.register_conv_template(
     Conversation(
