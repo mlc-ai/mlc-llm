@@ -55,7 +55,15 @@ set(USE_AOT_EXECUTOR OFF)
 set(USE_PROFILER OFF)
 set(USE_GTEST OFF)
 set(USE_LIBBACKTRACE OFF)
-set(BUILD_DUMMY_LIBTVM ON)
+option(BUILD_DUMMY_LIBTVM
+       "Build a stub libtvm (runtime-only, no LLVM target codegen). \
+OFF to enable model compilation via mlc_llm compile." ON)
+if(BUILD_DUMMY_LIBTVM)
+  message(STATUS "BUILD_DUMMY_LIBTVM=ON: libtvm will be a runtime-only stub. "
+                 "Sufficient for loading prebuilt rt.dylib artifacts. "
+                 "To build a libtvm capable of `mlc_llm compile`, re-configure "
+                 "with -DBUILD_DUMMY_LIBTVM=OFF -DUSE_LLVM=<llvm-config path>.")
+endif()
 if(NOT DEFINED TVM_SOURCE_DIR)
   if(DEFINED ENV{TVM_SOURCE_DIR})
     set(TVM_SOURCE_DIR "$ENV{TVM_SOURCE_DIR}")

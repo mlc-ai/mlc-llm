@@ -210,6 +210,36 @@ This step is useful when you want to make modification or obtain a specific vers
     # build mlc_llm libraries
     cmake .. && make -j $(nproc) && cd ..
 
+.. note::
+    The default source build sets ``BUILD_DUMMY_LIBTVM=ON``, producing a
+    runtime-only ``libtvm`` that is sufficient for loading prebuilt
+    ``rt.dylib`` model artifacts but cannot drive ``mlc_llm compile``. To
+    build a ``libtvm`` capable of model compilation, install LLVM and
+    re-configure cmake with both flags below:
+
+    .. code-block:: bash
+        :caption: Build for model compilation (LLVM-enabled libtvm)
+
+        # macOS (Homebrew)
+        brew install llvm
+        cmake .. -DBUILD_DUMMY_LIBTVM=OFF \
+                 -DUSE_LLVM="$(brew --prefix llvm)/bin/llvm-config --link-static"
+
+        # Linux (apt)
+        sudo apt install llvm-dev
+        cmake .. -DBUILD_DUMMY_LIBTVM=OFF \
+                 -DUSE_LLVM="llvm-config --link-static"
+
+    Verify LLVM is linked into the resulting ``libtvm``:
+
+    .. code-block:: bash
+
+        # macOS: > 0 means LLVM is in; expected libtvm size ~250 MB
+        nm build/tvm/libtvm.dylib | grep -ci llvm
+
+        # Linux equivalent
+        nm build/tvm/libtvm.so | grep -ci llvm
+
 **Step 3. Install via Python.** We recommend that you install ``mlc_llm`` as a Python package, giving you
 access to ``mlc_llm.compile``, ``mlc_llm.MLCEngine``, and the CLI.
 There are two ways to do so:
