@@ -49,7 +49,9 @@ def openai_api_get_generation_config(request: RequestProtocol) -> Dict[str, Any]
         # exceeding model capability or hit any stop criteria.
         kwargs["max_tokens"] = -1
     if request.stop is not None:
-        kwargs["stop_strs"] = [request.stop] if isinstance(request.stop, str) else request.stop
+        kwargs["stop_strs"] = (
+            [request.stop] if isinstance(request.stop, str) else list(request.stop)
+        )
     if isinstance(request, openai_api_protocol.ChatCompletionRequest):
         kwargs["logprobs"] = request.logprobs
         kwargs["top_logprobs"] = request.top_logprobs
