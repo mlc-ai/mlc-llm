@@ -175,7 +175,7 @@ class QWen2Attention(nn.Module):
                 k = k + self.k_proj_lora(hidden_states)
             if self.v_proj_lora is not None:
                 v = v + self.v_proj_lora(hidden_states)
-            qkv = op.concat([q, k, v], dim=-1)
+            qkv = op.concat([q, k, v], axis=-1)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
