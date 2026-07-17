@@ -17,11 +17,16 @@ from tvm.runtime import cpu as cpu_device
 from tvm.target import Target
 
 from mlc_llm.loader import LOADER
+from mlc_llm.loader.runtime_lora import (
+    make_runtime_lora_mapping,
+    resolve_runtime_lora_weight,
+)
 from mlc_llm.model import Model
 from mlc_llm.quantization import Quantization
 from mlc_llm.support import logging, tqdm
 from mlc_llm.support.auto_weight import detect_weight
 from mlc_llm.support.preshard import apply_preshard
+from mlc_llm.support.runtime_lora import RuntimeLoRAConfig, validate_runtime_lora_scope
 from mlc_llm.support.style import bold, green
 
 logger = logging.getLogger(__name__)
@@ -39,6 +44,8 @@ class ConversionArgs:
     source_format: str
     output: Path
     lora_adapter: Optional[Path] = None
+    lora_mode: str = "merge"
+    runtime_lora: Optional[RuntimeLoRAConfig] = None
 
     def display(self) -> None:
         """Display the arguments to stdout."""
@@ -57,6 +64,7 @@ class ConversionArgs:
         print(f"  {bold('--output'):<25} {self.output}", file=out)
         if self.lora_adapter is not None:
             print(f"  {bold('--lora-adapter'):<25} {self.lora_adapter}", file=out)
+            print(f"  {bold('--lora-mode'):<25} {self.lora_mode}", file=out)
         print(out.getvalue().rstrip())
 
 
@@ -102,6 +110,13 @@ def _convert_args(args: ConversionArgs) -> None:
     pre_shards_num = os.getenv("MLC_INTERNAL_PRESHARD_NUM")
     # model config & quantization config
     model_config = args.model.config.from_file(args.config)
+    if args.runtime_lora is not None:
+        model_config.runtime_lora = args.runtime_lora
+        validate_runtime_lora_scope(
+            model_name=args.model.name,
+            quantization_name=args.quantization.name,
+            tensor_parallel_shards=model_config.tensor_parallel_shards,
+        )
     if (
         args.quantization.kind == "ft-quant"
         and hasattr(model_config, "tensor_parallel_shards")
@@ -163,6 +178,7 @@ def _convert_args(args: ConversionArgs) -> None:
 
     def _param_generator() -> Iterator[Tuple[str, Tensor]]:  # noqa: UP006
         nonlocal total_params, total_bytes
+        loaders = []
         with Target.from_device(args.device), tqdm.redirect():
             loader = LOADER[args.source_format](
                 path=args.source,
@@ -171,13 +187,30 @@ def _convert_args(args: ConversionArgs) -> None:
                 ),
                 quantize_param_map=quantize_map,
             )
+            loaders.append(loader)
             for name, param in loader.load(device=args.device, preshard_funcs=preshard_funcs):
                 _check_param(name, param)
                 param_names.add(name)
                 param = param.copyto(cpu_device())
                 total_bytes += math.prod(param.shape) * DataType(param.dtype).itemsize
                 yield name, param
-        total_params = loader.stats.total_param_num
+
+            if args.runtime_lora is not None:
+                assert args.lora_adapter is not None
+                adapter_weight = resolve_runtime_lora_weight(args.lora_adapter)
+                adapter_loader = LOADER["huggingface-safetensor"](
+                    path=adapter_weight,
+                    extern_param_map=make_runtime_lora_mapping(named_params, adapter_weight),
+                    quantize_param_map=None,
+                )
+                loaders.append(adapter_loader)
+                for name, param in adapter_loader.load(device=args.device):
+                    _check_param(name, param)
+                    param_names.add(name)
+                    param = param.copyto(cpu_device())
+                    total_bytes += math.prod(param.shape) * DataType(param.dtype).itemsize
+                    yield name, param
+        total_params = sum(item.stats.total_param_num for item in loaders)
 
     def _metadata_callback() -> Dict[str, Any]:  # noqa: UP006
         return {
@@ -220,10 +253,24 @@ def convert_weight(
     source_format: str,
     output: Path,
     lora_adapter: Optional[Path] = None,
+    lora_mode: str = "merge",
 ):
     """MLC LLM's weight conversation and quantization flow."""
+    if lora_mode not in ("merge", "runtime"):
+        raise ValueError(f"Unknown LoRA conversion mode: {lora_mode}")
+    if lora_adapter is None and lora_mode != "merge":
+        raise ValueError("`--lora-mode runtime` requires `--lora-adapter`.")
+
     args = ConversionArgs(
-        config, quantization, model, device, source, source_format, output, lora_adapter
+        config,
+        quantization,
+        model,
+        device,
+        source,
+        source_format,
+        output,
+        lora_adapter,
+        lora_mode,
     )
 
     allowed_lora_source_formats = {"huggingface-safetensor", "huggingface-torch"}
@@ -231,6 +278,13 @@ def convert_weight(
         raise ValueError(
             f"`--lora-adapter` only supports source formats: {sorted(allowed_lora_source_formats)}"
         )
+
+    if lora_adapter is not None and lora_mode == "runtime":
+        runtime_lora = RuntimeLoRAConfig.from_peft_directory(lora_adapter)
+        runtime_args = dataclasses.replace(args, runtime_lora=runtime_lora)
+        runtime_args.display()
+        _convert_args(runtime_args)
+        return
 
     if lora_adapter is not None:
         with _merge_lora_adapter_with_base_model(source, lora_adapter) as merged_model_dir:

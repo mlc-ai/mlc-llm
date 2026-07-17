@@ -106,3 +106,49 @@ def test_convert_weight_with_lora_rejects_awq():
                 output=temp_path / "output",
                 lora_adapter=adapter_dir,
             )
+
+
+def test_convert_weight_runtime_preserves_separate_adapter(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        temp_path = Path(tmp_dir)
+        config_path = temp_path / "config.json"
+        config_path.write_text(json.dumps({}), encoding="utf-8")
+        adapter_dir = temp_path / "adapter"
+        adapter_dir.mkdir()
+        (adapter_dir / "adapter_config.json").write_text(
+            json.dumps(
+                {
+                    "bias": "none",
+                    "lora_alpha": 8,
+                    "peft_type": "LORA",
+                    "r": 4,
+                    "target_modules": ["q_proj", "v_proj"],
+                    "task_type": "CAUSAL_LM",
+                }
+            ),
+            encoding="utf-8",
+        )
+        captured = {}
+        monkeypatch.setattr(
+            convert_weight_interface,
+            "_convert_args",
+            lambda args: captured.update(args=args),
+        )
+        monkeypatch.setattr(convert_weight_interface.ConversionArgs, "display", lambda self: None)
+
+        convert_weight_interface.convert_weight(
+            config=config_path,
+            quantization=object(),
+            model=type("DummyModel", (), {"name": "qwen2"})(),
+            device=object(),
+            source=temp_path / "model.safetensors",
+            source_format="huggingface-safetensor",
+            output=temp_path / "output",
+            lora_adapter=adapter_dir,
+            lora_mode="runtime",
+        )
+
+        args = captured["args"]
+        assert args.lora_mode == "runtime"
+        assert args.runtime_lora.rank == 4
+        assert args.source == temp_path / "model.safetensors"
