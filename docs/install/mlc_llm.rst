@@ -115,6 +115,13 @@ Select your operating system/compute platform and run the command in your termin
 
                 conda install -c conda-forge git-lfs
 
+            Besides, we would recommend using Python 3.13; so if you are creating a new environment,
+            you could use the following command:
+
+            .. code-block:: bash
+
+                conda create --name mlc-prebuilt python=3.13
+
     .. tab:: Windows
 
         .. tabs::
