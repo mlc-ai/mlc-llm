@@ -19,6 +19,7 @@ from .eagle import eagle_loader, eagle_model
 from .gemma import gemma_loader, gemma_model
 from .gemma2 import gemma2_loader, gemma2_model
 from .gemma3 import gemma3_loader, gemma3_model
+from .gemma4 import gemma4_loader, gemma4_model
 from .gpt2 import gpt2_loader, gpt2_model
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model
 from .gpt_j import gpt_j_loader, gpt_j_model
@@ -61,6 +62,49 @@ a class method `from_file` with the following signature:
 
 FuncGetExternMap = Callable[[ModelConfig, Quantization], ExternMapping]
 FuncQuantization = Callable[[ModelConfig, Quantization], Tuple[nn.Module, QuantizeMapping]]  # noqa: UP006
+
+
+def _rewrite_quantize_names(
+    quantize_fns: Dict[str, FuncQuantization],
+    *,
+    strip_prefix: str,
+) -> Dict[str, FuncQuantization]:
+    """Strip a prefix from every name in a model's quantization mapping.
+
+    Gemma 4 stores the text decoder under ``language_model.*`` to leave room for
+    future multimodal encoders, but ``export_tvm()`` flattens those names when it
+    walks the top-level ``Gemma4ForCausalLM``. This wrapper normalizes the
+    quantization map so exported parameter names match the loader's view.
+    """
+
+    def rewrite_name(name: str) -> str:
+        if name.startswith(strip_prefix):
+            return name[len(strip_prefix) :]
+        return name
+
+    rewritten: Dict[str, FuncQuantization] = {}
+
+    for kind, quantize_fn in quantize_fns.items():
+        def wrap(fn: FuncQuantization) -> FuncQuantization:
+            def inner(model_config: ModelConfig, quantization: Quantization):
+                model, quantize_map = fn(model_config, quantization)
+                if not quantize_map.param_map:
+                    return model, quantize_map
+                new_param_map = {
+                    rewrite_name(name): [rewrite_name(dst) for dst in dsts]
+                    for name, dsts in quantize_map.param_map.items()
+                }
+                new_map_func = {
+                    rewrite_name(name): map_func
+                    for name, map_func in quantize_map.map_func.items()
+                }
+                return model, QuantizeMapping(new_param_map, new_map_func)
+
+            return inner
+
+        rewritten[kind] = wrap(quantize_fn)
+
+    return rewritten
 
 
 @dataclasses.dataclass
@@ -236,6 +280,22 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
         quantize=make_quantization_functions(
             gemma3_model.Gemma3ForCausalLM,
             supports_ft_quant=False,
+        ),
+    ),
+    "gemma4": Model(
+        name="gemma4",
+        model=gemma4_model.Gemma4ForCausalLM,
+        config=gemma4_model.Gemma4Config,
+        source={
+            "huggingface-torch": gemma4_loader.huggingface,
+            "huggingface-safetensor": gemma4_loader.huggingface,
+        },
+        quantize=_rewrite_quantize_names(
+            make_quantization_functions(
+                gemma4_model.Gemma4ForCausalLM,
+                supports_ft_quant=False,
+            ),
+            strip_prefix="language_model.",
         ),
     ),
     "gpt2": Model(
