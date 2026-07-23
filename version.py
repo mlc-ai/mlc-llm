@@ -152,7 +152,11 @@ def sync_version(pub_ver, local_ver, dry_run):
     # pyproject.toml
     update(
         os.path.join(PROJ_ROOT, "pyproject.toml"),
-        r"(?<=version = \")[.0-9a-z\+]+",
+        # Anchor to the start of the line so we only rewrite the project
+        # `version = "..."` and not other lines that end in `version = "..."`
+        # (e.g. ruff's `target-version = "py39"`). `update` is called per line,
+        # so `^` matches the beginning of each line.
+        r"(?<=^version = \")[.0-9a-z\+]+",
         pub_ver,
         dry_run,
     )
