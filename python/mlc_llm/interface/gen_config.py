@@ -287,7 +287,7 @@ def gen_config(
 
     # Step 5. Dump the configuration file to output directory
     with (output / "mlc-chat-config.json").open("w", encoding="utf-8") as out_file:
-        json.dump(mlc_chat_config.model_dump(by_alias=True), out_file, indent=2)
+        json.dump(mlc_chat_config.model_dump(by_alias=True), out_file, indent=2, ensure_ascii=False)
         logger.info("Dumping configuration file to: %s", bold(out_file.name))
 
 
