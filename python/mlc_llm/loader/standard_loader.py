@@ -137,6 +137,8 @@ def make_standard_hf_loader(
                     mapping.add_unused(name_transform_fn(f"{attn}.{unused_name}"))
 
         for mlc_name, mlc_param in named_parameters.items():
+            if mlc_param.attrs.get("runtime_lora_param", False):
+                continue
             if mlc_name not in mapping.param_map:
                 mapping.add_mapping(
                     mlc_name,
