@@ -48,6 +48,7 @@ from .qwen3_moe import qwen3_moe_loader, qwen3_moe_model
 from .qwen35 import qwen35_loader, qwen35_model
 from .rwkv5 import rwkv5_loader, rwkv5_model
 from .rwkv6 import rwkv6_loader, rwkv6_model
+from .sarvam_moe import sarvam_moe_loader, sarvam_moe_model
 from .stable_lm import stablelm_loader, stablelm_model
 from .starcoder2 import starcoder2_loader, starcoder2_model
 
@@ -439,6 +440,19 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
         },
         quantize=make_quantization_functions(
             qwen3_moe_model.Qwen3MoeForCausalLM,
+            supports_block_scale=True,
+        ),
+    ),
+    "sarvam_moe": Model(
+        name="sarvam_moe",
+        model=sarvam_moe_model.SarvamMoeForCausalLM,
+        config=sarvam_moe_model.SarvamMoeConfig,
+        source={
+            "huggingface-torch": sarvam_moe_loader.huggingface,
+            "huggingface-safetensor": sarvam_moe_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            sarvam_moe_model.SarvamMoeForCausalLM,
             supports_block_scale=True,
         ),
     ),
