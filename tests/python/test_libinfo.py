@@ -39,6 +39,8 @@ def test_load_lib_reports_missing_dependency(monkeypatch):
     message = str(exc_info.value)
     # The original loader error is preserved for debugging...
     assert "libtvm.so" in message
+    # ...the dependency is named with its platform specific file name...
+    assert libinfo.get_lib_file_name("tvm") in message
     # ...and the message points at the real fix: a matching mlc-ai install.
     assert "mlc-ai" in message
     assert isinstance(exc_info.value.__cause__, OSError)
