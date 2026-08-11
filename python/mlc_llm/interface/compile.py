@@ -107,10 +107,11 @@ def _infer_kv_state_kind(model_type) -> str:
 
 def _compile(args: CompileArgs, model_config: ConfigBase):
     def _get_variable_bounds(model_config) -> Dict[str, int]:  # noqa: UP006
-        if hasattr(model_config, "sliding_window_size"):
+        sliding_window_size = getattr(model_config, "sliding_window_size", -1)
+        if sliding_window_size > 0:
             return {
-                "rolling_cache_len": model_config.sliding_window_size,
-                "kv_seq_len": model_config.sliding_window_size + model_config.prefill_chunk_size,
+                "rolling_cache_len": sliding_window_size,
+                "kv_seq_len": sliding_window_size + model_config.prefill_chunk_size,
                 "seq_len": model_config.prefill_chunk_size,
                 "batch_size": getattr(model_config, "max_batch_size", 1),
             }
@@ -133,10 +134,15 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
     logger.info("TOP LEVEL MODEL CONFIG BEFORE OVERRIDES: %s", str(model_config))
     _kwargs = getattr(model_config, "kwargs", {})
     model_config = args.overrides.apply(model_config)
+    use_flashinfer = args.opt.flashinfer and args.model.supports_flashinfer
+    if args.opt.flashinfer and not use_flashinfer:
+        logger.info(
+            "Disabling FlashInfer because %s requires the generic KV cache", args.model.name
+        )
     with args.target:
         op_ext.enable(
             target=args.target,
-            flashinfer=args.opt.flashinfer,
+            flashinfer=use_flashinfer,
             faster_transformer=args.opt.faster_transformer,
             cutlass=args.opt.cutlass,
         )
@@ -209,7 +215,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
                 pipeline=relax.get_pipeline(
                     "mlc_llm",
                     target=args.target,
-                    flashinfer=args.opt.flashinfer,
+                    flashinfer=use_flashinfer,
                     cublas_gemm=args.opt.cublas_gemm,
                     faster_transformer=args.opt.faster_transformer,
                     allreduce_strategy=args.opt.ipc_allreduce_strategy,

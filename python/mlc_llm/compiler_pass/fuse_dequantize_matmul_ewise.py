@@ -80,6 +80,13 @@ def _pattern(match_ewise: int, n_aux_tensor: int):
         )
 
     def _check(ctx: relax.transform.PatternCheckContext) -> bool:
-        return _check_decoding(ctx) and _check_matmul(ctx)
+        x = ctx.annotated_expr["x"]
+        x_type = x.ty
+        return (
+            _check_decoding(ctx)
+            and _check_matmul(ctx)
+            and isinstance(x_type, relax.TensorType)
+            and isinstance(x_type.shape, relax.ShapeExpr)
+        )
 
     return matmul, annotations, _check

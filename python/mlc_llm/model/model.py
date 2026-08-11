@@ -111,6 +111,9 @@ class Model:
 
     embedding_metadata: Optional[EmbeddingMetadata] = None
         Metadata for the embedding model. Default to None.
+
+    supports_flashinfer: bool = True
+        Whether this architecture can use the FlashInfer KV-cache implementation.
     """
 
     name: str
@@ -121,6 +124,7 @@ class Model:
 
     model_task: Literal["chat", "embedding"] = "chat"
     embedding_metadata: Optional[EmbeddingMetadata] = None
+    supports_flashinfer: bool = True
 
     def __post_init__(self):
         if self.model_task == "embedding" and self.embedding_metadata is None:
