@@ -10,6 +10,10 @@ from typing import Optional
 
 from mlc_llm.conversation_template import ConvTemplateRegistry
 from mlc_llm.model import Model
+from mlc_llm.protocol.artifact_manifest import (
+    build_model_package_manifest,
+    dump_model_package_manifest,
+)
 from mlc_llm.protocol.mlc_chat_config import MLCChatConfig
 from mlc_llm.quantization import Quantization
 from mlc_llm.support import convert_tiktoken, logging
@@ -289,6 +293,17 @@ def gen_config(
     with (output / "mlc-chat-config.json").open("w", encoding="utf-8") as out_file:
         json.dump(mlc_chat_config.model_dump(by_alias=True), out_file, indent=2)
         logger.info("Dumping configuration file to: %s", bold(out_file.name))
+
+    if model.artifact is not None:
+        quantized_model, _ = model.quantize[quantization.kind](model_config, quantization)
+        _, named_parameters, _ = quantized_model.export_tvm(
+            spec=quantized_model.get_default_spec(), allow_extern=True
+        )
+        manifest = build_model_package_manifest(
+            model.artifact.tasks(model_config), named_parameters
+        )
+        path = dump_model_package_manifest(manifest, output)
+        logger.info("Dumping model package manifest to: %s", bold(path.name))
 
 
 TOKENIZER_FILES = [

@@ -14,6 +14,7 @@ from mlc_llm import compiler_pass as _  # noqa: F401
 from mlc_llm import op as op_ext
 from mlc_llm.cli.model_metadata import _report_memory_usage
 from mlc_llm.model import Model
+from mlc_llm.protocol.artifact_manifest import build_compiled_program_artifact
 from mlc_llm.quantization import Quantization
 from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
@@ -200,8 +201,15 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         }
         if args.model.embedding_metadata:
             metadata["embedding_metadata"] = dataclasses.asdict(args.model.embedding_metadata)
-        logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
+        if args.model.artifact is not None:
+            metadata["artifact"] = build_compiled_program_artifact(
+                tasks=args.model.artifact.tasks(model_config),
+                programs=args.model.artifact.programs(model_config),
+                named_parameters=named_params,
+                required_features=args.model.artifact.required_features,
+            ).model_dump(exclude_none=True, by_alias=True)
+        logger.info("Registering metadata: %s", metadata)
         pass_config = {"relax.backend.use_cuda_graph": args.opt.cudagraph}
         # TODO: Remove this workaround when the TVM CSE regression is fixed.
         # Temporary workaround for TVM CSE regression that can produce

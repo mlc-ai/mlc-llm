@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Literal, Optional, Tuple  # noqa: UP035
 from tvm.relax.frontend import nn
 
 from mlc_llm.loader import ExternMapping, QuantizeMapping
+from mlc_llm.protocol.artifact_manifest import ArtifactDefinition
 from mlc_llm.quantization import make_quantization_functions
 from mlc_llm.quantization.quantization import Quantization
 
@@ -112,6 +113,9 @@ class Model:
     embedding_metadata: Optional[EmbeddingMetadata] = None
         Metadata for the embedding model. Default to None.
 
+    artifact: Optional[ArtifactDefinition] = None
+        Optional model-package/compiled-program contract. Legacy models leave this unset.
+
     supports_flashinfer: bool = True
         Whether this architecture can use the FlashInfer KV-cache implementation.
     """
@@ -124,6 +128,7 @@ class Model:
 
     model_task: Literal["chat", "embedding"] = "chat"
     embedding_metadata: Optional[EmbeddingMetadata] = None
+    artifact: Optional[ArtifactDefinition] = None
     supports_flashinfer: bool = True
 
     def __post_init__(self):
