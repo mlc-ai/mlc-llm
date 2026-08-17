@@ -3,10 +3,9 @@
 from typing import Optional
 
 import tvm
+from mlc_llm.support import logging
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
-
-from mlc_llm.support import logging
 
 from . import extern as _extern
 
@@ -24,6 +23,7 @@ def attention(
     casual_mask: nn.Tensor,
     attn_score_scaling_factor: float = 1.0,
     qk_dtype: Optional[str] = None,
+    sinks: nn.Tensor = None,
 ) -> nn.Tensor:
     """Attention with casual mask.
 
@@ -65,9 +65,8 @@ def attention(
     group_size = h_q // h_kv
 
     def _fallback():
-        from tvm.relax.frontend.nn.llm.kv_cache import (
-            _attention_sequence_prefill,
-        )
+        from tvm.relax.frontend.nn.llm.kv_cache import \
+            _attention_sequence_prefill
 
         nonlocal q, k, v, qk_dtype
         if k.ndim == 3:
@@ -77,7 +76,10 @@ def attention(
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
             v = v.repeat(h_q // h_kv, axis=2)
-
+        is_sinks = False if sinks is None else True
+        if sinks is None:
+            x = np.zeros((h_q,), dtype="float16")
+            sinks = nn.Tensor.from_const(x)
         target = tvm.target.Target("cuda")
         attn_output, _ = op.tensor_ir_op(
             _attention_sequence_prefill(
@@ -87,13 +89,15 @@ def attention(
                 dtype=q.dtype,
                 target=target,
                 sm_scale=attn_score_scaling_factor / (d**0.5),
+                is_sinks=is_sinks
             ),
             "sequence_prefill",
-            [q, k, v],
+            [q, k, v, sinks],
             [
                 Tensor.placeholder([b, s, h_q, d], q.dtype),
                 Tensor.placeholder([b, s, h_q], q.dtype),
             ],
+            
         )
 
         output = op.reshape(attn_output, shape=(b, s, h_q * d))

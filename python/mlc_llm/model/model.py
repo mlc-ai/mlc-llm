@@ -23,6 +23,7 @@ from .gpt2 import gpt2_loader, gpt2_model
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model
 from .gpt_j import gpt_j_loader, gpt_j_model
 from .gpt_neox import gpt_neox_loader, gpt_neox_model
+from .gpt_oss import gpt_oss_loader, gpt_oss_model
 from .internlm import internlm_loader, internlm_model
 from .internlm2 import internlm2_loader, internlm2_model
 from .llama import llama_loader, llama_model
@@ -745,6 +746,18 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
             model_type="encoder",
             pooling_strategy="cls",
             normalize=True,
+        ),
+    ),
+    "gpt_oss": Model(
+        name="gpt_oss",
+        model=gpt_oss_model.GptOssForCausalLM,
+        config=gpt_oss_model.GptOssConfig,
+        source={
+            "huggingface-torch": gpt_oss_loader.huggingface,
+            "huggingface-safetensor": gpt_oss_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            gpt_oss_model.GptOssForCausalLM,
         ),
     ),
 }

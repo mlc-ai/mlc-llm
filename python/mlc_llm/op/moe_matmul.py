@@ -766,3 +766,382 @@ def dequantize_group_gemm(
         args=[x, w, scale, indptr],
         out=Tensor.placeholder([x.shape[0], out_features], model_dtype),
     )
+
+
+
+
+def dequantize_mxfp4_gemv(
+    x: Tensor,
+    w_blocks: Tensor,
+    w_scales: Tensor,
+    indptr: Tensor,
+    group_size: int,
+) -> Tensor:
+    """GEMV for a single decode token against MXFP4-quantized MoE expert weights.
+    Parameters
+    ----------
+    x : Tensor
+        Shape ``(batch, x_leading_dim, in_features)``, dtype float16.
+        ``x_leading_dim`` is 1 (broadcast) or ``experts_per_tok``.
+    w_blocks : Tensor
+        Shape ``(num_experts, in_features//8, out_features)``, dtype uint32.
+        Each uint32 packs 8 Ã— FP4 nibbles along the K (in_features) dimension.
+    w_scales : Tensor
+        Shape ``(num_experts, in_features//group_size, out_features)``, dtype float16.
+    indptr : Tensor
+        Shape ``(batch, experts_per_tok)``, dtype int32.
+        ``indptr[b, e]`` is the expert index for batch ``b``, slot ``e``.
+    group_size : int
+        Number of K elements sharing one scale factor (e.g. 32).
+    Returns
+    -------
+    Tensor
+        Shape ``(batch, experts_per_tok, out_features)``, dtype float16.
+    """
+    (bs, x_leading_dim, in_features), model_dtype = x.shape, x.dtype
+    local_experts, kq, out_features = w_blocks.shape  # kq = in_features // 8
+    _, experts_per_tok = indptr.shape
+    storage_dtype = w_blocks.dtype  # uint32
+    num_group = (in_features + group_size - 1) // group_size
+
+    assert model_dtype == "float16"
+    assert storage_dtype == "uint32"
+    assert w_blocks.shape == [local_experts, in_features // 8, out_features]
+    assert w_scales.shape == [local_experts, num_group, out_features]
+    assert indptr.shape == [bs, experts_per_tok] and indptr.dtype == "int32"
+    assert x_leading_dim in [1, experts_per_tok]
+
+    def _dequantize_mxfp4(w_blocks, w_scales, e, n, k):
+        """Branch-free MXFP4 dequantization via IEEE float16 bit reconstruction.
+        All arithmetic is pure uint32 integer ops -- no LUT, no Select, no if.
+        Steps:
+          1. Extract 4-bit nibble from the packed uint32 weight block.
+          2. Split into sign (bit 3) and magnitude (bits 2:0).
+          3. Reconstruct float16 magnitude bits analytically:
+               mantissa bit-9 = mag & 1
+               biased exponent = (mag >> 1) + 14   (correct for mag in 1..7)
+               zero-mask nz    = (mag + 7) >> 3    (0 iff mag==0, else 1)
+               exponent_final  = biased_exp * nz   (zeroed for mag==0 -> +0.0)
+          4. Assemble uint16 bits and reinterpret as float16.
+          5. Multiply by the per-group scale.
+        """
+        # Step 1: extract nibble from packed uint32 (8 nibbles per word, 4 bits each)
+        nibble = tir.bitwise_and(
+            tir.shift_right(
+                w_blocks[e, k // 8, n],
+                tir.Cast("uint32", (k % 8) * 4),
+            ),
+            tir.const(0xF, "uint32"),
+        )
+        # Step 2: sign and magnitude
+        sign = tir.shift_right(nibble, tir.const(3, "uint32"))  # 0 or 1
+        mag = tir.bitwise_and(nibble, tir.const(0x7, "uint32"))  # 0..7
+        # Step 3: float16 field reconstruction (branch-free)
+        # mantissa: only bit-9 is ever set for MXFP4 magnitudes
+        mant = tir.shift_left(
+            tir.bitwise_and(mag, tir.const(1, "uint32")),
+            tir.const(9, "uint32"),
+        )
+        # biased exponent: (mag >> 1) + 14  (correct for mag in 1..7)
+        exp_r = tir.shift_right(mag, tir.const(1, "uint32")) + tir.const(14, "uint32")
+        # zero-mask: (mag + 7) >> 3  ->  0 when mag==0, 1 when mag in [1..7]
+        nz = tir.shift_right(
+            mag + tir.const(7, "uint32"),
+            tir.const(3, "uint32"),
+        )
+        # Step 4: assemble uint16 bits and reinterpret as float16
+        fp16_bits = tir.bitwise_or(
+            tir.bitwise_or(
+                tir.shift_left(exp_r * nz, tir.const(10, "uint32")),
+                mant,
+            ),
+            tir.shift_left(sign, tir.const(15, "uint32")),
+        )
+        fp16_val = tir.reinterpret("float16", tir.Cast("uint16", fp16_bits))
+        # Step 5: apply per-group scale
+        return fp16_val * w_scales[e, k // group_size, n]
+
+    def access_x(x, b, e, k):
+        return x[b, 0, k] if x_leading_dim == 1 else x[b, e, k]
+
+    @T.prim_func(private=True)
+    def _func(
+        var_x: T.handle,
+        w_blocks: T.Buffer((local_experts, in_features // 8, out_features), "uint32"),
+        w_scales: T.Buffer((local_experts, num_group, out_features), model_dtype),
+        var_indptr: T.handle,
+        var_o: T.handle,
+    ):
+        T.func_attr({"op_pattern": 8, "tir.noalias": True})  # kOpaque
+        batch_size = T.int32(is_size_var=True)
+        x = T.match_buffer(var_x, (batch_size, x_leading_dim, in_features), model_dtype)
+        indptr = T.match_buffer(var_indptr, (batch_size, experts_per_tok), "int32")
+        o = T.match_buffer(var_o, (batch_size, experts_per_tok, out_features), model_dtype)
+        for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
+            for _bs in range(batch_size):
+                with T.sblock("gemv_o"):
+                    e = T.axis.spatial(experts_per_tok, expert_id)
+                    b = T.axis.spatial(batch_size, _bs)
+                    y = T.alloc_buffer((out_features, in_features), model_dtype)
+                    for i1, i2 in T.grid(out_features, in_features):
+                        with T.sblock("dequantize"):
+                            n, k = T.axis.remap("SS", [i1, i2])
+                            y[n, k] = _dequantize_mxfp4(w_blocks, w_scales, indptr[b, e], n, k)
+                    for i1, i2 in T.grid(out_features, in_features):
+                        with T.sblock("gemv"):
+                            n, k = T.axis.remap("SR", [i1, i2])
+                            with T.init():
+                                o[b, e, n] = T.cast(T.float16(0), model_dtype)
+                            o[b, e, n] += access_x(x, b, e, k) * y[n, k]
+
+    return op.tensor_ir_op(
+        _func,
+        "moe_dequantize_mxfp4_gemv",
+        args=[x, w_blocks, w_scales, indptr],
+        out=Tensor.placeholder([bs, experts_per_tok, out_features], model_dtype),
+    )
+
+
+def dequantize_mxfp4_group_gemm(
+    x: Tensor,
+    w_blocks: Tensor,
+    w_scales: Tensor,
+    bias: Tensor,
+    indptr: Tensor,
+    indptr_dtype: str,
+    group_size: int,
+) -> Tensor:
+    """Group GEMM for prefill tokens against MXFP4-quantized MoE expert weights.
+    The weight layout is **KN** (``w_blocks[e, k_packed, n]``) which matches
+    the GptOss checkpoint layout.
+    Parameters
+    ----------
+    x : Tensor
+        Shape ``(batch_size, in_features)``, dtype float16.
+        ``batch_size`` may be a dynamic shape variable.
+    w_blocks : Tensor
+        Shape ``(num_experts, in_features//8, out_features)``, dtype uint32.
+    w_scales : Tensor
+        Shape ``(num_experts, in_features//group_size, out_features)``, dtype float16.
+    bias : Tensor
+        Shape ``(num_experts, out_features)``, dtype float16.
+        Per-expert bias fused into the store epilogue of each GEMM tile.
+    indptr : Tensor
+        Shape ``(num_experts + 1,)`` (exclusive) or ``(num_experts,)`` (inclusive).
+        dtype is ``indptr_dtype``.
+    indptr_dtype : str
+        ``"int32"`` (exclusive indptr, length Ne+1) or
+        ``"int64"`` (inclusive indptr, length Ne, CUTLASS path).
+    group_size : int
+        Number of K elements sharing one scale factor (e.g. 32).
+    Returns
+    -------
+    Tensor
+        Shape ``(batch_size, out_features)``, dtype float16.
+    """
+    (_, in_features), model_dtype = x.shape, x.dtype
+    local_experts, kq, out_features = w_blocks.shape  # kq = in_features // 8
+    storage_dtype = w_blocks.dtype  # uint32
+    num_group = (in_features + group_size - 1) // group_size
+
+    assert model_dtype == "float16"
+    assert storage_dtype == "uint32"
+    assert w_blocks.shape == [local_experts, in_features // 8, out_features]
+    assert w_scales.shape == [local_experts, num_group, out_features]
+    assert bias.shape == [local_experts, out_features] and bias.dtype == "float16"
+
+    Ne, N, K = local_experts, out_features, in_features
+    BLK_M, BLK_N, BLK_K = 8, 128, 32
+    TX, TY, CTA_COUNT = 8, 32, 1024
+    VEC_X, VEC_W, VEC_O, VEC_DOT = 1, 1, 1, 1
+    assert BLK_K % 8 == 0
+    UNROLL = 64
+    STORAGE_ALIGN = False
+    tiles_per_row = (N + BLK_N - 1) // BLK_N
+    zero = tir.const(0, model_dtype)
+    if indptr_dtype == "int64":
+        indptr = op.pad(indptr, [1, 0], "constant", 0)
+
+    def _dequantize_mxfp4(w_blocks, w_scales, e, n, k):
+        """Branch-free MXFP4 dequantization via IEEE float16 bit reconstruction.
+        All arithmetic is pure uint32 integer ops -- no LUT, no Select, no if.
+          1. Extract 4-bit nibble from the packed uint32 weight block.
+          2. Split into sign (bit 3) and magnitude (bits 2:0).
+          3. Reconstruct float16 magnitude bits analytically:
+               mantissa bit-9 = mag & 1
+               biased exponent = (mag >> 1) + 14   (correct for mag in 1..7)
+               zero-mask nz    = (mag + 7) >> 3    (0 iff mag==0, else 1)
+               exponent_final  = biased_exp * nz   (zeroed for mag==0 -> +0.0)
+          4. Assemble uint16 bits and reinterpret as float16.
+          5. Multiply by the per-group scale.
+        """
+        nibble = tir.bitwise_and(
+            tir.shift_right(
+                w_blocks[e, k // 8, n],
+                tir.Cast("uint32", (k % 8) * 4),
+            ),
+            tir.const(0xF, "uint32"),
+        )
+        sign = tir.shift_right(nibble, tir.const(3, "uint32"))
+        mag = tir.bitwise_and(nibble, tir.const(0x7, "uint32"))
+        mant = tir.shift_left(
+            tir.bitwise_and(mag, tir.const(1, "uint32")),
+            tir.const(9, "uint32"),
+        )
+        exp_r = tir.shift_right(mag, tir.const(1, "uint32")) + tir.const(14, "uint32")
+        nz = tir.shift_right(
+            mag + tir.const(7, "uint32"),
+            tir.const(3, "uint32"),
+        )
+        fp16_bits = tir.bitwise_or(
+            tir.bitwise_or(
+                tir.shift_left(exp_r * nz, tir.const(10, "uint32")),
+                mant,
+            ),
+            tir.shift_left(sign, tir.const(15, "uint32")),
+        )
+        fp16_val = tir.reinterpret("float16", tir.Cast("uint16", fp16_bits))
+        return fp16_val * w_scales[e, k // group_size, n]
+
+    @T.prim_func(private=True)
+    def _func(
+        var_x: T.handle,
+        w_blocks: T.Buffer((Ne, K // 8, N), "uint32"),
+        w_scales: T.Buffer((Ne, num_group, N), model_dtype),
+        bias: T.Buffer((Ne, N), model_dtype),
+        indptr: T.Buffer((Ne + 1,), indptr_dtype),
+        var_o: T.handle,
+    ):
+        T.func_attr({"op_pattern": 8, "tir.is_scheduled": 1, "tir.noalias": True})
+        B = T.int32(is_size_var=True)
+        X = T.match_buffer(var_x, (B, K), model_dtype)
+        O = T.match_buffer(var_o, (B, N), model_dtype)
+        for _bx in T.thread_binding(CTA_COUNT, thread="blockIdx.x"):
+            with T.sblock("CTA"):
+                bx = T.axis.spatial(CTA_COUNT, _bx)
+                T.reads(X[:, :], w_blocks[:, :, :], w_scales[:, :, :], bias[:, :], indptr[:])
+                T.writes(O[:, :])
+                # pylint: disable=redefined-builtin
+                sum = T.alloc_buffer((2,), indptr_dtype, scope="local")
+                row = T.alloc_buffer((2,), indptr_dtype, scope="local")
+                cur_e = T.alloc_buffer((1,), indptr_dtype, scope="local")
+                tile_id = T.alloc_buffer((1,), indptr_dtype, scope="local")
+                # pylint: enable=redefined-builtin
+                sum[0] = 0
+                sum[1] = T.ceildiv(indptr[1] - indptr[0], BLK_M) * tiles_per_row
+                row[0] = 0
+                row[1] = indptr[1] - indptr[0]
+                cur_e[0] = 0
+                tile_id[0] = bx
+                while T.tvm_thread_invariant(cur_e[0] < Ne):  # pylint: disable=no-member
+                    while sum[1] <= tile_id[0] and cur_e[0] < Ne:
+                        cur_e[0] += 1
+                        if cur_e[0] < Ne:
+                            e = cur_e[0]
+                            delta = indptr[e + 1] - indptr[e]
+                            sum[0] = sum[1]
+                            sum[1] += T.ceildiv(delta, BLK_M) * tiles_per_row
+                            row[0] = row[1]
+                            row[1] += delta
+                    T.tvm_storage_sync("shared")
+                    if T.tvm_thread_invariant(cur_e[0] < Ne):  # pylint: disable=no-member
+                        e = cur_e[0]  # type: ignore[no-redef]
+                        num_tiles = tile_id[0] - sum[0]
+                        m_offset = T.floordiv(num_tiles, tiles_per_row) * BLK_M + row[0]
+                        n_offset = T.floormod(num_tiles, tiles_per_row) * BLK_N
+                        with T.sblock("gemm"):
+                            T.reads(
+                                row[1],
+                                X[m_offset : m_offset + BLK_M, :],
+                                w_blocks[e, :, n_offset : n_offset + BLK_N],
+                                w_scales[e, :, n_offset : n_offset + BLK_N],
+                            )
+                            T.writes(O[m_offset : m_offset + BLK_M, n_offset : n_offset + BLK_N])
+                            X_tile = T.alloc_buffer((BLK_M, K), model_dtype, scope="shared")
+                            W_tile = T.alloc_buffer((BLK_N, K), model_dtype, scope="shared")
+                            O_tile = T.alloc_buffer((BLK_M, BLK_N), "float16", scope="local")
+                            for a0, a1 in T.grid(BLK_M, K):
+                                with T.sblock("X_shared"):
+                                    i, j = T.axis.remap("SS", [a0, a1])
+                                    X_tile[i, j] = T.if_then_else(
+                                        m_offset + i < row[1], X[m_offset + i, j], zero
+                                    )
+                            for a0, a1 in T.grid(BLK_N, K):
+                                with T.sblock("W_shared"):
+                                    i, j = T.axis.remap("SS", [a0, a1])
+                                    W_tile[i, j] = T.if_then_else(
+                                        n_offset + i < N,
+                                        _dequantize_mxfp4(w_blocks, w_scales, e, n_offset + i, j),
+                                        zero,
+                                    )
+                            for a0, a1, a2 in T.grid(BLK_M, BLK_N, K):
+                                with T.sblock("compute"):
+                                    i, j, k = T.axis.remap("SSR", [a0, a1, a2])
+                                    with T.init():
+                                        O_tile[i, j] = zero
+                                    O_tile[i, j] += X_tile[i, k] * W_tile[j, k]
+                            for a0, a1 in T.grid(BLK_M, BLK_N):
+                                with T.sblock("store"):
+                                    i, j = T.axis.remap("SS", [a0, a1])
+                                    if m_offset + i < row[1] and n_offset + j < N:
+                                        # Fused bias add: accumulator + per-expert bias
+                                        O[m_offset + i, n_offset + j] = (
+                                            O_tile[i, j] + bias[e, n_offset + j]
+                                        )
+                    tile_id[0] += CTA_COUNT
+
+    def _schedule():
+        sch = s_tir.Schedule(_func)
+
+        main_block = sch.get_sblock("compute")
+        x, y, k = sch.get_loops(main_block)
+        yi, ty, vec_c = sch.split(y, [None, TY, VEC_O])
+        tx, xi = sch.split(x, [TX, None])
+        k0, k1, k2, k3 = sch.split(k, factors=[None, VEC_X, 4, 8])
+        sch.reorder(ty, tx, k0, k1, k2, k3, yi, xi, vec_c)
+        sch.bind(ty, "threadIdx.y")
+        sch.bind(tx, "threadIdx.x")
+        sch.vectorize(vec_c)
+        sch.unroll(xi)
+
+        inp_blk = sch.get_sblock("X_shared")
+        sch.compute_at(inp_blk, k0)
+        x, y = sch.get_loops(inp_blk)[-2:]
+        tx2, xi2 = sch.split(x, [TX, None])
+        yi2, ty2, vec_c2 = sch.split(y, [None, TY, VEC_X])
+        sch.reorder(ty2, tx2, yi2, xi2, vec_c2)
+        sch.bind(ty2, "threadIdx.y")
+        sch.bind(tx2, "threadIdx.x")
+        sch.vectorize(vec_c2)
+
+        dequant_block = sch.get_sblock("W_shared")
+        sch.compute_at(dequant_block, k3)
+        sch.set_scope(dequant_block, 0, "local")
+        yy = sch.get_loops(dequant_block)[-1]
+        _, tyy, y_vec = sch.split(yy, [None, TY, VEC_O])
+        sch.bind(tyy, "threadIdx.y")
+        sch.vectorize(y_vec)
+        sch.unroll(k3)
+
+        if UNROLL > 0:
+            sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=UNROLL)
+            sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
+
+        l2g = sch.get_sblock("store")
+        x2, y2 = sch.get_loops(l2g)
+        yi3, ty3, vec_c3 = sch.split(y2, [None, TY, VEC_O])
+        tx3, xi3 = sch.split(x2, [TX, None])
+        sch.reorder(ty3, tx3, yi3, xi3, vec_c3)
+        sch.bind(ty3, "threadIdx.y")
+        sch.bind(tx3, "threadIdx.x")
+        sch.vectorize(vec_c3)
+
+        sch.decompose_reduction(main_block, k0)
+        return sch.mod["main"]
+
+    return op.tensor_ir_op(
+        _schedule(),
+        "dequantize_mxfp4_group_gemm",
+        args=[x, w_blocks, w_scales, bias, indptr],
+        out=Tensor.placeholder([x.shape[0], out_features], model_dtype),
+    )

@@ -38,6 +38,8 @@ class PagedKVCache(TVMPagedKVCache):
         layer_partition: Optional[List[int]] = None,  # noqa: UP006
         enable_disaggregation: bool = False,
         name: str = "paged_kv_cache",
+        is_sinks: bool = False,
+        sliding_window_size: int = -1,
     ) -> "PagedKVCache":
         """The generic function of creating a multi-head attention PagedKVCache,
         which will be rewritten by functions in compilation pipeline.
@@ -87,6 +89,8 @@ class PagedKVCache(TVMPagedKVCache):
                 rx.prim_value(rotary_dim),
                 rx.prim_value(int(enable_disaggregation)),
                 rx.DataTypeImm(dtype),
+                rx.PrimValue(is_sinks),
+                rx.PrimValue(sliding_window_size),
                 ty_args=rx.ObjectType(),
             ),
             _name=name,

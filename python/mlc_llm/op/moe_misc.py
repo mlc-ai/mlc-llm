@@ -7,13 +7,14 @@ import numpy as np
 from tvm import te, tirx
 from tvm.relax.frontend.nn import IntExpr, Tensor, op
 from tvm.script import tirx as T
+from tvm.target import Target
 
 # mypy: disable-error-code="attr-defined,name-defined"
 
 
 def moe_sum(x: Tensor, dim: int) -> Tensor:
     """Compute the sum of the input tensor along the given axis. It is specialized for the MoE
-    case where `x.ndim == 3` and `x.shape[1] == num_experts_per_tok (which is 2)`.
+    case where `x.ndim == 3` and `x.shape[1] == num_experts_per_tok (which is 2 or 4)`.
     """
 
     if x.shape[1] == 1:
@@ -25,6 +26,16 @@ def moe_sum(x: Tensor, dim: int) -> Tensor:
                 (x.shape[0], x.shape[2]),
                 lambda i, j: x[i, 0, j] + x[i, 1, j],
                 name="sum_2",
+            ),
+            "sum",
+            args=[x],
+        )
+    elif x.ndim == 3 and x.shape[1] == 4:
+        return op.tensor_expr_op(
+            lambda x: te.compute(
+                (x.shape[0], x.shape[2]),
+                lambda i, j: x[i, 0, j] + x[i, 1, j] + x[i, 2, j] + x[i, 3, j],
+                name="sum_4",
             ),
             "sum",
             args=[x],
@@ -82,7 +93,11 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:  # noqa: UP006
     (batch_size, num_local_experts), dtype = scores.shape, scores.dtype
     index_dtype = "int32"
 
-    TX = 1024
+    target = Target.current(allow_none=True)
+    if target:
+        TX = target.attrs.get("max_threads_per_block", 1024)
+    else:
+        TX = 1024
 
     def _get_topk_func(k_val: int):
         @T.prim_func(private=True, s_tir=True)

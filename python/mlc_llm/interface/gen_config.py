@@ -197,9 +197,7 @@ def gen_config(
             "Attempting to convert using HuggingFace transformers library"
         )
         try:
-            from transformers import (
-                AutoTokenizer,
-            )
+            from transformers import AutoTokenizer
 
             tokenizer_json_save_dest = output / "tokenizer.json"
             fast_tokenizer = AutoTokenizer.from_pretrained(str(config.parent), use_fast=True)
@@ -265,9 +263,7 @@ def gen_config(
     # Step 5. Use HF tokenizer to detect active vocab size via len(tokenizer)
     if tokenizer_json_file.exists():
         try:
-            from transformers import (
-                AutoTokenizer,
-            )
+            from transformers import AutoTokenizer
 
             hf_tokenizer = AutoTokenizer.from_pretrained(str(config.parent), use_fast=True)
             active_vocab_size = len(hf_tokenizer)
@@ -356,4 +352,5 @@ CONV_TEMPLATES = {
     "qwen3",
     "qwen3_5",
     "qwen3_5_nothink",
+    "gpt_oss",
 }
