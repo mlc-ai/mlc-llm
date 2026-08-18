@@ -16,6 +16,7 @@ from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
+from mlc_llm.support.runtime_lora import RuntimeLoRAConfig
 from mlc_llm.support.style import bold
 
 logger = logging.getLogger(__name__)
@@ -41,9 +42,14 @@ class QWen2Config(ConfigBase):
     head_dim: int = 0
     dtype: str = "float32"
     max_batch_size: int = 1
+    runtime_lora: Optional[RuntimeLoRAConfig] = None
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
+        if isinstance(self.runtime_lora, dict):
+            self.runtime_lora = RuntimeLoRAConfig.from_dict(self.runtime_lora)
+        if self.runtime_lora is not None and self.tensor_parallel_shards != 1:
+            raise ValueError("Runtime LoRA currently requires `tensor_parallel_shards=1`.")
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
                 if name in self.kwargs:
@@ -81,8 +87,44 @@ class QWen2Config(ConfigBase):
             self.prefill_chunk_size = min(self.context_window_size, 8192)
 
 
+class RuntimeLoRALinear(nn.Module):
+    """An inference-only low-rank branch backed by PEFT A and B tensors."""
+
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        source_module: str,
+        config: RuntimeLoRAConfig,
+    ):
+        self.lora_a = nn.Linear(in_features, config.rank, bias=False)
+        self.lora_b = nn.Linear(config.rank, out_features, bias=False)
+        self.lora_a.weight.attrs["runtime_lora_param"] = True
+        self.lora_b.weight.attrs["runtime_lora_param"] = True
+        self.lora_a.weight.attrs["peft_source_suffix"] = f"{source_module}.lora_A.weight"
+        self.lora_b.weight.attrs["peft_source_suffix"] = f"{source_module}.lora_B.weight"
+        # Fold the constant PEFT scale into B while loading to avoid per-token scaling.
+        self.lora_b.weight.attrs["runtime_lora_scale"] = config.scaling
+
+    def forward(self, x: Tensor):
+        return self.lora_b(self.lora_a(x))
+
+
+def _make_runtime_lora(
+    config: QWen2Config,
+    target_module: str,
+    in_features: int,
+    out_features: int,
+    source_module: str,
+) -> Optional[RuntimeLoRALinear]:
+    runtime_lora = config.runtime_lora
+    if runtime_lora is None or not runtime_lora.applies_to(target_module):
+        return None
+    return RuntimeLoRALinear(in_features, out_features, source_module, runtime_lora)
+
+
 class QWen2Attention(nn.Module):
-    def __init__(self, config: QWen2Config):
+    def __init__(self, config: QWen2Config, layer_id: int):
         self.head_dim = config.head_dim
         if config.num_key_value_heads % config.tensor_parallel_shards != 0:
             raise ValueError(
@@ -101,11 +143,39 @@ class QWen2Attention(nn.Module):
         self.o_proj = nn.Linear(
             self.num_attention_heads * self.head_dim, config.hidden_size, bias=False
         )
+        prefix = f"model.layers.{layer_id}.self_attn"
+        q_size = self.num_attention_heads * self.head_dim
+        kv_size = self.num_key_value_heads * self.head_dim
+        self.q_proj_lora = _make_runtime_lora(
+            config, "q_proj", config.hidden_size, q_size, f"{prefix}.q_proj"
+        )
+        self.k_proj_lora = _make_runtime_lora(
+            config, "k_proj", config.hidden_size, kv_size, f"{prefix}.k_proj"
+        )
+        self.v_proj_lora = _make_runtime_lora(
+            config, "v_proj", config.hidden_size, kv_size, f"{prefix}.v_proj"
+        )
+        self.o_proj_lora = _make_runtime_lora(
+            config, "o_proj", q_size, config.hidden_size, f"{prefix}.o_proj"
+        )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_attention_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         qkv = self.c_attn(hidden_states)
+        if any(
+            branch is not None for branch in (self.q_proj_lora, self.k_proj_lora, self.v_proj_lora)
+        ):
+            q_size = h_q * d
+            kv_size = h_kv * d
+            q, k, v = op.split(qkv, [q_size, q_size + kv_size], axis=-1)
+            if self.q_proj_lora is not None:
+                q = q + self.q_proj_lora(hidden_states)
+            if self.k_proj_lora is not None:
+                k = k + self.k_proj_lora(hidden_states)
+            if self.v_proj_lora is not None:
+                v = v + self.v_proj_lora(hidden_states)
+            qkv = op.concat([q, k, v], axis=-1)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
@@ -114,6 +184,8 @@ class QWen2Attention(nn.Module):
             (b, s, h_q * d),
         )
         attn_output = self.o_proj(output)
+        if self.o_proj_lora is not None:
+            attn_output = attn_output + self.o_proj_lora(output)
         return attn_output
 
 
@@ -140,7 +212,7 @@ class Qwen2Embedding(nn.Embedding):
 
 
 class QWen2MLP(nn.Module):
-    def __init__(self, config: QWen2Config):
+    def __init__(self, config: QWen2Config, layer_id: int):
         if config.intermediate_size % config.tensor_parallel_shards != 0:
             raise ValueError(
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
@@ -150,17 +222,47 @@ class QWen2MLP(nn.Module):
         self.gate_up_proj = nn.Linear(config.hidden_size, 2 * self.intermediate_size, bias=False)
         self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
         self.act_fn = ACT2FN[config.hidden_act]
+        prefix = f"model.layers.{layer_id}.mlp"
+        self.gate_proj_lora = _make_runtime_lora(
+            config,
+            "gate_proj",
+            config.hidden_size,
+            self.intermediate_size,
+            f"{prefix}.gate_proj",
+        )
+        self.up_proj_lora = _make_runtime_lora(
+            config,
+            "up_proj",
+            config.hidden_size,
+            self.intermediate_size,
+            f"{prefix}.up_proj",
+        )
+        self.down_proj_lora = _make_runtime_lora(
+            config,
+            "down_proj",
+            self.intermediate_size,
+            config.hidden_size,
+            f"{prefix}.down_proj",
+        )
 
     def forward(self, x: Tensor):
         concat_x1_x2 = self.gate_up_proj(x)
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
-        return self.down_proj(self.act_fn(x1) * x2)
+        if self.gate_proj_lora is not None:
+            x1 = x1 + self.gate_proj_lora(x)
+        if self.up_proj_lora is not None:
+            x2 = x2 + self.up_proj_lora(x)
+        hidden_states = self.act_fn(x1) * x2
+        output = self.down_proj(hidden_states)
+        if self.down_proj_lora is not None:
+            output = output + self.down_proj_lora(hidden_states)
+        return output
 
 
 class QWen2DecoderLayer(nn.Module):
-    def __init__(self, config: QWen2Config):
-        self.self_attn = QWen2Attention(config)
-        self.mlp = QWen2MLP(config)
+    def __init__(self, config: QWen2Config, layer_id: int):
+        self.self_attn = QWen2Attention(config, layer_id)
+        self.mlp = QWen2MLP(config, layer_id)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(
             config.hidden_size, -1, config.rms_norm_eps, bias=False
@@ -212,7 +314,7 @@ class QWen2Model(nn.Module):
     def __init__(self, config: QWen2Config):
         self.embed_tokens = Qwen2Embedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
-            [QWen2DecoderLayer(config) for _ in range(config.num_hidden_layers)]
+            [QWen2DecoderLayer(config, layer_id) for layer_id in range(config.num_hidden_layers)]
         )
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 

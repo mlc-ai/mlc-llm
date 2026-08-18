@@ -121,6 +121,15 @@ def main(argv):
         default=None,
         help=HELP["debug_dump"] + " (default: %(default)s)",
     )
+    parser.add_argument(
+        "--lora-adapter",
+        type=_parse_dir,
+        default=None,
+        help=(
+            "Path to a PEFT LoRA adapter whose separate A/B tensors are compiled into "
+            "the runtime graph (Qwen2/q0f16/TP=1 only)."
+        ),
+    )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(
         parsed.device,
@@ -149,4 +158,5 @@ def main(argv):
         output=parsed.output,
         overrides=parsed.overrides,
         debug_dump=parsed.debug_dump,
+        lora_adapter=parsed.lora_adapter,
     )

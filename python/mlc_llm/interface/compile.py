@@ -17,6 +17,7 @@ from mlc_llm.model import Model
 from mlc_llm.quantization import Quantization
 from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
+from mlc_llm.support.runtime_lora import RuntimeLoRAConfig, validate_runtime_lora_scope
 from mlc_llm.support.style import bold
 
 from .compiler_flags import ModelConfigOverride, OptimizationFlags
@@ -38,6 +39,7 @@ class CompileArgs:
     output: Path
     overrides: ModelConfigOverride
     debug_dump: Optional[Path]
+    lora_adapter: Optional[Path]
 
     def __post_init__(self) -> None:
         self.opt.update(self.target, self.quantization)
@@ -54,6 +56,8 @@ class CompileArgs:
         print(f'  {bold("--system-lib-prefix"):<25} "{self.system_lib_prefix}"', file=out)
         print(f"  {bold('--output'):<25} {self.output}", file=out)
         print(f"  {bold('--overrides'):<25} {self.overrides}", file=out)
+        if self.lora_adapter is not None:
+            print(f"  {bold('--lora-adapter'):<25} {self.lora_adapter}", file=out)
         # As it's debug only, no need to display
         # print(f"  {bold('--debug-dump'):<25} {self.debug_dump}", file=out)
         print(out.getvalue().rstrip())
@@ -133,6 +137,13 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
     logger.info("TOP LEVEL MODEL CONFIG BEFORE OVERRIDES: %s", str(model_config))
     _kwargs = getattr(model_config, "kwargs", {})
     model_config = args.overrides.apply(model_config)
+    runtime_lora = getattr(model_config, "runtime_lora", None)
+    if runtime_lora is not None:
+        validate_runtime_lora_scope(
+            model_name=args.model.name,
+            quantization_name=args.quantization.name,
+            tensor_parallel_shards=model_config.tensor_parallel_shards,
+        )
     with args.target:
         op_ext.enable(
             target=args.target,
@@ -192,6 +203,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "active_vocab_size": avs,
             "model_task": args.model.model_task,
         }
+        if runtime_lora is not None:
+            metadata["runtime_lora"] = runtime_lora.asdict()
         if args.model.embedding_metadata:
             metadata["embedding_metadata"] = dataclasses.asdict(args.model.embedding_metadata)
         logger.info("Registering metadata: %s", metadata)
@@ -236,8 +249,15 @@ def compile(
     output: Path,
     overrides: ModelConfigOverride,
     debug_dump: Optional[Path] = None,
+    lora_adapter: Optional[Path] = None,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
+    config = dict(config)
+    if "model_config" in config:
+        config["model_config"] = dict(config["model_config"])
+    if lora_adapter is not None:
+        config["runtime_lora"] = RuntimeLoRAConfig.from_peft_directory(lora_adapter).asdict()
+
     avs = None
     if "active_vocab_size" in config:
         avs = config.pop("active_vocab_size")
@@ -260,6 +280,7 @@ def compile(
         output,
         overrides,
         debug_dump,
+        lora_adapter,
     )
     args.display()
     _compile(args, model_config)

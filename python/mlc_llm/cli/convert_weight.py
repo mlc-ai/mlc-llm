@@ -92,6 +92,15 @@ def main(argv):
             "When provided, adapter weights are merged into the base model before quantization."
         ),
     )
+    parser.add_argument(
+        "--lora-mode",
+        choices=["merge", "runtime"],
+        default="merge",
+        help=(
+            "How to apply --lora-adapter. `merge` folds it into the base weights; "
+            "`runtime` packages separate low-rank tensors (Qwen2/q0f16/TP=1 only)."
+        ),
+    )
 
     parsed = parser.parse_args(argv)
     parsed.source, parsed.source_format = detect_weight(
@@ -109,4 +118,5 @@ def main(argv):
         source_format=parsed.source_format,
         output=parsed.output,
         lora_adapter=parsed.lora_adapter,
+        lora_mode=parsed.lora_mode,
     )

@@ -65,5 +65,56 @@ def test_convert_weight_cli_passes_lora_adapter(monkeypatch):
         )
 
         assert call_args["lora_adapter"] == adapter_dir
+        assert call_args["lora_mode"] == "merge"
         assert call_args["source"] == source_index
         assert call_args["source_format"] == "huggingface-torch"
+
+
+def test_convert_weight_cli_passes_runtime_lora_mode(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        temp_path = Path(tmp_dir)
+        config_path = temp_path / "config.json"
+        source_dir = temp_path / "source"
+        source_dir.mkdir()
+        source_index = source_dir / "model.safetensors"
+        source_index.write_bytes(b"")
+        adapter_dir = temp_path / "adapter"
+        adapter_dir.mkdir()
+        output_dir = temp_path / "output"
+        config_path.write_text(json.dumps({}), encoding="utf-8")
+
+        monkeypatch.setattr(convert_weight_cli, "detect_config", Path)
+        monkeypatch.setattr(convert_weight_cli, "detect_device", lambda device: device)
+        monkeypatch.setattr(
+            convert_weight_cli,
+            "detect_weight",
+            lambda *_args: (source_index, "huggingface-safetensor"),
+        )
+        monkeypatch.setattr(convert_weight_cli, "detect_model_type", lambda *_args: "dummy")
+        monkeypatch.setattr(convert_weight_cli, "MODELS", {"dummy": object()})
+        monkeypatch.setattr(convert_weight_cli, "QUANTIZATION", {"q0f16": object()})
+        call_args = {}
+        monkeypatch.setattr(
+            convert_weight_cli,
+            "convert_weight",
+            lambda **kwargs: call_args.update(kwargs),
+        )
+
+        convert_weight_cli.main(
+            [
+                str(config_path),
+                "--quantization",
+                "q0f16",
+                "--model-type",
+                "dummy",
+                "--source",
+                str(source_dir),
+                "--output",
+                str(output_dir),
+                "--lora-adapter",
+                str(adapter_dir),
+                "--lora-mode",
+                "runtime",
+            ]
+        )
+        assert call_args["lora_mode"] == "runtime"
