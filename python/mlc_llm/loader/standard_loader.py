@@ -32,6 +32,8 @@ def make_standard_hf_loader(
     gate_up_names: Sequence[str] = ("gate_proj", "up_proj"),
     gate_up_concat_axis: int = 0,
     gate_up_target_name: str = "gate_up_proj",
+    add_gate_up_bias: bool = False,
+    gate_up_bias_optional: bool = False,
     include_qkv: bool = True,
     include_gate_up: bool = True,
     add_unused: Optional[Iterable[str]] = None,  # noqa: UP045
@@ -132,6 +134,24 @@ def make_standard_hf_loader(
                                 dtype=mlc_param.dtype,
                             ),
                         )
+
+                    if add_gate_up_bias and gate_up_names:
+                        mlc_bias_name = f"{mlp}.{gate_up_target_name}.bias"
+                        if (not gate_up_bias_optional) or mlc_bias_name in named_parameters:
+                            mlc_param = named_parameters[mlc_bias_name]
+                            mapping.add_mapping(
+                                mlc_bias_name,
+                                [
+                                    name_transform_fn(f"{mlp}.{name}.bias")
+                                    for name in gate_up_names
+                                ],
+                                functools.partial(
+                                    lambda gate, up, dtype: np.concatenate(
+                                        [gate, up], axis=gate_up_concat_axis
+                                    ).astype(dtype),
+                                    dtype=mlc_param.dtype,
+                                ),
+                            )
 
                 for unused_name in unused_names:
                     mapping.add_unused(name_transform_fn(f"{attn}.{unused_name}"))
