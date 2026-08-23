@@ -23,9 +23,14 @@ def test_malformed_data_url_no_comma_raises_bad_request():
 
 
 def test_malformed_data_url_invalid_base64_raises_bad_request():
-    """An undecodable base64 payload in a ``data:image`` URL surfaces 400."""
+    """An undecodable base64 payload in a ``data:image`` URL surfaces 400.
+
+    The payload has incorrect base64 padding (length 5), so
+    ``base64.b64decode`` raises ``binascii.Error`` before ``Image.open``
+    is reached.
+    """
     with pytest.raises(BadRequestError):
-        ImageData.from_url("data:image/png;base64,@@@", {"model_type": "llava"})
+        ImageData.from_url("data:image/png;base64,AAAAA", {"model_type": "llava"})
 
 
 def test_valid_data_url_does_not_raise_bad_request():
