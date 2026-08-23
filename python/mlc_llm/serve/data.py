@@ -110,7 +110,7 @@ class ImageData(Data):
             response = requests.get(url, timeout=5)
             try:
                 image_tensor = Image.open(BytesIO(response.content)).convert("RGB")
-            except (binascii.Error, UnidentifiedImageError) as e:
+            except UnidentifiedImageError as e:
                 raise BadRequestError(
                     "The image fetched from the URL could not be decoded",
                 ) from e
