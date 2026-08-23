@@ -33,3 +33,25 @@ def test_valid_data_url_does_not_raise_bad_request():
     url = f"data:image/png;base64,{VALID_PNG_B64}"
     image = ImageData.from_url(url, {"model_type": "llava"})
     assert image is not None
+
+
+def test_corrupt_http_image_raises_bad_request(monkeypatch):
+    """A fetched ``http`` image whose body is not a valid image surfaces 400.
+
+    On master, a fetched-but-corrupt response body makes ``Image.open``
+    raise ``UnidentifiedImageError`` and propagate as an HTTP 500; the fix
+    surfaces a ``BadRequestError`` (HTTP 400) instead. The network is faked
+    by patching ``requests.get`` to return a corrupt body; the function
+    under fix (``from_url``) itself is not mocked.
+    """
+    import requests
+
+    class _FakeCorruptResponse:
+        content = b"not a valid image"
+
+    def _fake_get(*args, **kwargs):
+        return _FakeCorruptResponse()
+
+    monkeypatch.setattr(requests, "get", _fake_get)
+    with pytest.raises(BadRequestError):
+        ImageData.from_url("http://example.com/corrupt.png", {"model_type": "llava"})

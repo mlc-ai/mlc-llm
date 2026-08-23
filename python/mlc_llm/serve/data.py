@@ -108,7 +108,12 @@ class ImageData(Data):
                 ) from e
         elif url.startswith("http"):
             response = requests.get(url, timeout=5)
-            image_tensor = Image.open(BytesIO(response.content)).convert("RGB")
+            try:
+                image_tensor = Image.open(BytesIO(response.content)).convert("RGB")
+            except (binascii.Error, UnidentifiedImageError) as e:
+                raise BadRequestError(
+                    "The image fetched from the URL could not be decoded",
+                ) from e
         else:
             raise ValueError(f"Unsupported image URL format: {url}")
 
