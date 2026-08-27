@@ -1,5 +1,6 @@
 """The standard conversation protocol in MLC LLM"""
 
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union  # noqa: UP035
 
@@ -15,6 +16,7 @@ class MessagePlaceholders(Enum):
     ASSISTANT = "{assistant_message}"
     TOOL = "{tool_message}"
     FUNCTION = "{function_string}"
+    TODAY_DATE = "{today_date}"
 
 
 T = TypeVar("T", bound="BaseModel")
@@ -132,6 +134,11 @@ class Conversation(BaseModel):
         # - Get the system message.
         system_msg = self.system_template.replace(
             MessagePlaceholders.SYSTEM.value, self.system_message
+        )
+        # Replace the today_date placeholder with the current date.
+        system_msg = system_msg.replace(
+            MessagePlaceholders.TODAY_DATE.value,
+            datetime.now().strftime("%d %b %Y"),
         )
 
         # - Get the message strings.
