@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple  # noqa: UP035
 
 import requests
 
-from . import logging, tqdm
+from . import llmman, logging, tqdm
 from .constants import (
     MLC_DOWNLOAD_CACHE_POLICY,
     MLC_LLM_HOME,
@@ -226,6 +226,11 @@ def get_or_download_model(model: str) -> Path:
     if model.startswith("HF://"):
         logger.info("Downloading model from HuggingFace: %s", model)
         model_path = download_and_cache_mlc_weights(model)
+    elif llmman.is_oci_ref(model):
+        # A CNCF ModelPack artifact is pulled through an llmman daemon and
+        # extracted; the validity check below then applies to it unchanged.
+        logger.info("Downloading model from OCI registry: %s", model)
+        model_path = Path(llmman.pull_and_resolve_ref(model))
     else:
         model_path = Path(model)
 
