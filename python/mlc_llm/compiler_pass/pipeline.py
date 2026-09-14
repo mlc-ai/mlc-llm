@@ -98,6 +98,7 @@ def _mlc_llm_pipeline(
     metadata = metadata or {}
     ext_mods = ext_mods or []
     tensor_parallel_shards = metadata.get("tensor_parallel_shards", 1)
+    index_bits = 64 if target.kind.name == "cuda" else 32
 
     @tvm.transform.module_pass(opt_level=0)
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
@@ -134,7 +135,8 @@ def _mlc_llm_pipeline(
                 # Phase 2. Lowering to TIR, inherited TVM Relax's official "zero" pipeline
                 _LogProgress("Lowering to TVM TIR kernels"),
                 tvm.relax.backend.DispatchSampling(),
-                tvm.relax.backend.DispatchSortScan(),
+                # Match scan hierarchy thresholds to the index narrowing below.
+                tvm.relax.backend.DispatchSortScan(index_bits=index_bits),
                 tvm.relax.transform.LegalizeOps(),
                 tvm.relax.transform.AnnotateTIROpPattern(),
                 tvm.relax.transform.FoldConstant(),
@@ -173,7 +175,7 @@ def _mlc_llm_pipeline(
                 ),
                 (
                     tvm.tirx.transform.ForceNarrowIndexToInt32()
-                    if target.kind.name != "cuda"
+                    if index_bits == 32
                     else tvm.transform.Sequential([])
                 ),
                 ScatterTupleGetItem(),
