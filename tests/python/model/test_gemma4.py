@@ -21,8 +21,9 @@ from mlc_llm.model.gemma4.gemma4_config import (
     Gemma4TextConfig,
 )
 from mlc_llm.model.gemma4.gemma4_model import (
+    Gemma4TextModel,
     Gemma4TextRotaryEmbedding,
-    _replace_modality_embeddings,
+    _replace_modality_token_ids,
 )
 from mlc_llm.protocol.artifact_manifest import (
     AudioDecodeProcessor,
@@ -280,40 +281,90 @@ def test_audio_attention_matches_block_reference():
     np.testing.assert_allclose(actual, expected, rtol=3e-5, atol=3e-5)
 
 
-def test_audio_positions_use_pad_embedding_for_per_layer_projection():
+def test_audio_positions_use_pad_token_for_per_layer_identity():
     class ReplaceModule(nn.Module):
-        def forward(self, input_embeds, modality_ids, pad_embedding):
-            return _replace_modality_embeddings(
-                input_embeds,
+        def forward(self, token_ids, modality_ids):
+            return _replace_modality_token_ids(
+                token_ids,
                 modality_ids,
-                pad_embedding,
+                pad_token_id=0,
             )
 
-    input_embeds = np.arange(12, dtype="float32").reshape(1, 3, 4)
+    token_ids = np.array([[11, 258_881, 12]], dtype="int32")
     modality_ids = np.array([[0, 1, 0]], dtype="int32")
-    pad_embedding = np.array([[1.0, -1.0, 2.0, -2.0]], dtype="float32")
     vm, named_parameters = _build_and_run(
         ReplaceModule(),
         {
             "forward": {
-                "input_embeds": nn.spec.Tensor(input_embeds.shape, "float32"),
+                "token_ids": nn.spec.Tensor(token_ids.shape, "int32"),
                 "modality_ids": nn.spec.Tensor(modality_ids.shape, "int32"),
-                "pad_embedding": nn.spec.Tensor(pad_embedding.shape, "float32"),
             }
         },
-        input_embeds,
+        token_ids,
         modality_ids,
-        pad_embedding,
     )
     assert not named_parameters
     actual = vm["forward"](
-        tvm.runtime.tensor(input_embeds),
+        tvm.runtime.tensor(token_ids),
         tvm.runtime.tensor(modality_ids),
-        tvm.runtime.tensor(pad_embedding),
     ).numpy()
-    expected = input_embeds.copy()
-    expected[:, 1, :] = pad_embedding[0]
+    expected = np.array([[11, 0, 12]], dtype="int32")
     np.testing.assert_array_equal(actual, expected)
+
+
+def test_audio_embeddings_feed_per_layer_context_projection():
+    config = Gemma4TextConfig(
+        vocab_size=16,
+        hidden_size=4,
+        intermediate_size=4,
+        num_hidden_layers=2,
+        layer_types=["sliding_attention", "sliding_attention"],
+        vocab_size_per_layer_input=16,
+        hidden_size_per_layer_input=2,
+        num_kv_shared_layers=1,
+    )
+
+    class PerLayerInputModule(nn.Module):
+        def __init__(self):
+            self.model = Gemma4TextModel(config)
+
+        def forward(self, input_embeds, token_ids, modality_ids):
+            return self.model._per_layer_inputs(input_embeds, token_ids, modality_ids)[0]
+
+    input_shape = (1, 3, config.hidden_size)
+    token_ids = np.array([[1, 2, 3]], dtype="int32")
+    modality_ids = np.array([[0, 1, 0]], dtype="int32")
+    vm, named_parameters = _build_and_run(
+        PerLayerInputModule(),
+        {
+            "forward": {
+                "input_embeds": nn.spec.Tensor(input_shape, "float32"),
+                "token_ids": nn.spec.Tensor(token_ids.shape, "int32"),
+                "modality_ids": nn.spec.Tensor(modality_ids.shape, "int32"),
+            }
+        },
+    )
+    parameter_values = {
+        name: np.zeros(tuple(int(dim) for dim in parameter.shape), dtype="float32")
+        for name, parameter in named_parameters
+    }
+    parameter_values["model.per_layer_model_projection.weight"] = np.eye(4, dtype="float32")
+    parameter_values["model.per_layer_projection_norm.weight"] = np.ones(2, dtype="float32")
+
+    def run(audio_embedding):
+        input_embeds = np.zeros(input_shape, dtype="float32")
+        input_embeds[0, 1] = audio_embedding
+        return vm["forward"](
+            tvm.runtime.tensor(input_embeds),
+            tvm.runtime.tensor(token_ids),
+            tvm.runtime.tensor(modality_ids),
+            *[tvm.runtime.tensor(parameter_values[name]) for name, _ in named_parameters],
+        ).numpy()
+
+    first = run(np.array([1.0, 0.0, 0.0, 0.0], dtype="float32"))
+    second = run(np.array([0.0, 1.0, 0.0, 0.0], dtype="float32"))
+    np.testing.assert_array_equal(first[:, (0, 2)], second[:, (0, 2)])
+    assert not np.array_equal(first[:, 1], second[:, 1])
 
 
 def test_loader_covers_unquantized_and_q4_parameter_schemas():

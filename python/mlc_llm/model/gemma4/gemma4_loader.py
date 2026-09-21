@@ -46,6 +46,9 @@ def huggingface(model_config: Gemma4Config, quantization: Quantization) -> Exter
 
     packed_ple_name = "model.language_model.embed_tokens_per_layer.weight"
     ple_dim = model_config.text_config.hidden_size_per_layer_input
+    # Keep each layer's PLE table as an independent runtime parameter.  Gemma 4 packs all
+    # 35 tables in the source checkpoint; retaining that layout after q4 quantization would
+    # create a single 1120 MiB storage binding, which is not portable across WebGPU devices.
     for layer_idx in range(model_config.text_config.num_hidden_layers):
         mlc_name = f"language_model.embed_tokens_per_layer.{layer_idx}.weight"
         dtype = str(named_parameters[mlc_name].dtype)

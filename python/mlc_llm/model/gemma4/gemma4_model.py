@@ -157,7 +157,7 @@ class Gemma4TextAttention(nn.Module):
             key, value = shared_kv
             query = self.rotary_emb.apply_query(query, positions)
             query = _pad_head_dim(query, self.head_dim)
-            output = paged_kv_cache.attention_with_q_from_cache(
+            output = paged_kv_cache.attention_with_shared_kv(
                 self.source_layer_id,
                 query,
                 key,
@@ -289,17 +289,10 @@ class Gemma4TextModel(nn.Module):
         modality_ids: Tensor | None,
     ) -> list[Tensor]:
         batch, seq_len, _ = input_embeds.shape
-        projection_embeds = input_embeds
-        if modality_ids is not None:
-            pad_embedding = self.embed_tokens(
-                op.full([1], self.config.pad_token_id, dtype="int32")
-            ) * math.sqrt(self.config.hidden_size)
-            projection_embeds = _replace_modality_embeddings(
-                input_embeds,
-                modality_ids,
-                pad_embedding,
-            )
-        projected = self.per_layer_model_projection(projection_embeds)
+        # The context-aware PLE projection consumes the final input embedding, including
+        # multimodal soft tokens.  Only the token-identity PLE lookup below substitutes PAD
+        # for a soft token, matching Gemma 4's reference implementation.
+        projected = self.per_layer_model_projection(input_embeds)
         projected = projected * (self.config.hidden_size**-0.5)
         projected = op.reshape(
             projected,
@@ -644,31 +637,6 @@ def _replace_modality_token_ids(
         _replace,
         "gemma4_replace_modality_token_ids",
         [token_ids, modality_ids],
-    )
-
-
-def _replace_modality_embeddings(
-    input_embeds: Tensor,
-    modality_ids: Tensor,
-    pad_embedding: Tensor,
-) -> Tensor:
-    """Use the scaled PAD embedding for the PLE projection at soft-token positions."""
-
-    def _replace(embeds: te.Tensor, modalities: te.Tensor, pad: te.Tensor):
-        return te.compute(
-            embeds.shape,
-            lambda batch, seq, hidden: tirx.if_then_else(
-                modalities[batch, seq] == 0,
-                embeds[batch, seq, hidden],
-                pad[0, hidden],
-            ),
-            name="gemma4_replace_modality_embeddings",
-        )
-
-    return op.tensor_expr_op(
-        _replace,
-        "gemma4_replace_modality_embeddings",
-        [input_embeds, modality_ids, pad_embedding],
     )
 
 
