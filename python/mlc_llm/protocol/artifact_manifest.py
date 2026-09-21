@@ -100,7 +100,7 @@ class TaskSpec(_ContractModel):
 
 
 class WeightContract(_ContractModel):
-    manifest: Literal["ndarray-cache.json"]
+    manifest: Literal["tensor-cache.json"]
     parameter_schema_id: str
 
     @field_validator("parameter_schema_id")
@@ -281,7 +281,7 @@ def build_model_package_manifest(
     return ModelPackageManifest(
         interface_id=compute_interface_id(tasks),
         weights=WeightContract(
-            manifest="ndarray-cache.json",
+            manifest="tensor-cache.json",
             parameter_schema_id=compute_parameter_schema_id(named_parameters),
         ),
         tasks=normalize_tasks(tasks),

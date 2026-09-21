@@ -97,6 +97,7 @@ def test_package_and_compiled_contract_match():
         _tasks(), _programs(), _params(), required_features=["shader-f16", "shader-f16"]
     )
     assert package.interface_id == compiled.interface_id
+    assert package.weights.manifest == "tensor-cache.json"
     assert package.weights.parameter_schema_id == compiled.parameter_schema_id
     assert compiled.resources.required_features == ("shader-f16",)
     assert compiled.resources.max_storage_buffer_binding_size == 20

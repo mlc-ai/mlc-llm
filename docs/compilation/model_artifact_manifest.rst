@@ -25,7 +25,7 @@ this shape (hashes are abbreviated here):
      "chat_config": "mlc-chat-config.json",
      "interface_id": "sha256:<64 lowercase hex digits>",
      "weights": {
-       "manifest": "ndarray-cache.json",
+       "manifest": "tensor-cache.json",
        "parameter_schema_id": "sha256:<64 lowercase hex digits>"
      },
      "tasks": {
