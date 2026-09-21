@@ -3,6 +3,7 @@
 from typing import Dict, List, Tuple  # noqa: UP035
 
 import tvm
+import tvm_ffi
 from tvm import relax, tirx
 from tvm.ir.module import IRModule
 from tvm.relax.analysis import remove_all_unused
@@ -189,6 +190,10 @@ def _resolve_tir_var_mapping(
             continue
         new_shape = []
         for dim in sinfo.shape.values:
-            new_shape.append(tirx.stmt_functor.substitute(dim, var_map))
+            new_shape.append(
+                tvm_ffi.structural_map(
+                    dim, (tirx.Var, lambda var: var_map.get(var, var)), order="post"
+                )
+            )
         updated_tensor_sinfo.append(relax.TensorType(new_shape, sinfo.dtype))
     return updated_tensor_sinfo, True
