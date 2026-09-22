@@ -2,7 +2,7 @@
 
 import tvm
 import tvm_ffi
-from tvm import tirx
+from tvm import s_tir, tirx
 from tvm.ir.module import IRModule
 from tvm.s_tir import dlight as dl
 
@@ -55,8 +55,8 @@ class LowBatchGemvSpecialize:
                         low_batch_funcs[i].body,
                         body,
                     )
-                body = tirx.SBlock([], [], [], "root", body)
-                body = tirx.SBlockRealize([], True, body)
+                body = s_tir.SBlock([], [], [], "root", body)
+                body = s_tir.SBlockRealize([], True, body)
                 new_func = func.with_body(body)
                 new_func = new_func.with_attr("tirx.is_scheduled", 1)
                 new_func = new_func.with_attr("tirx.HoistIfThenElseExprWithBlock", 1)

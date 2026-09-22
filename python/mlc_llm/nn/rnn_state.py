@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from typing import Union
 
+import tvm
 from tvm import relax as rx
 from tvm import tirx
 from tvm.relax.frontend.nn import Object, Tensor
@@ -17,7 +18,7 @@ class RNNState(Object):
         max_batch_size: tirx.Var,
         num_hidden_layers: int,
         max_history: int,
-        init_values: Sequence[rx.Constant],
+        init_values: Sequence[tvm.ir.GenericConst],
         name: str = "rnn_state",
     ) -> "RNNState":
         """Create a RNN state object.
@@ -30,14 +31,14 @@ class RNNState(Object):
             The number of hidden layers.
         max_history : int
             The maximum history length.
-        init_values : Sequence[rx.Constant]
+        init_values : Sequence[tvm.ir.GenericConst]
             The initial values of the RNN state. Must be compile-time Relax constants
             (e.g. R.const(np.zeros(...))).
         """
 
         bb = rx.BlockBuilder.current()
         state_infos = [
-            (tuple(int(x) for x in v.data.shape), str(v.data.dtype)) for v in init_values
+            (tuple(int(x) for x in v.value.shape), str(v.value.dtype)) for v in init_values
         ]
 
         f_gets = [

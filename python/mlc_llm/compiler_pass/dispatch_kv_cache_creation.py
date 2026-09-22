@@ -26,15 +26,15 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:  # noqa: UP00
     assert call_args[0].global_symbol == "mlc.create_paged_kv_cache_generic"
     args = call_args[1:]
     assert len(args) == 18
-    assert isinstance(args[0], (relax.StringImm, relax.Tuple))
+    assert isinstance(args[0], (tvm.ir.StringImm, relax.Tuple))
     # Check if attn_kind is a single value or a list with length of hidden layers
-    if isinstance(args[0], relax.StringImm):
+    if isinstance(args[0], tvm.ir.StringImm):
         assert args[0].value in ["mha", "mla"]
         attn_kind = args[0].value
     else:
         assert len(args[0].fields) == args[3].value
         for i, attention_type in enumerate(args[0].fields):
-            assert isinstance(attention_type, relax.StringImm)
+            assert isinstance(attention_type, tvm.ir.StringImm)
             assert attention_type.value in ["mha", "mla", "mha_sliding"]
         attn_kind = [args[0].fields[i].value for i in range(len(args[0]))]
     assert isinstance(args[1], relax.ShapeExpr)
@@ -48,9 +48,9 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:  # noqa: UP00
         assert isinstance(args[i], (tvm.tirx.IntImm, tvm.tirx.FloatImm)), (
             f"args[{i}] is {type(args[i])}"
         )
-    assert isinstance(args[13], relax.StringImm)
-    assert isinstance(args[16], (relax.Constant, tvm.tirx.IntImm, tvm.tirx.FloatImm))
-    assert isinstance(args[17], relax.DataTypeImm)
+    assert isinstance(args[13], tvm.ir.StringImm)
+    assert isinstance(args[16], (tvm.ir.GenericConst, tvm.tirx.IntImm, tvm.tirx.FloatImm))
+    assert isinstance(args[17], tvm.ir.GenericConst)
 
     return {
         "attn_kind": attn_kind,
