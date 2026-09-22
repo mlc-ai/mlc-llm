@@ -2,7 +2,6 @@
 
 import pytest
 import tvm
-from tvm import tirx
 from tvm.relax.backend.gpu_generic import gpu_2d_continuous_cumsum
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -31,13 +30,13 @@ def test_scan_dispatch_matches_pipeline_index_policy(target_kind):
                 "_pipeline",
                 "sequential",
                 "DispatchSortScan",
-                "tirx.NarrowDataType",
+                "s_tir.ForceNarrowIndexToInt32",
             )
 
         def run_after_pass(self, mod, info):
             if info.name == "DispatchSortScan":
                 self.dispatched = mod["gpu_2d_continuous_cumsum"]
-            elif info.name == "tirx.NarrowDataType":
+            elif info.name == "s_tir.ForceNarrowIndexToInt32":
                 self.narrowed = True
 
     target = tvm.target.Target(target_kind, host="llvm")
@@ -57,6 +56,8 @@ def test_scan_dispatch_matches_pipeline_index_policy(target_kind):
     tvm.ir.assert_structural_equal(instrument.dispatched, expected)
     assert instrument.narrowed == (index_bits == 32)
     if index_bits == 32:
-        expected_mod = tirx.transform.ForceNarrowIndexToInt32()(tvm.IRModule({"main": expected}))
+        expected_mod = tvm.s_tir.transform.ForceNarrowIndexToInt32()(
+            tvm.IRModule({"main": expected})
+        )
         expected = expected_mod["main"]
     tvm.ir.assert_structural_equal(result["gpu_2d_continuous_cumsum"], expected)

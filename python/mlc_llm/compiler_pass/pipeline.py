@@ -174,7 +174,7 @@ def _mlc_llm_pipeline(
                     else tvm.transform.Sequential([])
                 ),
                 (
-                    tvm.tirx.transform.ForceNarrowIndexToInt32()
+                    tvm.s_tir.transform.ForceNarrowIndexToInt32()
                     if index_bits == 32
                     else tvm.transform.Sequential([])
                 ),
