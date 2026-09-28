@@ -5,6 +5,7 @@ from typing import Dict  # noqa: UP035
 import tvm
 from tvm import IRModule, relax, te, tirx
 from tvm.relax.frontend import nn
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from mlc_llm.op.batch_spec_verify import batch_spec_verify
@@ -137,14 +138,15 @@ def _attach_argsort_func(bb: relax.BlockBuilder):
     return gv
 
 
-@T.prim_func(s_tir=True)
-def full(value: T.int64, var_result: T.handle):
+batch_size = T.dynamic("batch_size", "int32")
+
+
+@Ts.prim_func
+def full(value: T.int64, result: T.Buffer((batch_size, 1), "int32")):
     """The filling function for top k."""
-    batch_size = T.int32()
-    result = T.match_buffer(var_result, (batch_size, 1), "int32")
     for i in T.serial(batch_size):
-        with T.sblock("block"):
-            vi = T.axis.spatial(batch_size, i)
+        with Ts.sblock("block"):
+            vi = Ts.axis.spatial(batch_size, i)
             result[vi, 0] = T.cast(value, "int32")
 
 
@@ -256,6 +258,48 @@ def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Targ
 
 
 def _attach_take_probs_func(bb: relax.BlockBuilder):
+    batch_size = T.dynamic("batch_size", "int32")
+    num_samples = T.dynamic("num_samples", "int32")
+    num_positions = T.dynamic("num_positions", "int32")
+    vocab_size = T.dynamic("vocab_size", "int32")
+
+    @Ts.prim_func
+    def sampler_take_probs_tir(
+        unsorted_probs: T.Buffer((batch_size, vocab_size), "float32"),
+        sorted_indices: T.Buffer((batch_size, vocab_size), "int32"),
+        sample_indices: T.Buffer((num_samples,), "int32"),
+        sampling_results: T.Buffer((num_samples,), "int32"),
+        top_prob_offsets: T.Buffer((num_positions,), "int32"),
+        sampled_values: T.Buffer((num_samples,), "float32"),
+        top_prob_probs: T.Buffer((num_positions,), "float32"),
+        top_prob_indices: T.Buffer((num_positions,), "int32"),
+    ):
+        for i in T.serial(num_positions):
+            with Ts.sblock("top_prob"):
+                vi = Ts.axis.spatial(num_positions, i)
+                # Reads are data-dependent gathers; declare full-buffer read
+                # regions explicitly so tirx does not infer data-dependent regions.
+                Ts.reads(
+                    top_prob_offsets[vi],
+                    sorted_indices[0:batch_size, 0:vocab_size],
+                    unsorted_probs[0:batch_size, 0:vocab_size],
+                )
+                Ts.writes(top_prob_indices[vi], top_prob_probs[vi])
+                row = T.floordiv(top_prob_offsets[vi], vocab_size)
+                col = T.floormod(top_prob_offsets[vi], vocab_size)
+                top_prob_indices[vi] = sorted_indices[row, col]
+                top_prob_probs[vi] = unsorted_probs[row, sorted_indices[row, col]]
+        for i in T.serial(num_samples):
+            with Ts.sblock("sample"):
+                vj = Ts.axis.spatial(num_samples, i)
+                Ts.reads(
+                    sample_indices[vj],
+                    sampling_results[vj],
+                    unsorted_probs[0:batch_size, 0:vocab_size],
+                )
+                Ts.writes(sampled_values[vj])
+                sampled_values[vj] = unsorted_probs[sample_indices[vj], sampling_results[vj]]
+
     batch_size = tirx.Var("batch_size", "int64")
     num_samples = tirx.Var("num_samples", "int64")
     num_positions = tirx.Var("num_positions", "int64")
@@ -269,55 +313,6 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
     sample_indices = relax.Var("sample_indices", relax.TensorType((num_samples,), "int32"))
     sampling_results = relax.Var("sampling_result", relax.TensorType((num_samples,), "int32"))
     top_prob_offsets = relax.Var("lobprob_offsets", relax.TensorType((num_positions,), "int32"))
-
-    @T.prim_func(s_tir=True)
-    def sampler_take_probs_tir(
-        var_unsorted_probs: T.handle,
-        var_sorted_indices: T.handle,
-        var_sample_indices: T.handle,
-        var_sampling_results: T.handle,
-        var_top_prob_offsets: T.handle,
-        var_sampled_values: T.handle,
-        var_top_prob_probs: T.handle,
-        var_top_prob_indices: T.handle,
-    ):
-        batch_size = T.int32()
-        num_samples = T.int32()
-        num_positions = T.int32()
-        vocab_size = T.int32()
-        unsorted_probs = T.match_buffer(var_unsorted_probs, (batch_size, vocab_size), "float32")
-        sorted_indices = T.match_buffer(var_sorted_indices, (batch_size, vocab_size), "int32")
-        sample_indices = T.match_buffer(var_sample_indices, (num_samples,), "int32")
-        sampling_results = T.match_buffer(var_sampling_results, (num_samples,), "int32")
-        top_prob_offsets = T.match_buffer(var_top_prob_offsets, (num_positions,), "int32")
-        sampled_values = T.match_buffer(var_sampled_values, (num_samples,), "float32")
-        top_prob_probs = T.match_buffer(var_top_prob_probs, (num_positions,), "float32")
-        top_prob_indices = T.match_buffer(var_top_prob_indices, (num_positions,), "int32")
-        for i in T.serial(num_positions):
-            with T.sblock("top_prob"):
-                vi = T.axis.spatial(num_positions, i)
-                # Reads are data-dependent gathers; declare full-buffer read
-                # regions explicitly so tirx does not infer data-dependent regions.
-                T.reads(
-                    top_prob_offsets[vi],
-                    sorted_indices[0:batch_size, 0:vocab_size],
-                    unsorted_probs[0:batch_size, 0:vocab_size],
-                )
-                T.writes(top_prob_indices[vi], top_prob_probs[vi])
-                row = T.floordiv(top_prob_offsets[vi], vocab_size)
-                col = T.floormod(top_prob_offsets[vi], vocab_size)
-                top_prob_indices[vi] = sorted_indices[row, col]
-                top_prob_probs[vi] = unsorted_probs[row, sorted_indices[row, col]]
-        for i in T.serial(num_samples):
-            with T.sblock("sample"):
-                vj = T.axis.spatial(num_samples, i)
-                T.reads(
-                    sample_indices[vj],
-                    sampling_results[vj],
-                    unsorted_probs[0:batch_size, 0:vocab_size],
-                )
-                T.writes(sampled_values[vj])
-                sampled_values[vj] = unsorted_probs[sample_indices[vj], sampling_results[vj]]
 
     args = [
         unsorted_probs,

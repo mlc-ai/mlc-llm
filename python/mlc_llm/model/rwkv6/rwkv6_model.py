@@ -8,6 +8,7 @@ from tvm import relax as R
 from tvm import te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Object, Tensor, op
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from mlc_llm.nn.rnn_state import RNNState
@@ -68,47 +69,37 @@ def create_wkv6_func(
     out_dtype: str,
     state_dtype: str,
 ):
-    @T.prim_func(s_tir=True)
+    batch_size = T.dynamic("batch_size", "int64")
+    seq_len = T.dynamic("seq_len", "int64")
+
+    @Ts.prim_func
     def wkv_func(
-        r: T.handle,
-        k: T.handle,
-        v: T.handle,
-        time_faaaa: T.handle,
-        w: T.handle,
-        state: T.handle,
-        out: T.handle,
-        out_state: T.handle,
+        # Inputs
+        r_buf: T.Buffer((batch_size, seq_len, num_heads, head_size), dtype),
+        k_buf: T.Buffer((batch_size, seq_len, num_heads, head_size), dtype),
+        v_buf: T.Buffer((batch_size, seq_len, num_heads, head_size), dtype),
+        time_faaaa_buf: T.Buffer((num_heads, head_size), "float32"),
+        w_buf: T.Buffer((batch_size, seq_len, num_heads, head_size), "float32"),
+        state_buf: T.Buffer((batch_size, num_heads, head_size, head_size), state_dtype),
+        # Outputs
+        out_buf: T.Buffer((batch_size, seq_len, num_heads, head_size), out_dtype),
+        out_state_buf: T.Buffer((batch_size, num_heads, head_size, head_size), state_dtype),
     ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
-        batch_size, seq_len = T.int64(), T.int64()
-        # Inputs
-        r_buf = T.match_buffer(r, (batch_size, seq_len, num_heads, head_size), dtype=dtype)
-        k_buf = T.match_buffer(k, (batch_size, seq_len, num_heads, head_size), dtype=dtype)
-        v_buf = T.match_buffer(v, (batch_size, seq_len, num_heads, head_size), dtype=dtype)
-        time_faaaa_buf = T.match_buffer(time_faaaa, (num_heads, head_size), dtype="float32")
-        w_buf = T.match_buffer(w, (batch_size, seq_len, num_heads, head_size), dtype="float32")
-        state_buf = T.match_buffer(
-            state, (batch_size, num_heads, head_size, head_size), dtype=state_dtype
-        )
-        # Outputs
-        out_buf = T.match_buffer(out, (batch_size, seq_len, num_heads, head_size), dtype=out_dtype)
-        out_state_buf = T.match_buffer(
-            out_state, (batch_size, num_heads, head_size, head_size), dtype=state_dtype
-        )
         for b in T.thread_binding(batch_size, thread="blockIdx.y"):
             for h in T.thread_binding(num_heads, thread="blockIdx.x"):
                 for i in T.thread_binding(head_size, thread="threadIdx.x"):
                     for j in range(head_size):
-                        with T.sblock("init_state"):
-                            vb, vh, vi, vj = T.axis.remap("SSSS", [b, h, i, j])
+                        with Ts.sblock("init_state"):
+                            vb, vh, vi, vj = Ts.axis.remap("SSSS", [b, h, i, j])
                             out_state_buf[vb, vh, vi, vj] = state_buf[vb, vh, vi, vj]
 
                     for t in range(seq_len):
-                        with T.sblock("comput"):
-                            vb = T.axis.spatial(batch_size, b)
-                            vt = T.axis.opaque(seq_len, t)
-                            vh = T.axis.spatial(num_heads, h)
-                            vi = T.axis.spatial(head_size, i)
+                        with Ts.sblock("comput"):
+                            vb = Ts.axis.spatial(batch_size, b)
+                            vt = Ts.axis.opaque(seq_len, t)
+                            vh = Ts.axis.spatial(num_heads, h)
+                            vi = Ts.axis.spatial(head_size, i)
                             out_buf[vb, vt, vh, vi] = 0
 
                             for k in range(head_size):

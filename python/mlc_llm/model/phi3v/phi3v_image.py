@@ -5,6 +5,7 @@ Implementation for Phi architecture.
 from tvm import relax, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor, op
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from mlc_llm.model.vision import CLIPVisionModel
@@ -78,26 +79,32 @@ class Phi3ImageEmbedding(Module):
         assert 4 == input_tensor.ndim, "input_tensor should be 4D data tensor"
 
         def create_dyn_repeat_func(dtype):
-            @T.prim_func(s_tir=True)
+            n = T.dynamic("n", "int64")
+            c = T.dynamic("c", "int64")
+            h = T.dynamic("h", "int64")
+            w = T.dynamic("w", "int64")
+            ch0 = T.dynamic("ch0", "int64")
+            ch1 = T.dynamic("ch1", "int64")
+            ch2 = T.dynamic("ch2", "int64")
+            ch3 = T.dynamic("ch3", "int64")
+
+            @Ts.prim_func
             def dyn_repeat_4d_tensor_func(  # pylint disable=too-many-locals
-                input_tensor: T.handle,
+                input_tensor_buf: T.Buffer((n, c, h, w), dtype),
                 ch0: T.int64(),
                 ch1: T.int64(),
                 ch2: T.int64(),
                 ch3: T.int64(),
-                output: T.handle,
+                out_buf: T.Buffer((n * ch0, c * ch1, h * ch2, w * ch3), dtype),
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
-                n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
-                input_tensor_buf = T.match_buffer(input_tensor, (n, c, h, w), dtype=dtype)
-                out_buf = T.match_buffer(output, (n * ch0, c * ch1, h * ch2, w * ch3), dtype=dtype)
 
                 for n_idx in T.thread_binding(n * ch0, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c * ch1, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(h * ch2, w * ch3):
-                            with T.sblock("dyn_repeat_4d_tensor"):
-                                T.reads(input_tensor_buf[n_idx, c_idx, h_idx, w_idx])
-                                T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
+                            with Ts.sblock("dyn_repeat_4d_tensor"):
+                                Ts.reads(input_tensor_buf[n_idx, c_idx, h_idx, w_idx])
+                                Ts.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 out_buf[n_idx, c_idx, h_idx, w_idx] = input_tensor_buf[
                                     n_idx % n, c_idx % c, h_idx % h, w_idx % w
                                 ]
@@ -115,20 +122,26 @@ class Phi3ImageEmbedding(Module):
 
     def dyn_concate_dim_2(self, input_1, input_2) -> Tensor:
         def create_dyn_concate_func(dtype):
-            @T.prim_func(s_tir=True)
-            def dyn_concate_dim_2_func(input_1: T.handle, input_2: T.handle, output: T.handle):
+            n = T.dynamic("n", "int64")
+            c = T.dynamic("c", "int64")
+            h1 = T.dynamic("h1", "int64")
+            h2 = T.dynamic("h2", "int64")
+            w = T.dynamic("w", "int64")
+
+            @Ts.prim_func
+            def dyn_concate_dim_2_func(
+                input_1_buf: T.Buffer((n, c, h1, w), dtype),
+                input_2_buf: T.Buffer((n, c, h2, w), dtype),
+                out_buf: T.Buffer((n, c, h1 + h2, w), dtype),
+            ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
-                n, c, h1, h2, w = T.int64(), T.int64(), T.int64(), T.int64(), T.int64()
-                input_1_buf = T.match_buffer(input_1, (n, c, h1, w), dtype=dtype)
-                input_2_buf = T.match_buffer(input_2, (n, c, h2, w), dtype=dtype)
-                out_buf = T.match_buffer(output, (n, c, h1 + h2, w), dtype=dtype)
 
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(h1 + h2, w):
-                            with T.sblock("dyn_concate_dim_2"):
-                                T.reads(input_1_buf[n_idx, c_idx, h_idx, w_idx])
-                                T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
+                            with Ts.sblock("dyn_concate_dim_2"):
+                                Ts.reads(input_1_buf[n_idx, c_idx, h_idx, w_idx])
+                                Ts.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 if h_idx < h1:
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = input_1_buf[
                                         n_idx, c_idx, h_idx, w_idx
@@ -154,19 +167,24 @@ class Phi3ImageEmbedding(Module):
 
     def dyn_concate_dim_1(self, input_1, input_2) -> Tensor:
         def create_dyn_concate_func(dtype):
-            @T.prim_func(s_tir=True)
-            def dyn_concate_dim_1_func(input_1: T.handle, input_2: T.handle, output: T.handle):
+            c = T.dynamic("c", "int64")
+            h1 = T.dynamic("h1", "int64")
+            h2 = T.dynamic("h2", "int64")
+            w = T.dynamic("w", "int64")
+
+            @Ts.prim_func
+            def dyn_concate_dim_1_func(
+                input_1_buf: T.Buffer((c, h1, w), dtype),
+                input_2_buf: T.Buffer((c, h2, w), dtype),
+                out_buf: T.Buffer((c, h1 + h2, w), dtype),
+            ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
-                c, h1, h2, w = T.int64(), T.int64(), T.int64(), T.int64()
-                input_1_buf = T.match_buffer(input_1, (c, h1, w), dtype=dtype)
-                input_2_buf = T.match_buffer(input_2, (c, h2, w), dtype=dtype)
-                out_buf = T.match_buffer(output, (c, h1 + h2, w), dtype=dtype)
 
                 for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                     for h_idx, w_idx in T.grid(h1 + h2, w):
-                        with T.sblock("dyn_concate_dim_1"):
-                            T.reads(input_1_buf[c_idx, h_idx, w_idx])
-                            T.writes(out_buf[c_idx, h_idx, w_idx])
+                        with Ts.sblock("dyn_concate_dim_1"):
+                            Ts.reads(input_1_buf[c_idx, h_idx, w_idx])
+                            Ts.writes(out_buf[c_idx, h_idx, w_idx])
                             if h_idx < h1:
                                 out_buf[c_idx, h_idx, w_idx] = input_1_buf[c_idx, h_idx, w_idx]
                             else:

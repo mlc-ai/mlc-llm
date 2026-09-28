@@ -5,6 +5,7 @@ from typing import List, Literal, Tuple  # noqa: UP035
 import tvm
 from tvm.relax.frontend import nn
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 try:
@@ -299,29 +300,24 @@ def get_tir_w8a8_block_fp8_matmul(
     triton_kernel = _get_triton_w8a8_block_fp8_gemm()
     triton_kernel.__name__ = kernel_name
 
+    M = T.dynamic("M", "int32")
+
     @I.ir_module
     class BlockFP8Matmul:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_w8a8_block_fp8_matmul(
-            var_A: T.handle,
-            var_B: T.handle,
-            var_As: T.handle,
-            var_Bs: T.handle,
-            var_C: T.handle,
-        ):
-            T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
-            M = T.int32()
-            A = T.match_buffer(var_A, (M, K), dtype=in_dtype)
-            B = T.match_buffer(var_B, (N, K), dtype=in_dtype)
-            As = T.match_buffer(var_As, (M, (K + block_k - 1) // block_k), "float32")
-            Bs = T.match_buffer(
-                var_Bs,
+            A: T.Buffer((M, K), in_dtype),
+            B: T.Buffer((N, K), in_dtype),
+            As: T.Buffer((M, (K + block_k - 1) // block_k), "float32"),
+            Bs: T.Buffer(
                 ((N + block_n - 1) // block_n, (K + block_k - 1) // block_k),
                 "float32",
-            )
-            C = T.match_buffer(var_C, (M, N), dtype=out_dtype)
-            with T.sblock("root"):
-                T.reads(
+            ),
+            C: T.Buffer((M, N), out_dtype),
+        ):
+            T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
+            with Ts.sblock("root"):
+                Ts.reads(
                     A[0:M, 0:K],
                     B[0:N, 0:K],
                     As[0:M, 0 : (K + block_k - 1) // block_k],
@@ -330,7 +326,7 @@ def get_tir_w8a8_block_fp8_matmul(
                         0 : (K + block_k - 1) // block_k,
                     ],
                 )
-                T.writes(C[0:M, 0:N])
+                Ts.writes(C[0:M, 0:N])
                 T.call_kernel(
                     triton.jit(triton_kernel),
                     (T.ceildiv(M, BLOCK_SIZE_M) * T.ceildiv(N, BLOCK_SIZE_N),),
@@ -401,42 +397,34 @@ def get_tir_w8a8_block_fp8_group_matmul(
     triton_kernel = _get_triton_w8a8_block_fp8_group_gemm()
     triton_kernel.__name__ = kernel_name
 
+    EM = T.dynamic("EM", "int32")
+
     @I.ir_module
     class BlockFP8GroupMatmul:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def tir_w8a8_block_fp8_group_gemm(
-            var_A: T.handle,
-            var_B: T.handle,
-            var_As: T.handle,
-            var_Bs: T.handle,
-            var_expert_ids: T.handle,
-            var_indptr: T.handle,
-            var_C: T.handle,
-        ):
-            T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
-            EM = T.int32()
-            A = T.match_buffer(var_A, (EM, K), dtype=in_dtype)
-            B = T.match_buffer(var_B, (num_experts, N, K), dtype=in_dtype)
-            As = T.match_buffer(var_As, (EM, (K + block_k - 1) // block_k), "float32")
-            Bs = T.match_buffer(
-                var_Bs,
+            A: T.Buffer((EM, K), in_dtype),
+            B: T.Buffer((num_experts, N, K), in_dtype),
+            As: T.Buffer((EM, (K + block_k - 1) // block_k), "float32"),
+            Bs: T.Buffer(
                 (
                     num_experts,
                     (N + block_n - 1) // block_n,
                     (K + block_k - 1) // block_k,
                 ),
                 "float32",
-            )
-            expert_ids = T.match_buffer(
-                var_expert_ids,
+            ),
+            expert_ids: T.Buffer(
                 ((EM + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,),
                 "int32",
-            )
-            indptr = T.match_buffer(var_indptr, (num_experts + 1,), "int32")
-            C = T.match_buffer(var_C, (EM, N), dtype=out_dtype)
+            ),
+            indptr: T.Buffer((num_experts + 1,), "int32"),
+            C: T.Buffer((EM, N), out_dtype),
+        ):
+            T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
 
-            with T.sblock("root"):
-                T.reads(
+            with Ts.sblock("root"):
+                Ts.reads(
                     A[0:EM, 0:K],
                     B[0:num_experts, 0:N, 0:K],
                     As[0:EM, 0 : (K + block_k - 1) // block_k],
@@ -448,7 +436,7 @@ def get_tir_w8a8_block_fp8_group_matmul(
                     expert_ids[0 : (EM + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts],
                     indptr[0 : num_experts + 1],
                 )
-                T.writes(C[0:EM, 0:N])
+                Ts.writes(C[0:EM, 0:N])
                 T.call_kernel(
                     triton.jit(triton_kernel),
                     ((T.ceildiv(EM, BLOCK_SIZE_M) + num_experts) * T.ceildiv(N, BLOCK_SIZE_N),),
@@ -523,20 +511,17 @@ def _compute_expert_id_per_block(
         [(M + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,].
     """
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def tir_compute_expert_id_per_block(
-        var_indptr: T.handle,
+        indptr: T.Buffer((num_experts + 1,), "int32"),
         M: T.int64,
-        var_expert_ids: T.handle,
-    ):
-        T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
-        indptr = T.match_buffer(var_indptr, (num_experts + 1,), "int32")
-        expert_ids = T.match_buffer(
-            var_expert_ids,
+        expert_ids: T.Buffer(
             ((M + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,),
             "int32",
-        )
-        with T.sblock("root"):
+        ),
+    ):
+        T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
+        with Ts.sblock("root"):
             for eid in T.thread_binding(0, num_experts, thread="threadIdx.x"):
                 start_block_id: T.int32 = (indptr[eid] + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + eid
                 num_blocks: T.int32 = (

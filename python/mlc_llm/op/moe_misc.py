@@ -6,6 +6,7 @@ from typing import Literal, Optional, Tuple, Union  # noqa: UP035
 import numpy as np
 from tvm import te, tirx
 from tvm.relax.frontend.nn import IntExpr, Tensor, op
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,name-defined"
@@ -40,9 +41,9 @@ def _gating_topk_init_local_top_k(k_val, dtype, local_top_k, local_top_k_index):
 
 
 def _gating_topk_process_value(k_val, x, local_top_k, local_top_k_index, vi, vk):
-    if_frames = [T.If(x[vi, vk] > local_top_k[i]) for i in range(k_val)]
-    then_frames = [T.Then() for _ in range(k_val)]
-    else_frames = [T.Else() for _ in range(k_val - 1)]
+    if_frames = [T.if_(x[vi, vk] > local_top_k[i]) for i in range(k_val)]
+    then_frames = [T.then_() for _ in range(k_val)]
+    else_frames = [T.else_() for _ in range(k_val - 1)]
     for i in range(k_val):
         if_frames[i].__enter__()
         with then_frames[i]:
@@ -85,37 +86,35 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:  # noqa: UP006
     TX = 1024
 
     def _get_topk_func(k_val: int):
-        @T.prim_func(private=True, s_tir=True)
+        batch_size = T.dynamic("batch_size", "int64")
+
+        @Ts.prim_func(private=True)
         def topk_func(
-            var_x: T.handle,
-            var_out: T.handle,
-            var_out_index: T.handle,
+            x: T.Buffer((batch_size, num_local_experts), dtype),
+            out: T.Buffer((batch_size, k_val), dtype),
+            out_index: T.Buffer((batch_size, k_val), index_dtype),
         ) -> None:
             T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": True})
-            batch_size = T.int64()
-            x = T.match_buffer(var_x, (batch_size, num_local_experts), dtype)
-            out = T.match_buffer(var_out, (batch_size, k_val), dtype)
-            out_index = T.match_buffer(var_out_index, (batch_size, k_val), index_dtype)
-            local_top_k = T.sblock_alloc_buffer((k_val,), dtype=dtype, scope="local")
-            local_top_k_index = T.sblock_alloc_buffer((k_val,), dtype=index_dtype, scope="local")
+            local_top_k = Ts.sblock_alloc_buffer((k_val,), dtype=dtype, scope="local")
+            local_top_k_index = Ts.sblock_alloc_buffer((k_val,), dtype=index_dtype, scope="local")
             for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
                 for ii in T.thread_binding(0, TX, "threadIdx.x"):
-                    with T.sblock("top_k"):
-                        vi = T.axis.spatial(batch_size, io * TX + ii)
-                        T.where(io * TX + ii < batch_size)
-                        with T.sblock("init"):
+                    with Ts.sblock("top_k"):
+                        vi = Ts.axis.spatial(batch_size, io * TX + ii)
+                        Ts.where(io * TX + ii < batch_size)
+                        with Ts.sblock("init"):
                             _gating_topk_init_local_top_k(
                                 k_val, dtype, local_top_k, local_top_k_index
                             )
                         for k in range(num_local_experts):
-                            with T.sblock("update"):
-                                vk = T.axis.remap("S", [k])
+                            with Ts.sblock("update"):
+                                vk = Ts.axis.remap("S", [k])
                                 _gating_topk_process_value(
                                     k_val, x, local_top_k, local_top_k_index, vi, vk
                                 )
                         for j in T.unroll(k_val):
-                            with T.sblock("output"):
-                                vj = T.axis.remap("S", [j])
+                            with Ts.sblock("output"):
+                                vj = Ts.axis.remap("S", [j])
                                 out[vi, vj] = local_top_k[vj]
                                 out_index[vi, vj] = local_top_k_index[vj]
 
@@ -172,45 +171,43 @@ def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor,
                 expr = expr + T.exp(local_top_k_f32[i] - local_top_k_max[0])
             return expr
 
-        @T.prim_func(private=True, s_tir=True)
+        batch_size = T.dynamic("batch_size", "int64")
+
+        @Ts.prim_func(private=True)
         def topk_softmax_norm_func(
-            var_x: T.handle,
-            var_out: T.handle,
-            var_out_index: T.handle,
+            x: T.Buffer((batch_size, num_local_experts), dtype),
+            out: T.Buffer((batch_size, k_val), dtype),
+            out_index: T.Buffer((batch_size, k_val), index_dtype),
         ) -> None:
             T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": True})
-            batch_size = T.int64()
-            x = T.match_buffer(var_x, (batch_size, num_local_experts), dtype)
-            out = T.match_buffer(var_out, (batch_size, k_val), dtype)
-            out_index = T.match_buffer(var_out_index, (batch_size, k_val), index_dtype)
-            local_top_k = T.sblock_alloc_buffer((k_val,), dtype=dtype, scope="local")
-            local_top_k_index = T.sblock_alloc_buffer((k_val,), dtype=index_dtype, scope="local")
-            local_top_k_f32 = T.sblock_alloc_buffer((k_val,), dtype="float32", scope="local")
-            local_top_k_max = T.sblock_alloc_buffer((1,), dtype="float32", scope="local")
+            local_top_k = Ts.sblock_alloc_buffer((k_val,), dtype=dtype, scope="local")
+            local_top_k_index = Ts.sblock_alloc_buffer((k_val,), dtype=index_dtype, scope="local")
+            local_top_k_f32 = Ts.sblock_alloc_buffer((k_val,), dtype="float32", scope="local")
+            local_top_k_max = Ts.sblock_alloc_buffer((1,), dtype="float32", scope="local")
             for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
                 for ii in T.thread_binding(0, TX, "threadIdx.x"):
-                    with T.sblock("top_k"):
-                        vi = T.axis.spatial(batch_size, io * TX + ii)
-                        T.where(io * TX + ii < batch_size)
-                        with T.sblock("init"):
+                    with Ts.sblock("top_k"):
+                        vi = Ts.axis.spatial(batch_size, io * TX + ii)
+                        Ts.where(io * TX + ii < batch_size)
+                        with Ts.sblock("init"):
                             _gating_topk_init_local_top_k(
                                 k_val, dtype, local_top_k, local_top_k_index
                             )
                         for k in range(num_local_experts):
-                            with T.sblock("update"):
-                                vk = T.axis.remap("S", [k])
+                            with Ts.sblock("update"):
+                                vk = Ts.axis.remap("S", [k])
                                 _gating_topk_process_value(
                                     k_val, x, local_top_k, local_top_k_index, vi, vk
                                 )
                         for j in T.unroll(k_val):
-                            with T.sblock("cast"):
-                                vj = T.axis.remap("S", [j])
+                            with Ts.sblock("cast"):
+                                vj = Ts.axis.remap("S", [j])
                                 local_top_k_f32[vj] = T.cast(local_top_k[vj], "float32")
-                        with T.sblock("max"):
+                        with Ts.sblock("max"):
                             local_top_k_max[0] = _nested_max(local_top_k_f32)
                         for j in T.unroll(k_val):
-                            with T.sblock("output"):
-                                vj = T.axis.remap("S", [j])
+                            with Ts.sblock("output"):
+                                vj = Ts.axis.remap("S", [j])
                                 out[vi, vj] = T.cast(
                                     T.exp(local_top_k_f32[vj] - local_top_k_max[0])
                                     / _nested_sum(local_top_k_f32, local_top_k_max),
@@ -302,23 +299,16 @@ def group_limited_greedy_topk(
         ).reshape(num_tokens, n_group)
     group_idx = gating_topk(group_scores, topk_group)[1]  # (num_tokens, top_k_group)
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def group_limited_mask_scores(
-        var_scores: T.handle, var_group_idx: T.handle, var_output: T.handle
+        scores: T.Buffer((num_tokens, num_routed_experts), scores_for_choice.dtype),
+        group_idx_tir: T.Buffer((num_tokens, topk_group), group_idx.dtype),
+        output: T.Buffer((num_tokens, num_routed_experts), scores_for_choice.dtype),
     ):
         T.func_attr({"tirx.noalias": True})
-        scores = T.match_buffer(
-            var_scores, (num_tokens, num_routed_experts), dtype=scores_for_choice.dtype
-        )
-        group_idx_tir = T.match_buffer(
-            var_group_idx, (num_tokens, topk_group), dtype=group_idx.dtype
-        )
-        output = T.match_buffer(
-            var_output, (num_tokens, num_routed_experts), dtype=scores_for_choice.dtype
-        )
         for i, j, k in T.grid(num_tokens, topk_group, group_size):
-            with T.sblock("mask_scores"):
-                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+            with Ts.sblock("mask_scores"):
+                vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
                 output[vi, group_idx_tir[vi, vj] * group_size + vk] = scores[
                     vi, group_idx_tir[vi, vj] * group_size + vk
                 ]
@@ -342,21 +332,16 @@ def group_limited_greedy_topk(
     expert_weights, expert_indices = gating_topk(tmp_scores, top_k)
     if topk_method == "noaux_tc":
 
-        @T.prim_func(private=True, s_tir=True)
-        def gather_scores(var_scores: T.handle, var_expert_indices: T.handle, var_output: T.handle):
+        @Ts.prim_func(private=True)
+        def gather_scores(
+            scores: T.Buffer((num_tokens, num_routed_experts), scores_for_choice.dtype),
+            expert_indices_tir: T.Buffer((num_tokens, top_k), expert_indices.dtype),
+            output: T.Buffer((num_tokens, top_k), scores_for_choice.dtype),
+        ):
             T.func_attr({"tirx.noalias": True})
-            scores = T.match_buffer(
-                var_scores,
-                (num_tokens, num_routed_experts),
-                dtype=scores_for_choice.dtype,
-            )
-            expert_indices_tir = T.match_buffer(
-                var_expert_indices, (num_tokens, top_k), dtype=expert_indices.dtype
-            )
-            output = T.match_buffer(var_output, (num_tokens, top_k), dtype=scores_for_choice.dtype)
             for i, j in T.grid(num_tokens, top_k):
-                with T.sblock("gather_scores"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("gather_scores"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     output[vi, vj] = scores[vi, expert_indices_tir[vi, vj]]
 
         expert_weights = op.tensor_ir_op(
@@ -487,29 +472,24 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]
         The indices for shuffling with shape [batch_size * experts_per_tok].
     """  # noqa: E501
     TX = 1024
-    batch_size, experts_per_tok = expert_indices.shape
+    num_tokens, experts_per_tok = expert_indices.shape
 
-    @T.prim_func(private=True, s_tir=True)
+    batch_size = T.dynamic("batch_size", "int32")
+    cumsum_len = T.dynamic("cumsum_len", "int32")  # [experts_per_tok * batch_size]
+
+    @Ts.prim_func(private=True)
     def _func(
-        var_cumsum: T.handle,
-        var_expert_indices: T.handle,
-        var_reverse_indices: T.handle,
-        var_token_indices: T.handle,
+        cumsum: T.Buffer([cumsum_len], "int32"),
+        expert_indices: T.Buffer([batch_size, experts_per_tok], "int32"),
+        reverse_indices: T.Buffer([batch_size * experts_per_tok], "int32"),
+        token_indices: T.Buffer([batch_size * experts_per_tok], "int32"),
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
-        batch_size = T.int32()
-        cumsum_len = T.int32()  # [experts_per_tok * batch_size]
-        cumsum = T.match_buffer(var_cumsum, [cumsum_len], "int32")
-        expert_indices = T.match_buffer(var_expert_indices, [batch_size, experts_per_tok], "int32")
-        reverse_indices = T.match_buffer(
-            var_reverse_indices, [batch_size * experts_per_tok], "int32"
-        )
-        token_indices = T.match_buffer(var_token_indices, [batch_size * experts_per_tok], "int32")
         for bj_o in T.thread_binding(0, T.ceildiv(batch_size * experts_per_tok, TX), "blockIdx.x"):
             for bj_i in T.thread_binding(0, TX, "threadIdx.x"):
-                with T.sblock("indices"):
-                    T.reads(expert_indices[:, :], cumsum[:])
-                    T.writes(reverse_indices[:], token_indices[:])
+                with Ts.sblock("indices"):
+                    Ts.reads(expert_indices[:, :], cumsum[:])
+                    Ts.writes(reverse_indices[:], token_indices[:])
                     if bj_o * TX + bj_i < batch_size * experts_per_tok:
                         b: T.int32 = T.floordiv(bj_o * TX + bj_i, experts_per_tok)
                         j: T.int32 = T.floormod(bj_o * TX + bj_i, experts_per_tok)
@@ -521,7 +501,7 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]
         _func,
         "get_indices",
         args=[cumsum, expert_indices],
-        out=[Tensor.placeholder([batch_size * experts_per_tok], "int32") for _ in range(2)],
+        out=[Tensor.placeholder([num_tokens * experts_per_tok], "int32") for _ in range(2)],
     )
 
 
@@ -576,24 +556,32 @@ def get_indptr(
 
     out_shape = [num_local_experts if inclusive else num_local_experts + 1]
 
-    @T.prim_func(private=True, s_tir=True)
-    def _func_exclusive(var_cumsum: T.handle, batch_size: T.int64, var_indptr: T.handle):
+    # Declared up front so that it can be referenced by the `cumsum` shape, which precedes the
+    # `batch_size` scalar parameter in the signature below.
+    dyn_batch_size = T.dynamic("batch_size", "int64")
+
+    @Ts.prim_func(private=True)
+    def _func_exclusive(
+        cumsum: T.Buffer([dyn_batch_size * num_local_experts], "int32"),
+        batch_size: dyn_batch_size,
+        indptr: T.Buffer(out_shape, out_dtype),
+    ):
         T.func_attr({"tirx.noalias": True})
-        cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
-        indptr = T.match_buffer(var_indptr, shape=out_shape, dtype=out_dtype)
         for vi in T.serial(0, out_shape[0]):
-            with T.sblock("indptr"):
-                i = T.axis.spatial(out_shape[0], vi)
+            with Ts.sblock("indptr"):
+                i = Ts.axis.spatial(out_shape[0], vi)
                 indptr[i] = T.Select(i > 0, cumsum[i * batch_size - 1], T.int32(0))
 
-    @T.prim_func(private=True, s_tir=True)
-    def _func_inclusive(var_cumsum: T.handle, batch_size: T.int64, var_indptr: T.handle):
+    @Ts.prim_func(private=True)
+    def _func_inclusive(
+        cumsum: T.Buffer([dyn_batch_size * num_local_experts], "int32"),
+        batch_size: dyn_batch_size,
+        indptr: T.Buffer(out_shape, out_dtype),
+    ):
         T.func_attr({"tirx.noalias": True})
-        cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
-        indptr = T.match_buffer(var_indptr, shape=out_shape, dtype=out_dtype)
         for vi in T.serial(0, out_shape[0]):
-            with T.sblock("indptr"):
-                i = T.axis.spatial(out_shape[0], vi)
+            with Ts.sblock("indptr"):
+                i = Ts.axis.spatial(out_shape[0], vi)
                 indptr[i] = cumsum[(i + 1) * batch_size - 1]
 
     assert cumsum.ndim == 1
@@ -624,17 +612,19 @@ def scatter_output(x: Tensor, indices: Tensor) -> Tensor:
     dtype = x.dtype
     _, hidden_size = x.shape
 
-    @T.prim_func(private=True, s_tir=True)
-    def _func(var_x: T.handle, var_indices: T.handle, var_out: T.handle):
+    indices_len = T.dynamic("indices_len", "int64")
+
+    @Ts.prim_func(private=True)
+    def _func(
+        x: T.Buffer([indices_len, hidden_size], dtype),
+        indices: T.Buffer([indices_len], "int32"),
+        out: T.Buffer([indices_len, hidden_size], dtype),
+    ):
         T.func_attr({"tirx.noalias": True})
-        indices_len = T.int64()
-        x = T.match_buffer(var_x, [indices_len, hidden_size], dtype)
-        indices = T.match_buffer(var_indices, [indices_len], "int32")
-        out = T.match_buffer(var_out, [indices_len, hidden_size], dtype)
         for i in T.serial(0, indices_len):
             for j in T.serial(0, hidden_size):
-                with T.sblock("scatter"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("scatter"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     out[indices[vi], vj] = x[vi, vj]
 
     return op.tensor_ir_op(

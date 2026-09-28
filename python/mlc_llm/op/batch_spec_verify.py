@@ -1,5 +1,6 @@
 """Operators for batch verify in speculative decoding."""
 
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
@@ -52,18 +53,21 @@ def batch_spec_verify(vocab_size):
     TX = 1024
 
     def _var(dtype="int32"):
-        return T.sblock_alloc_buffer((1,), dtype, scope="local")
+        return Ts.sblock_alloc_buffer((1,), dtype, scope="local")
+
+    num_nodes = T.dynamic("num_nodes", "int32")
+    nbatch = T.dynamic("nbatch", "int32")
 
     # fmt: off
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def _func(
-        var_draft_probs: T.handle,
-        var_draft_tokens: T.handle,
-        var_model_probs: T.handle,
-        var_token_tree_first_child: T.handle,
-        var_token_tree_next_sibling: T.handle,
-        var_uniform_samples: T.handle,
-        var_token_tree_parent_ptr: T.handle,
+        draft_probs: T.Buffer((num_nodes, vocab_size), "float32"),
+        draft_tokens: T.Buffer((num_nodes,), "int32"),
+        model_probs: T.Buffer((num_nodes, vocab_size), "float32"),
+        token_tree_first_child: T.Buffer((num_nodes,), "int32"),
+        token_tree_next_sibling: T.Buffer((num_nodes,), "int32"),
+        uniform_samples: T.Buffer((num_nodes,), "float32"),
+        token_tree_parent_ptr: T.Buffer((nbatch,), "int32"),
     ):
         """
         [
@@ -73,18 +77,8 @@ def batch_spec_verify(vocab_size):
         ]
         """
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
-        num_nodes = T.int32()
-        nbatch = T.int32()
 
-        draft_probs = T.match_buffer(var_draft_probs, (num_nodes, vocab_size), "float32")
-        draft_tokens = T.match_buffer(var_draft_tokens, (num_nodes,), "int32")
-        model_probs = T.match_buffer(var_model_probs, (num_nodes, vocab_size), "float32")
-        token_tree_first_child = T.match_buffer(var_token_tree_first_child, (num_nodes,), "int32")
-        token_tree_next_sibling = T.match_buffer(var_token_tree_next_sibling, (num_nodes,), "int32")
-        uniform_samples = T.match_buffer(var_uniform_samples, (num_nodes,), "float32")
-        token_tree_parent_ptr = T.match_buffer(var_token_tree_parent_ptr, (nbatch,), "int32")
-
-        with T.sblock("kernel"):
+        with Ts.sblock("kernel"):
             child_ptr = _var()
             parent_ptr = _var()
             child_token = _var()
@@ -97,15 +91,15 @@ def batch_spec_verify(vocab_size):
             q_child = _var("float32")
             uniform_sample = _var("float32")
 
-            pred_shared = T.sblock_alloc_buffer((1,), "bool", scope="shared")
-            pred_local = T.sblock_alloc_buffer((1,), "bool", scope="local")
+            pred_shared = Ts.sblock_alloc_buffer((1,), "bool", scope="shared")
+            pred_local = Ts.sblock_alloc_buffer((1,), "bool", scope="local")
 
             for _bx in T.thread_binding(0, nbatch, thread="blockIdx.x"):
                 for _tx in T.thread_binding(0, TX, thread="threadIdx.x"):
-                    with T.sblock("CTA"):
+                    with Ts.sblock("CTA"):
                         # batch size
-                        b = T.axis.S(nbatch, _bx)
-                        tx = T.axis.S(TX, _tx)
+                        b = Ts.axis.S(nbatch, _bx)
+                        tx = Ts.axis.S(TX, _tx)
 
                         parent_ptr[0] = token_tree_parent_ptr[b]
                         child_ptr[0] = token_tree_first_child[parent_ptr[0]]
@@ -142,9 +136,9 @@ def batch_spec_verify(vocab_size):
                                             model_prob_local[0] = T.max(model_prob_local[0] - draft_prob_local[0], 0.0)  # noqa: E501
                                             psum[0] += model_prob_local[0]
 
-                                    with T.sblock("block_cross_thread"):
-                                        T.reads(psum[0])
-                                        T.writes(t0[0])
+                                    with Ts.sblock("block_cross_thread"):
+                                        Ts.reads(psum[0])
+                                        Ts.writes(t0[0])
                                         T.attr(
                                             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                                             "reduce_scope",

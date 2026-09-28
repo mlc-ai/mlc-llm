@@ -6,6 +6,7 @@ import tvm
 from tvm import relax, tirx
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, mutator
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from ..support.max_thread_check import get_max_num_threads_per_block
@@ -116,30 +117,27 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
     # of the max value. The second kernel merges the max and counts, and set the
     # softmax of the maximum values to "max_value / max_count".
 
-    @T.prim_func(s_tir=True)
+    batch_size = T.dynamic("batch_size", "int64")
+    vocab_size = T.dynamic("vocab_size", "int64")
+    num_chunks = T.dynamic("num_chunks", "int64")
+
+    @Ts.prim_func
     def chunk_lse(
-        var_A: T.handle,
-        var_temperature: T.handle,
-        var_chunked_sum: T.handle,
-        var_chunked_max: T.handle,
+        A: T.Buffer((batch_size, vocab_size), "float32"),
+        temperature: T.Buffer((batch_size,), "float32"),
+        chunked_sum: T.Buffer((batch_size, num_chunks), "float32"),
+        chunked_max: T.Buffer((batch_size, num_chunks), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
-        batch_size = T.int64()
-        vocab_size = T.int64()
-        num_chunks = T.int64()
-        A = T.match_buffer(var_A, (batch_size, vocab_size), dtype="float32")
-        temperature = T.match_buffer(var_temperature, (batch_size,), dtype="float32")
-        chunked_sum = T.match_buffer(var_chunked_sum, (batch_size, num_chunks), dtype="float32")
-        chunked_max = T.match_buffer(var_chunked_max, (batch_size, num_chunks), dtype="float32")
-        A_pad = T.sblock_alloc_buffer(
+        A_pad = Ts.sblock_alloc_buffer(
             (batch_size, num_chunks, T.int64(chunk_size)), dtype="float32"
         )
-        temp_max = T.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
-        temp_sum = T.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
+        temp_max = Ts.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
+        temp_sum = Ts.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
 
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(chunk_size)):
-            with T.sblock("pad"):
-                v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
+            with Ts.sblock("pad"):
+                v0, v1, v2 = Ts.axis.remap("SSS", [l0, l1, l2])
                 A_pad[v0, v1, v2] = T.Select(
                     v1 * T.int64(chunk_size) + v2
                     < (active_vocab_size if active_vocab_size is not None else vocab_size),
@@ -151,15 +149,15 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
                     T.min_value("float32"),
                 )
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(chunk_size)):
-            with T.sblock("max"):
-                v0, v1, v2 = T.axis.remap("SSR", [l0, l1, l2])
-                with T.init():
+            with Ts.sblock("max"):
+                v0, v1, v2 = Ts.axis.remap("SSR", [l0, l1, l2])
+                with Ts.init():
                     temp_max[v0, v1] = T.min_value("float32")
                 temp_max[v0, v1] = T.max(temp_max[v0, v1], A_pad[v0, v1, v2])
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(chunk_size)):
-            with T.sblock("sum_exp"):
-                v0, v1, v2 = T.axis.remap("SSR", [l0, l1, l2])
-                with T.init():
+            with Ts.sblock("sum_exp"):
+                v0, v1, v2 = Ts.axis.remap("SSR", [l0, l1, l2])
+                with Ts.init():
                     temp_sum[v0, v1] = T.float32(0)
                 temp_sum[v0, v1] += T.if_then_else(
                     v1 * T.int64(chunk_size) + v2
@@ -172,8 +170,8 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
                     T.float32(0),
                 )
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(1)):
-            with T.sblock("log"):
-                v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
+            with Ts.sblock("log"):
+                v0, v1, v2 = Ts.axis.remap("SSS", [l0, l1, l2])
                 chunked_sum[v0, v1] = T.Select(
                     temperature[v0] > T.float32(1e-5),
                     T.log(temp_sum[v0, v1]),
@@ -181,35 +179,27 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
                 )
                 chunked_max[v0, v1] = temp_max[v0, v1]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def softmax_with_chunked_sum(
-        var_A: T.handle,
-        var_temperature: T.handle,
-        var_chunked_sum: T.handle,
-        var_chunked_max: T.handle,
-        var_softmax: T.handle,
+        A: T.Buffer((batch_size, vocab_size), "float32"),
+        temperature: T.Buffer((batch_size,), "float32"),
+        chunked_sum: T.Buffer((batch_size, num_chunks), "float32"),
+        chunked_max: T.Buffer((batch_size, num_chunks), "float32"),
+        softmax: T.Buffer((batch_size, vocab_size), "float32"),
     ):
         T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
-        batch_size = T.int64()
-        vocab_size = T.int64()
-        num_chunks = T.int64()
-        A = T.match_buffer(var_A, (batch_size, vocab_size), dtype="float32")
-        temperature = T.match_buffer(var_temperature, (batch_size,), dtype="float32")
-        chunked_sum = T.match_buffer(var_chunked_sum, (batch_size, num_chunks), dtype="float32")
-        chunked_max = T.match_buffer(var_chunked_max, (batch_size, num_chunks), dtype="float32")
-        softmax = T.match_buffer(var_softmax, (batch_size, vocab_size), dtype="float32")
-        temp_max = T.sblock_alloc_buffer((batch_size,), dtype="float32")
-        temp_sum = T.sblock_alloc_buffer((batch_size,), dtype="float32")
+        temp_max = Ts.sblock_alloc_buffer((batch_size,), dtype="float32")
+        temp_sum = Ts.sblock_alloc_buffer((batch_size,), dtype="float32")
         for l0, l1 in T.grid(batch_size, num_chunks):
-            with T.sblock("max"):
-                v0, v1 = T.axis.remap("SR", [l0, l1])
-                with T.init():
+            with Ts.sblock("max"):
+                v0, v1 = Ts.axis.remap("SR", [l0, l1])
+                with Ts.init():
                     temp_max[v0] = T.min_value("float32")
                 temp_max[v0] = T.max(temp_max[v0], chunked_max[v0, v1])
         for l0, l1 in T.grid(batch_size, num_chunks):
-            with T.sblock("sum_exp"):
-                v0, v1 = T.axis.remap("SR", [l0, l1])
-                with T.init():
+            with Ts.sblock("sum_exp"):
+                v0, v1 = Ts.axis.remap("SR", [l0, l1])
+                with Ts.init():
                     temp_sum[v0] = T.float32(0)
                 temp_sum[v0] += T.Select(
                     temperature[v0] > T.float32(1e-5),
@@ -217,8 +207,8 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
                     T.cast(chunked_max[v0, v1] == temp_max[v0], "float32") * chunked_sum[v0, v1],
                 )
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(chunk_size)):
-            with T.sblock("log_pad"):
-                v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
+            with Ts.sblock("log_pad"):
+                v0, v1, v2 = Ts.axis.remap("SSS", [l0, l1, l2])
                 if v1 * T.int64(chunk_size) + v2 < vocab_size:
                     softmax[v0, v1 * T.int64(chunk_size) + v2] = T.Select(
                         v1 * T.int64(chunk_size) + v2

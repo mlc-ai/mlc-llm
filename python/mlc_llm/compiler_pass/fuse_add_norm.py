@@ -6,6 +6,7 @@ import tvm
 from tvm import relax
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from ..support.max_thread_check import get_max_num_threads_per_block
@@ -18,18 +19,20 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
     eps = T.float32(eps)
     add_local_size = hidden_size // TX
 
-    @T.prim_func(private=True, s_tir=True)
-    def decode_add_rms(pA: T.handle, pB: T.handle, pC: T.handle, pO: T.handle, pAdd: T.handle):
+    batch_size = T.dynamic("batch_size", "int32")
+
+    @Ts.prim_func(private=True)
+    def decode_add_rms(
+        A: T.Buffer((batch_size, 1, hidden_size), in_dtype),
+        B: T.Buffer((batch_size, 1, hidden_size), in_dtype),
+        C: T.Buffer((hidden_size,), in_dtype),
+        out: T.Buffer((batch_size, 1, hidden_size), in_dtype),
+        add: T.Buffer((batch_size, 1, hidden_size), in_dtype),
+    ):
         T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
-        batch_size = T.int32()
-        A = T.match_buffer(pA, (batch_size, 1, hidden_size), in_dtype)
-        B = T.match_buffer(pB, (batch_size, 1, hidden_size), in_dtype)
-        C = T.match_buffer(pC, (hidden_size,), in_dtype)
-        out = T.match_buffer(pO, (batch_size, 1, hidden_size), in_dtype)
-        add = T.match_buffer(pAdd, (batch_size, 1, hidden_size), in_dtype)
-        add_local = T.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
-        sum_shared = T.sblock_alloc_buffer((batch_size, 1), scope="shared")
-        sum_local = T.sblock_alloc_buffer((TX, batch_size, 1), scope="local")
+        add_local = Ts.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
+        sum_shared = Ts.sblock_alloc_buffer((batch_size, 1), scope="shared")
+        sum_local = Ts.sblock_alloc_buffer((TX, batch_size, 1), scope="local")
         for v_bx in T.thread_binding(batch_size, thread="blockIdx.x"):
             for v_tx in T.thread_binding(
                 TX,
@@ -40,36 +43,36 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
                 },
             ):
                 for i in range(add_local_size):
-                    with T.sblock("T_add"):
-                        bx = T.axis.spatial(batch_size, v_bx)
-                        h = T.axis.spatial(hidden_size, i * TX + v_tx)
+                    with Ts.sblock("T_add"):
+                        bx = Ts.axis.spatial(batch_size, v_bx)
+                        h = Ts.axis.spatial(hidden_size, i * TX + v_tx)
                         add_local[h // TX] = A[bx, 0, h] + B[bx, 0, h]
-                    with T.sblock("T_write_back"):
-                        bx = T.axis.spatial(batch_size, v_bx)
-                        v_ax1 = T.axis.spatial(1, 0)
-                        h = T.axis.spatial(hidden_size, i * TX + v_tx)
+                    with Ts.sblock("T_write_back"):
+                        bx = Ts.axis.spatial(batch_size, v_bx)
+                        v_ax1 = Ts.axis.spatial(1, 0)
+                        h = Ts.axis.spatial(hidden_size, i * TX + v_tx)
                         add[bx, v_ax1, h] = add_local[h // TX]
-                with T.sblock("T_multiply_red_rf_init"):
-                    tx, bx = T.axis.remap("SS", [v_tx, v_bx])
+                with Ts.sblock("T_multiply_red_rf_init"):
+                    tx, bx = Ts.axis.remap("SS", [v_tx, v_bx])
                     sum_local[tx, bx, 0] = T.float32(0)
                 for v_i, _j in T.grid(add_local_size, 1):
-                    with T.sblock("T_multiply_red_rf_update"):
-                        tx, bx, i = T.axis.remap("SSR", [v_tx, v_bx, v_i])
+                    with Ts.sblock("T_multiply_red_rf_update"):
+                        tx, bx, i = Ts.axis.remap("SSR", [v_tx, v_bx, v_i])
                         sum_local[tx, bx, 0] += T.float32(add_local[i]) * T.float32(add_local[i])
             for _j in range(1):
                 for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
-                    with T.sblock("T_multiply_red"):
-                        tx, bx = T.axis.remap("RS", [v_tx_2, v_bx])
-                        T.reads(sum_local[tx, bx, 0])
-                        T.writes(sum_shared[bx, 0])
-                        with T.init():
+                    with Ts.sblock("T_multiply_red"):
+                        tx, bx = Ts.axis.remap("RS", [v_tx_2, v_bx])
+                        Ts.reads(sum_local[tx, bx, 0])
+                        Ts.writes(sum_shared[bx, 0])
+                        with Ts.init():
                             sum_shared[bx, 0] = T.float32(0)
                         sum_shared[bx, 0] += sum_local[tx, bx, 0]
             for i in range(add_local_size):
                 for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
-                    with T.sblock("T_cast_2"):
-                        bx = T.axis.spatial(batch_size, v_bx)
-                        h = T.axis.spatial(hidden_size, i * TX + v_tx_2)
+                    with Ts.sblock("T_cast_2"):
+                        bx = Ts.axis.spatial(batch_size, v_bx)
+                        h = Ts.axis.spatial(hidden_size, i * TX + v_tx_2)
                         out[bx, 0, h] = T.cast(
                             T.rsqrt(sum_shared[bx, 0] * inv_hidden_size + eps)
                             * T.float32(add_local[h // TX])
@@ -87,18 +90,20 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
     eps = T.float32(eps)
     add_local_size = hidden_size // TX
 
-    @T.prim_func(private=True, s_tir=True)
-    def prefill_add_rms(pA: T.handle, pB: T.handle, pC: T.handle, pO: T.handle, pAdd: T.handle):
+    seq_len = T.dynamic("seq_len", "int32")
+
+    @Ts.prim_func(private=True)
+    def prefill_add_rms(
+        A: T.Buffer((1, seq_len, hidden_size), in_dtype),
+        B: T.Buffer((1, seq_len, hidden_size), in_dtype),
+        C: T.Buffer((hidden_size,), in_dtype),
+        out: T.Buffer((1, seq_len, hidden_size), in_dtype),
+        add: T.Buffer((1, seq_len, hidden_size), in_dtype),
+    ):
         T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
-        seq_len = T.int32()
-        A = T.match_buffer(pA, (1, seq_len, hidden_size), in_dtype)
-        B = T.match_buffer(pB, (1, seq_len, hidden_size), in_dtype)
-        C = T.match_buffer(pC, (hidden_size,), in_dtype)
-        out = T.match_buffer(pO, (1, seq_len, hidden_size), in_dtype)
-        add = T.match_buffer(pAdd, (1, seq_len, hidden_size), in_dtype)
-        add_local = T.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
-        sum_shared = T.sblock_alloc_buffer((1, seq_len), scope="shared")
-        sum_local = T.sblock_alloc_buffer((TX, 1, seq_len), scope="local")
+        add_local = Ts.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
+        sum_shared = Ts.sblock_alloc_buffer((1, seq_len), scope="shared")
+        sum_local = Ts.sblock_alloc_buffer((TX, 1, seq_len), scope="local")
         for v_bx in T.thread_binding(seq_len, thread="blockIdx.x"):
             for v_tx in T.thread_binding(
                 TX,
@@ -109,33 +114,33 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
                 },
             ):
                 for v_i in range(add_local_size):
-                    with T.sblock("T_add"):
-                        bx = T.axis.spatial(seq_len, v_bx)
-                        h = T.axis.spatial(hidden_size, v_i * TX + v_tx)
+                    with Ts.sblock("T_add"):
+                        bx = Ts.axis.spatial(seq_len, v_bx)
+                        h = Ts.axis.spatial(hidden_size, v_i * TX + v_tx)
                         add_local[h // TX] = A[0, bx, h] + B[0, bx, h]
-                    with T.sblock("T_write_back"):
-                        bx = T.axis.spatial(seq_len, v_bx)
-                        h = T.axis.spatial(hidden_size, v_i * TX + v_tx)
+                    with Ts.sblock("T_write_back"):
+                        bx = Ts.axis.spatial(seq_len, v_bx)
+                        h = Ts.axis.spatial(hidden_size, v_i * TX + v_tx)
                         add[0, bx, h] = add_local[h // TX]
-                with T.sblock("T_multiply_red_rf_init"):
-                    tx, bx = T.axis.remap("SS", [v_tx, v_bx])
+                with Ts.sblock("T_multiply_red_rf_init"):
+                    tx, bx = Ts.axis.remap("SS", [v_tx, v_bx])
                     sum_local[tx, 0, bx] = T.float32(0)
                 for v_i, _j in T.grid(add_local_size, 1):
-                    with T.sblock("T_multiply_red_rf_update"):
-                        tx, bx, i = T.axis.remap("SSR", [v_tx, v_bx, v_i])
+                    with Ts.sblock("T_multiply_red_rf_update"):
+                        tx, bx, i = Ts.axis.remap("SSR", [v_tx, v_bx, v_i])
                         sum_local[tx, 0, bx] += T.float32(add_local[i]) * T.float32(add_local[i])
             for _j in range(1):
                 for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
-                    with T.sblock("T_multiply_red"):
-                        tx, bx = T.axis.remap("RS", [v_tx_2, v_bx])
-                        with T.init():
+                    with Ts.sblock("T_multiply_red"):
+                        tx, bx = Ts.axis.remap("RS", [v_tx_2, v_bx])
+                        with Ts.init():
                             sum_shared[0, bx] = T.float32(0)
                         sum_shared[0, bx] = sum_shared[0, bx] + sum_local[tx, 0, bx]
             for v_i in range(add_local_size):
                 for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
-                    with T.sblock("T_cast_2"):
-                        bx = T.axis.spatial(seq_len, v_bx)
-                        v1 = T.axis.spatial(hidden_size, v_i * TX + v_tx_2)
+                    with Ts.sblock("T_cast_2"):
+                        bx = Ts.axis.spatial(seq_len, v_bx)
+                        v1 = Ts.axis.spatial(hidden_size, v_i * TX + v_tx_2)
                         out[0, bx, v1] = T.cast(
                             T.rsqrt(sum_shared[0, bx] * inv_hidden_size + eps)
                             * T.float32(add_local[v1 // TX])

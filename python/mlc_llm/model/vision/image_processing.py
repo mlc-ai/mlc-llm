@@ -4,11 +4,12 @@ Implements the CLIP Image processor.
 
 from tvm import s_tir, tirx
 from tvm.relax.frontend.nn import Module, Tensor, op
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 def _var(dtype, size=1):
-    return T.sblock_alloc_buffer((size,), dtype, scope="local")
+    return Ts.sblock_alloc_buffer((size,), dtype, scope="local")
 
 
 class ImageProcessor(Module):
@@ -94,27 +95,33 @@ class ImageProcessor(Module):
         assert 3 == image.shape[1], "image layout should be NCHW"
 
         def create_crop_func(dtype):  # , top, bottom, left, right):
-            @T.prim_func(s_tir=True)
+            n = T.dynamic("n", "int64")
+            c = T.dynamic("c", "int64")
+            h = T.dynamic("h", "int64")
+            w = T.dynamic("w", "int64")
+            top = T.dynamic("top", "int64")
+            bottom = T.dynamic("bottom", "int64")
+            left = T.dynamic("left", "int64")
+            right = T.dynamic("right", "int64")
+
+            @Ts.prim_func
             def crop_func(
-                image: T.handle,
+                image_buf: T.Buffer((n, c, h, w), dtype),
                 top: T.int64(),
                 bottom: T.int64(),
                 left: T.int64(),
                 right: T.int64(),
-                out: T.handle,
+                out_buf: T.Buffer((n, c, bottom - top, right - left), dtype),
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
-                n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
-                image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
-                out_buf = T.match_buffer(out, (n, c, bottom - top, right - left), dtype=dtype)
                 out_h = bottom - top
                 out_w = right - left
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(out_h, out_w):
-                            with T.sblock("crop"):
-                                T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
-                                T.reads(image_buf[n_idx, c_idx, h_idx + top, w_idx + left])
+                            with Ts.sblock("crop"):
+                                Ts.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
+                                Ts.reads(image_buf[n_idx, c_idx, h_idx + top, w_idx + left])
                                 if (h_idx + T.int64(top)) < h and (w_idx + T.int64(left)) < w:
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = image_buf[
                                         n_idx, c_idx, h_idx + top, w_idx + left
@@ -147,19 +154,24 @@ class ImageProcessor(Module):
         assert 3 == image.shape[1], "image layout should be NCHW"
 
         def create_rescale_func(rescale_factor, dtype, o_dtype):
-            @T.prim_func(s_tir=True)
-            def rescale_func(image: T.handle, out: T.handle):
+            n = T.dynamic("n", "int64")
+            c = T.dynamic("c", "int64")
+            h = T.dynamic("h", "int64")
+            w = T.dynamic("w", "int64")
+
+            @Ts.prim_func
+            def rescale_func(
+                image_buf: T.Buffer((n, c, h, w), dtype),
+                out_buf: T.Buffer((n, c, h, w), o_dtype),
+            ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
-                n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
-                image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
-                out_buf = T.match_buffer(out, (n, c, h, w), dtype=o_dtype)
 
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(h, w):
-                            with T.sblock("rescale"):
-                                T.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
-                                T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
+                            with Ts.sblock("rescale"):
+                                Ts.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
+                                Ts.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 if h_idx < h and w_idx < w:
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = (
                                         T.cast(
@@ -186,25 +198,30 @@ class ImageProcessor(Module):
         assert 3 == image.shape[1], "image layout should be NCHW"
 
         def create_normalize_func(dtype, o_dtype):
-            @T.prim_func(s_tir=True)
-            def normalize_func(image: T.handle, out: T.handle):
-                n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
-                image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
-                out_buf = T.match_buffer(out, (n, c, h, w), dtype=o_dtype)
+            n = T.dynamic("n", "int64")
+            c = T.dynamic("c", "int64")
+            h = T.dynamic("h", "int64")
+            w = T.dynamic("w", "int64")
+
+            @Ts.prim_func
+            def normalize_func(
+                image_buf: T.Buffer((n, c, h, w), dtype),
+                out_buf: T.Buffer((n, c, h, w), o_dtype),
+            ):
                 mean = _var(o_dtype, 3)
                 stddev = _var(o_dtype, 3)
 
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(h, w):
-                            with T.sblock("normalize"):
-                                T.reads(
+                            with Ts.sblock("normalize"):
+                                Ts.reads(
                                     image_buf[n_idx, c_idx, h_idx, w_idx],
                                     mean[c_idx],
                                     stddev[c_idx],
                                 )
-                                T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
-                                with T.init():
+                                Ts.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
+                                with Ts.init():
                                     mean[0] = 0.48145466
                                     stddev[0] = 0.26862954
                                     mean[1] = 0.4578275
@@ -237,21 +254,30 @@ class ImageProcessor(Module):
         assert 3 == image.shape[1], "image layout should be NCHW"
 
         def create_pad_func(left, right, fill=255):
-            @T.prim_func(s_tir=True)
-            def pad_func(image: T.handle, t: T.int64(), b: T.int64(), out: T.handle):
+            n = T.dynamic("n", "int64")
+            c = T.dynamic("c", "int64")
+            h = T.dynamic("h", "int64")
+            w = T.dynamic("w", "int64")
+            t = T.dynamic("t", "int64")
+            b = T.dynamic("b", "int64")
+
+            @Ts.prim_func
+            def pad_func(
+                image_buf: T.Buffer((n, c, h, w), dtype),
+                t: T.int64(),
+                b: T.int64(),
+                out_buf: T.Buffer((n, c, h + t + b, w + left + right), dtype),
+            ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
-                n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
-                image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
-                out_buf = T.match_buffer(out, (n, c, h + t + b, w + left + right), dtype=dtype)
                 out_h = h + t + b
                 out_w = w + left + right
 
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(out_h, out_w):
-                            with T.sblock("pad"):
-                                T.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
-                                T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
+                            with Ts.sblock("pad"):
+                                Ts.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
+                                Ts.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 if h_idx < t or h_idx > h + b or w_idx < left or w_idx > w + right:
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = fill
                                 else:
