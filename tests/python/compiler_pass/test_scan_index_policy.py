@@ -5,16 +5,20 @@ import tvm
 from tvm.relax.backend.gpu_generic import gpu_2d_continuous_cumsum
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import tirx as T
 
 from mlc_llm.compiler_pass.pipeline import _mlc_llm_pipeline
 
 
 @pytest.mark.parametrize("target_kind", ["metal", "webgpu", "cuda"])
 def test_scan_dispatch_matches_pipeline_index_policy(target_kind):
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")):
+        def main(x: R.Tensor((m, n), "float32")):
             return R.cumsum(x, axis=-1)
 
     @tvm.ir.instrument.pass_instrument
