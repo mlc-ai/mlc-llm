@@ -19,7 +19,7 @@ class RNNState(Object):
         max_batch_size: tirx.Var,
         num_hidden_layers: int,
         max_history: int,
-        init_values: Sequence[tvm.ir.GenericConst],
+        init_values: Sequence[tvm.ir.DataTypeImm],
         name: str = "rnn_state",
     ) -> "RNNState":
         """Create a RNN state object.
@@ -32,7 +32,7 @@ class RNNState(Object):
             The number of hidden layers.
         max_history : int
             The maximum history length.
-        init_values : Sequence[tvm.ir.GenericConst]
+        init_values : Sequence[tvm.ir.DataTypeImm]
             The initial values of the RNN state. Must be compile-time Relax constants
             (e.g. R.const(np.zeros(...))).
         """

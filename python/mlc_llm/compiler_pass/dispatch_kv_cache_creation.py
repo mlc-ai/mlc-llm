@@ -49,8 +49,8 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:  # noqa: UP00
             f"args[{i}] is {type(args[i])}"
         )
     assert isinstance(args[13], tvm.ir.StringImm)
-    assert isinstance(args[16], (tvm.ir.GenericConst, tvm.tirx.IntImm, tvm.tirx.FloatImm))
-    assert isinstance(args[17], tvm.ir.GenericConst)
+    assert isinstance(args[16], (tvm.ir.DataTypeImm, tvm.tirx.IntImm, tvm.tirx.FloatImm))
+    assert isinstance(args[17], tvm.ir.DataTypeImm)
 
     return {
         "attn_kind": attn_kind,

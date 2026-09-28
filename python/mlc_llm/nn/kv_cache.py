@@ -87,7 +87,7 @@ class PagedKVCache(TVMPagedKVCache):
                 ),
                 rx.prim_value(rotary_dim),
                 rx.prim_value(int(enable_disaggregation)),
-                tvm.ir.GenericConst(tvm.DataType(dtype), rx.AnyType()),
+                tvm.ir.DataTypeImm(dtype),
                 ty_args=rx.ObjectType(),
             ),
             _name=name,
