@@ -156,6 +156,7 @@ class ProgramSpec(_ContractModel):
 class ResourceRequirements(_ContractModel):
     required_features: tuple[str, ...] = ()
     max_storage_buffer_binding_size: int = Field(ge=0)
+    # Parameter storage only. The KV cache and runtime allocations are not counted.
     estimated_device_memory_bytes: int = Field(ge=0)
 
 

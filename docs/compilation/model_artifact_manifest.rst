@@ -83,6 +83,10 @@ The compiled half names entrypoints by role rather than by model family:
      }
    }
 
+``estimated_device_memory_bytes`` is the total size of the model parameters.
+It does not include the KV cache or anything the runtime allocates, so treat
+it as a lower bound when picking a device.
+
 ``prefill_prompt`` consumes a canonical prompt bundle: embeddings with shape
 ``[1, sequence_length, hidden_size]``, token IDs with shape ``[1,
 sequence_length]``, and modality IDs with the same shape.  The frontend owns
@@ -95,7 +99,9 @@ Compatibility and scope
 
 WebLLM is the first manifest consumer.  Other MLC backends continue to read
 ``mlc-chat-config.json`` and are unchanged; they do not gain audio ingestion
-merely by seeing this sidecar.  Missing sidecars select the legacy path, while
+merely by seeing this sidecar.  Gemma 4 needs the token IDs next to the
+embeddings at every layer, so it exports ``prefill_prompt`` and
+``decode_tokens`` only and cannot be served by the native engine yet.  Missing sidecars select the legacy path, while
 a present but malformed or mismatched contract is an error.
 
 Version 1 implements text and audio input for ``google/gemma-4-E2B-it`` and
