@@ -125,7 +125,7 @@ def test_batch_spec_verify(nbatch, vocab, plist):
     # print("token_tree_parent_ptr", token_tree_parent_ptr)
 
     ### TVM
-    kernel = batch_spec_verify(vocab)
+    kernel = batch_spec_verify(vocab).with_attr("global_symbol", "batch_spec_verify")
     mod = tvm.build(kernel, target="cuda")
     mod(
         draft_probs_tvm,
