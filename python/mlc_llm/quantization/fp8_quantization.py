@@ -103,7 +103,7 @@ class FP8PerTensorQuantizeMixtralExperts(ptq.PerTensorQuantizeMixtralExperts):
                 x_scale * self.q_scale
                 if self.q_scale is not None
                 else nn.wrap_nested(
-                    relax.Constant(runtime.tensor(np.array([1.0]).astype("float32"))),
+                    relax.const(runtime.tensor(np.array([1.0]).astype("float32"))),
                     "scale",
                 )
             )

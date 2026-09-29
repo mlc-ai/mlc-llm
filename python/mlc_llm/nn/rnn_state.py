@@ -3,9 +3,11 @@
 from collections.abc import Sequence
 from typing import Union
 
+import tvm
 from tvm import relax as rx
 from tvm import tirx
 from tvm.relax.frontend.nn import Object, Tensor
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -17,7 +19,7 @@ class RNNState(Object):
         max_batch_size: tirx.Var,
         num_hidden_layers: int,
         max_history: int,
-        init_values: Sequence[rx.Constant],
+        init_values: Sequence[tvm.ir.DataTypeImm],
         name: str = "rnn_state",
     ) -> "RNNState":
         """Create a RNN state object.
@@ -30,14 +32,14 @@ class RNNState(Object):
             The number of hidden layers.
         max_history : int
             The maximum history length.
-        init_values : Sequence[rx.Constant]
+        init_values : Sequence[tvm.ir.DataTypeImm]
             The initial values of the RNN state. Must be compile-time Relax constants
             (e.g. R.const(np.zeros(...))).
         """
 
         bb = rx.BlockBuilder.current()
         state_infos = [
-            (tuple(int(x) for x in v.data.shape), str(v.data.dtype)) for v in init_values
+            (tuple(int(x) for x in v.value.shape), str(v.value.dtype)) for v in init_values
         ]
 
         f_gets = [
@@ -173,56 +175,46 @@ class RNNState(Object):
         """
 
         def _func_one_dim():
-            @T.prim_func(s_tir=True)
-            def f(
-                var_storage: T.handle,
-                var_seq_slot_ids: T.handle,
-                var_history_slot_ids: T.handle,
-                var_output: T.handle,
-            ):
-                batch_size = T.int32()
-                T.func_attr({"global_symbol": f"rnn_state_get_{state_id}"})
+            batch_size = T.dynamic("batch_size", "int32")
 
-                storage = T.match_buffer(
-                    var_storage, (max_batch_size, max_history, shape[0]), dtype
-                )
-                seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")
-                history_slot_ids = T.match_buffer(var_history_slot_ids, (batch_size,), "int32")
-                output = T.match_buffer(var_output, (batch_size, shape[0]), dtype)
+            @Ts.prim_func
+            def f(
+                storage: T.Buffer((max_batch_size, max_history, shape[0]), dtype),
+                seq_slot_ids: T.Buffer((batch_size,), "int32"),
+                history_slot_ids: T.Buffer((batch_size,), "int32"),
+                output: T.Buffer((batch_size, shape[0]), dtype),
+            ):
+                T.func_attr({"global_symbol": f"rnn_state_get_{state_id}"})
 
                 for i in range(batch_size):
                     for s in range(shape[0]):
-                        with T.sblock("copy"):
-                            vi, vs = T.axis.remap("SS", [i, s])
-                            seq_id: T.int32 = seq_slot_ids[vi]
-                            history_id: T.int32 = history_slot_ids[vi]
+                        with Ts.sblock("copy"):
+                            vi, vs = Ts.axis.remap("SS", [i, s])
+                            seq_id = T.meta_var(seq_slot_ids[vi])
+                            history_id = T.meta_var(history_slot_ids[vi])
                             output[vi, vs] = storage[seq_id, history_id, vs]
 
             return f
 
         def _func_high_dim():
             # Add a wrapper function to avoid parse the following code when len(shape) = 1
-            @T.prim_func(s_tir=True)
-            def f(
-                var_storage: T.handle,
-                var_seq_slot_ids: T.handle,
-                var_history_slot_ids: T.handle,
-                var_output: T.handle,
-            ):
-                batch_size = T.int32()
-                T.func_attr({"global_symbol": f"rnn_state_get_{state_id}"})
+            batch_size = T.dynamic("batch_size", "int32")
 
-                storage = T.match_buffer(var_storage, (max_batch_size, max_history, *shape), dtype)
-                seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")
-                history_slot_ids = T.match_buffer(var_history_slot_ids, (batch_size,), "int32")
-                output = T.match_buffer(var_output, (batch_size, *shape), dtype)
+            @Ts.prim_func
+            def f(
+                storage: T.Buffer((max_batch_size, max_history, *shape), dtype),
+                seq_slot_ids: T.Buffer((batch_size,), "int32"),
+                history_slot_ids: T.Buffer((batch_size,), "int32"),
+                output: T.Buffer((batch_size, *shape), dtype),
+            ):
+                T.func_attr({"global_symbol": f"rnn_state_get_{state_id}"})
 
                 for i in range(batch_size):
                     for s in T.grid(*shape):
-                        with T.sblock("copy"):
-                            vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
-                            seq_id: T.int32 = seq_slot_ids[vi]
-                            history_id: T.int32 = history_slot_ids[vi]
+                        with Ts.sblock("copy"):
+                            vi, *vs = Ts.axis.remap("S" * (len(shape) + 1), [i, *s])
+                            seq_id = T.meta_var(seq_slot_ids[vi])
+                            history_id = T.meta_var(history_slot_ids[vi])
                             # The following line is equivalent to:
                             # `output[vi, *vs] = storage[seq_id, history_id, *vs]`
                             # However, unpacking operator in subscript requires Python 3.11 or newer
@@ -270,58 +262,48 @@ class RNNState(Object):
         """
 
         def _func_one_dim():
-            @T.prim_func(s_tir=True)
-            def f(
-                var_storage: T.handle,
-                var_seq_slot_ids: T.handle,
-                var_history_slot_ids: T.handle,
-                var_data: T.handle,
-            ):
-                batch_size = T.int32()
-                T.func_attr({"global_symbol": f"rnn_state_set_{state_id}"})
+            batch_size = T.dynamic("batch_size", "int32")
 
-                storage = T.match_buffer(
-                    var_storage, (max_batch_size, max_history, shape[0]), dtype
-                )
-                seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")
-                history_slot_ids = T.match_buffer(var_history_slot_ids, (batch_size,), "int32")
-                data = T.match_buffer(var_data, (batch_size, shape[0]), dtype)
+            @Ts.prim_func
+            def f(
+                storage: T.Buffer((max_batch_size, max_history, shape[0]), dtype),
+                seq_slot_ids: T.Buffer((batch_size,), "int32"),
+                history_slot_ids: T.Buffer((batch_size,), "int32"),
+                data: T.Buffer((batch_size, shape[0]), dtype),
+            ):
+                T.func_attr({"global_symbol": f"rnn_state_set_{state_id}"})
 
                 for i in range(batch_size):
                     for s in range(shape[0]):
-                        with T.sblock("copy"):
-                            vi, vs = T.axis.remap("SS", [i, s])
-                            seq_id: T.int32 = seq_slot_ids[vi]
-                            history_id: T.int32 = (history_slot_ids[vi] + 1) % T.cast(
-                                max_history, "int32"
+                        with Ts.sblock("copy"):
+                            vi, vs = Ts.axis.remap("SS", [i, s])
+                            seq_id = T.meta_var(seq_slot_ids[vi])
+                            history_id = T.meta_var(
+                                (history_slot_ids[vi] + 1) % T.cast(max_history, "int32")
                             )
                             storage[seq_id, history_id, vs] = data[vi, vs]
 
             return f
 
         def _func_high_dim():
-            @T.prim_func(s_tir=True)
-            def f(
-                var_storage: T.handle,
-                var_seq_slot_ids: T.handle,
-                var_history_slot_ids: T.handle,
-                var_data: T.handle,
-            ):
-                batch_size = T.int32()
-                T.func_attr({"global_symbol": f"rnn_state_set_{state_id}"})
+            batch_size = T.dynamic("batch_size", "int32")
 
-                storage = T.match_buffer(var_storage, (max_batch_size, max_history, *shape), dtype)
-                seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")
-                history_slot_ids = T.match_buffer(var_history_slot_ids, (batch_size,), "int32")
-                data = T.match_buffer(var_data, (batch_size, *shape), dtype)
+            @Ts.prim_func
+            def f(
+                storage: T.Buffer((max_batch_size, max_history, *shape), dtype),
+                seq_slot_ids: T.Buffer((batch_size,), "int32"),
+                history_slot_ids: T.Buffer((batch_size,), "int32"),
+                data: T.Buffer((batch_size, *shape), dtype),
+            ):
+                T.func_attr({"global_symbol": f"rnn_state_set_{state_id}"})
 
                 for i in range(batch_size):
                     for s in T.grid(*shape):
-                        with T.sblock("copy"):
-                            vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
-                            seq_id: T.int32 = seq_slot_ids[vi]
-                            history_id: T.int32 = (history_slot_ids[vi] + 1) % T.cast(
-                                max_history, "int32"
+                        with Ts.sblock("copy"):
+                            vi, *vs = Ts.axis.remap("S" * (len(shape) + 1), [i, *s])
+                            seq_id = T.meta_var(seq_slot_ids[vi])
+                            history_id = T.meta_var(
+                                (history_slot_ids[vi] + 1) % T.cast(max_history, "int32")
                             )
                             # The following line is equivalent to:
                             # `storage[seq_id, history_id, *vs] = data[vi, *vs]`

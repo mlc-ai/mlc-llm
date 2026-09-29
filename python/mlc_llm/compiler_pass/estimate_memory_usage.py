@@ -28,7 +28,7 @@ class AttachMetadataWithMemoryUsage:
         def _emit_metadata(metadata):
             bb = relax.BlockBuilder()
             with bb.function(func_name, params=[]):
-                bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
+                bb.emit_func_output(tvm.ir.StringImm(json.dumps(metadata)))
             return bb.finalize()[func_name]
 
         self.metadata["memory_usage"] = _MemoryEstimator().run(mod)

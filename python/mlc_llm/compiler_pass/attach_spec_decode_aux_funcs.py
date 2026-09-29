@@ -3,6 +3,7 @@
 import tvm
 from tvm import IRModule, relax, tirx
 from tvm.relax import BlockBuilder, TensorType
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -36,36 +37,40 @@ class AttachSpecDecodeAuxFuncs:
 
 
 def _get_scatter_2d_inplace(dtype: str, global_symbol: str):
-    @T.prim_func(s_tir=True)
-    def _scatter_2d(var_src: T.handle, var_indices: T.handle, var_dst: T.handle):
+    batch_size = T.dynamic("batch_size", "int32")
+    m = T.dynamic("m", "int32")
+    n = T.dynamic("n", "int32")
+
+    @Ts.prim_func
+    def _scatter_2d(
+        src: T.Buffer((batch_size, n), dtype),
+        indices: T.Buffer((batch_size,), "int32"),
+        dst: T.Buffer((m, n), dtype),
+    ):
         T.func_attr({"global_symbol": global_symbol, "tirx.noalias": True})
-        batch_size = T.int32()
-        m = T.int32()
-        n = T.int32()
-        src = T.match_buffer(var_src, (batch_size, n), dtype)
-        indices = T.match_buffer(var_indices, (batch_size,), "int32")
-        dst = T.match_buffer(var_dst, (m, n), dtype)
         for b, j in T.grid(batch_size, n):
-            with T.sblock("scatter_2d"):
-                vb, vj = T.axis.remap("SS", [b, j])
+            with Ts.sblock("scatter_2d"):
+                vb, vj = Ts.axis.remap("SS", [b, j])
                 dst[indices[vb], vj] = src[vb, vj]
 
     return _scatter_2d
 
 
 def _get_gather_2d_inplace(dtype: str, global_symbol: str):
-    @T.prim_func(s_tir=True)
-    def _gather_2d(var_src: T.handle, var_indices: T.handle, var_dst: T.handle):
+    batch_size = T.dynamic("batch_size", "int32")
+    m = T.dynamic("m", "int32")
+    n = T.dynamic("n", "int32")
+
+    @Ts.prim_func
+    def _gather_2d(
+        src: T.Buffer((m, n), dtype),
+        indices: T.Buffer((batch_size,), "int32"),
+        dst: T.Buffer((batch_size, n), dtype),
+    ):
         T.func_attr({"global_symbol": global_symbol, "tirx.noalias": True})
-        batch_size = T.int32()
-        m = T.int32()
-        n = T.int32()
-        src = T.match_buffer(var_src, (m, n), dtype)
-        indices = T.match_buffer(var_indices, (batch_size,), "int32")
-        dst = T.match_buffer(var_dst, (batch_size, n), dtype)
         for b, j in T.grid(batch_size, n):
-            with T.sblock("gather_2d"):
-                vb, vj = T.axis.remap("SS", [b, j])
+            with Ts.sblock("gather_2d"):
+                vb, vj = Ts.axis.remap("SS", [b, j])
                 dst[vb, vj] = src[indices[vb], vj]
 
     return _gather_2d

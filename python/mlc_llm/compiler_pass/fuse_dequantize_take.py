@@ -42,7 +42,7 @@ class FuseDequantizeTake:
                 ("fused_dequantize" in name) and ("take" in name)
             ):
                 sch_mod = tvm.IRModule({"main": func})
-                sch_mod = tirx.transform.ForceNarrowIndexToInt32()(sch_mod)
+                sch_mod = tvm.s_tir.transform.ForceNarrowIndexToInt32()(sch_mod)
                 sch = tvm.s_tir.Schedule(sch_mod)
                 sch.compute_inline("dequantize")
                 mod[g_var] = sch.mod["main"]

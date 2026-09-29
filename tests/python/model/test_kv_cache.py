@@ -11,33 +11,62 @@ from mlc_llm.nn.kv_cache import PagedKVCache, RopeMode
 
 
 def test_nn_module_paged_kv_cache():
-    # fmt: off
+    max_batch_size_1 = I.dynamic("max_batch_size", dtype="int64")
+    max_total_seq_len_1 = I.dynamic("max_total_seq_len", dtype="int64")
+    page_size_1 = I.dynamic("page_size", dtype="int64")
+    prefill_chunk_size_1 = I.dynamic("prefill_chunk_size", dtype="int64")
+    support_sliding_window_1 = I.dynamic("support_sliding_window", dtype="int64")
+
     @I.ir_module
     class Module:
         @R.function
         def create_paged_kv_cache(
-            max_batch_size: R.Shape(["max_batch_size_1"]),
-            max_total_seq_len: R.Shape(["max_total_seq_len_1"]),
-            prefill_chunk_size: R.Shape(["prefill_chunk_size_1"]),
-            page_size: R.Shape(["page_size_1"]),
-            support_sliding_window: R.Shape(["support_sliding_window_1"]),
-        ) -> R.Object:
-            max_batch_size_1 = T.int64()
-            max_total_seq_len_1 = T.int64()
-            prefill_chunk_size_1 = T.int64()
-            page_size_1 = T.int64()
-            support_sliding_window_1 = T.int64()
+            max_batch_size: R.Shape([max_batch_size_1]),
+            max_total_seq_len: R.Shape([max_total_seq_len_1]),
+            prefill_chunk_size: R.Shape([prefill_chunk_size_1]),
+            page_size: R.Shape([page_size_1]),
+            support_sliding_window: R.Shape([support_sliding_window_1]),
+        ) -> R.Any:
             R.func_attr({"num_input": 5})
             with R.dataflow():
-                paged_kv_cache: R.Object = R.call_pure_packed("mlc.create_paged_kv_cache_generic", R.shape([max_batch_size_1, max_total_seq_len_1, prefill_chunk_size_1, page_size_1, support_sliding_window_1]), R.prim_value(32), R.prim_value(32), R.prim_value(32), R.prim_value(128), R.prim_value(1), R.prim_value(1), R.prim_value(10000), R.prim_value(128), R.dtype("float16"), sinfo_args=(R.Object,))  # noqa: E501
-                gv1: R.Object = paged_kv_cache
+                paged_kv_cache: R.Any = R.call_pure_packed(
+                    "mlc.create_paged_kv_cache_generic",
+                    R.str("mha"),
+                    R.shape(
+                        [
+                            max_batch_size_1,
+                            max_total_seq_len_1,
+                            prefill_chunk_size_1,
+                            page_size_1,
+                            support_sliding_window_1,
+                        ]
+                    ),
+                    R.shape([0, 32]),
+                    32,
+                    32,
+                    32,
+                    128,
+                    128,
+                    0,
+                    0,
+                    1,
+                    1,
+                    10000,
+                    R.str("{}"),
+                    0,
+                    128,
+                    0,
+                    T.dtype("float16"),
+                    ty_args=(R.Any,),
+                )
+                gv1: R.Any = paged_kv_cache
                 R.output(gv1)
             return gv1
 
         @R.function
-        def forward(
-            cache: R.Object, qkv: R.Tensor((1, 100, 96, 128), dtype="float16")
-        ) -> R.Tensor((1, 100, 32, 128), dtype="float16"):
+        def forward(cache: R.Any, qkv: R.Tensor((1, 100, 96, 128), dtype="float16")) -> R.Tensor(
+            (1, 100, 32, 128), dtype="float16"
+        ):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 reshape: R.Tensor((100, 96, 128), dtype="float16") = R.reshape(
@@ -45,8 +74,8 @@ def test_nn_module_paged_kv_cache():
                 )
                 lv = R.call_dps_packed(
                     "vm.builtin.attention_kv_cache_attention_with_fused_qkv",
-                    (cache, R.prim_value(0), R.prim_value(T.float32(1)), reshape),
-                    out_sinfo=R.Tensor((100, 32, 128), dtype="float16"),
+                    (cache, 0, T.float64(0.088388347648318447), reshape),
+                    out_ty=R.Tensor((100, 32, 128), dtype="float16"),
                 )
                 reshape1: R.Tensor((1, 100, 32, 128), dtype="float16") = R.reshape(
                     lv, R.shape([1, 100, 32, 128])
@@ -54,7 +83,6 @@ def test_nn_module_paged_kv_cache():
                 gv: R.Tensor((1, 100, 32, 128), dtype="float16") = reshape1
                 R.output(gv)
             return gv
-    # fmt: on
 
     class PagedKVCacheTest(modules.Module):
         def forward(

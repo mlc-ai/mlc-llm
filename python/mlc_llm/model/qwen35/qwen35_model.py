@@ -13,6 +13,7 @@ from tvm import relax as R
 from tvm import te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from mlc_llm import op as op_ext
@@ -239,42 +240,28 @@ def create_gated_delta_net_func(
     K = key_head_dim  # 128
     V = value_head_dim  # 128
 
-    @T.prim_func(s_tir=True)
+    batch_size = T.dynamic("batch_size", "int64")
+    seq_len = T.dynamic("seq_len", "int64")
+
+    @Ts.prim_func
     def gdn_func(
-        q_handle: T.handle,
-        k_handle: T.handle,
-        v_handle: T.handle,
-        gate_handle: T.handle,  # exp(g), already exponentiated
-        beta_handle: T.handle,  # sigmoid(beta_raw)
-        state_in_handle: T.handle,
-        out_handle: T.handle,
-        state_out_handle: T.handle,
+        # q, k: (batch, seq_len, key_heads, K)
+        q_buf: T.Buffer((batch_size, seq_len, num_key_heads, K), dtype),
+        k_buf: T.Buffer((batch_size, seq_len, num_key_heads, K), dtype),
+        # v: (batch, seq_len, value_heads, V)
+        v_buf: T.Buffer((batch_size, seq_len, num_value_heads, V), dtype),
+        # gate and beta: (batch, seq_len, value_heads)
+        # exp(g), already exponentiated
+        gate_buf: T.Buffer((batch_size, seq_len, num_value_heads), "float32"),
+        # sigmoid(beta_raw)
+        beta_buf: T.Buffer((batch_size, seq_len, num_value_heads), "float32"),
+        # State: per value_head, K x V matrix in fp32
+        state_in_buf: T.Buffer((batch_size, num_value_heads, K, V), "float32"),
+        # Outputs: out in fp32 for numerical stability (cast to model dtype by caller)
+        out_buf: T.Buffer((batch_size, seq_len, num_value_heads, V), "float32"),
+        state_out_buf: T.Buffer((batch_size, num_value_heads, K, V), "float32"),
     ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
-        batch_size, seq_len = T.int64(), T.int64()
-        # q, k: (batch, seq_len, key_heads, K)
-        q_buf = T.match_buffer(q_handle, (batch_size, seq_len, num_key_heads, K), dtype=dtype)
-        k_buf = T.match_buffer(k_handle, (batch_size, seq_len, num_key_heads, K), dtype=dtype)
-        # v: (batch, seq_len, value_heads, V)
-        v_buf = T.match_buffer(v_handle, (batch_size, seq_len, num_value_heads, V), dtype=dtype)
-        # gate and beta: (batch, seq_len, value_heads)
-        gate_buf = T.match_buffer(
-            gate_handle, (batch_size, seq_len, num_value_heads), dtype="float32"
-        )
-        beta_buf = T.match_buffer(
-            beta_handle, (batch_size, seq_len, num_value_heads), dtype="float32"
-        )
-        # State: per value_head, K x V matrix in fp32
-        state_in_buf = T.match_buffer(
-            state_in_handle, (batch_size, num_value_heads, K, V), dtype="float32"
-        )
-        # Outputs: out in fp32 for numerical stability (cast to model dtype by caller)
-        out_buf = T.match_buffer(
-            out_handle, (batch_size, seq_len, num_value_heads, V), dtype="float32"
-        )
-        state_out_buf = T.match_buffer(
-            state_out_handle, (batch_size, num_value_heads, K, V), dtype="float32"
-        )
 
         for b_idx in T.thread_binding(batch_size, thread="blockIdx.y"):
             for h_idx in T.thread_binding(num_value_heads, thread="blockIdx.x"):
@@ -283,51 +270,51 @@ def create_gated_delta_net_func(
 
                     # Init state from state_in
                     for row in range(K):
-                        with T.sblock("init_state"):
-                            vb, vh, vr, vc = T.axis.remap("SSSS", [b_idx, h_idx, row, col])
+                        with Ts.sblock("init_state"):
+                            vb, vh, vr, vc = Ts.axis.remap("SSSS", [b_idx, h_idx, row, col])
                             state_out_buf[vb, vh, vr, vc] = state_in_buf[vb, vh, vr, vc]
 
                     # Sequential loop over tokens (like RWKV6)
                     for t in range(seq_len):
                         # 1. Decay state: S = gate * S
                         for row in range(K):
-                            with T.sblock("decay"):
-                                vb = T.axis.spatial(batch_size, b_idx)
-                                vt = T.axis.opaque(seq_len, t)
-                                vh = T.axis.spatial(num_value_heads, h_idx)
-                                vr = T.axis.opaque(K, row)
-                                vc = T.axis.spatial(V, col)
+                            with Ts.sblock("decay"):
+                                vb = Ts.axis.spatial(batch_size, b_idx)
+                                vt = Ts.axis.opaque(seq_len, t)
+                                vh = Ts.axis.spatial(num_value_heads, h_idx)
+                                vr = Ts.axis.opaque(K, row)
+                                vc = Ts.axis.spatial(V, col)
                                 state_out_buf[vb, vh, vr, vc] = (
                                     state_out_buf[vb, vh, vr, vc] * gate_buf[vb, vt, vh]
                                 )
 
                         # 2. Compute dot(S[:, col], k[:]) → out_buf (fp32)
-                        with T.sblock("dot_sk_init"):
-                            vb = T.axis.spatial(batch_size, b_idx)
-                            vt = T.axis.opaque(seq_len, t)
-                            vh = T.axis.spatial(num_value_heads, h_idx)
-                            vc = T.axis.spatial(V, col)
+                        with Ts.sblock("dot_sk_init"):
+                            vb = Ts.axis.spatial(batch_size, b_idx)
+                            vt = Ts.axis.opaque(seq_len, t)
+                            vh = Ts.axis.spatial(num_value_heads, h_idx)
+                            vc = Ts.axis.spatial(V, col)
                             out_buf[vb, vt, vh, vc] = T.float32(0)
 
                         for row in range(K):
-                            with T.sblock("dot_sk"):
-                                vb = T.axis.spatial(batch_size, b_idx)
-                                vt = T.axis.opaque(seq_len, t)
-                                vr = T.axis.opaque(K, row)
-                                vh = T.axis.spatial(num_value_heads, h_idx)
-                                vc = T.axis.spatial(V, col)
+                            with Ts.sblock("dot_sk"):
+                                vb = Ts.axis.spatial(batch_size, b_idx)
+                                vt = Ts.axis.opaque(seq_len, t)
+                                vr = Ts.axis.opaque(K, row)
+                                vh = Ts.axis.spatial(num_value_heads, h_idx)
+                                vc = Ts.axis.spatial(V, col)
                                 out_buf[vb, vt, vh, vc] = out_buf[vb, vt, vh, vc] + state_out_buf[
                                     vb, vh, vr, vc
                                 ] * T.cast(k_buf[vb, vt, kh, vr], "float32")
 
                         # 3. Delta rule: S += k * beta * (v - dot_sk)
                         for row in range(K):
-                            with T.sblock("delta"):
-                                vb = T.axis.spatial(batch_size, b_idx)
-                                vt = T.axis.opaque(seq_len, t)
-                                vr = T.axis.opaque(K, row)
-                                vh = T.axis.spatial(num_value_heads, h_idx)
-                                vc = T.axis.spatial(V, col)
+                            with Ts.sblock("delta"):
+                                vb = Ts.axis.spatial(batch_size, b_idx)
+                                vt = Ts.axis.opaque(seq_len, t)
+                                vr = Ts.axis.opaque(K, row)
+                                vh = Ts.axis.spatial(num_value_heads, h_idx)
+                                vc = Ts.axis.spatial(V, col)
                                 state_out_buf[vb, vh, vr, vc] = state_out_buf[
                                     vb, vh, vr, vc
                                 ] + T.cast(k_buf[vb, vt, kh, vr], "float32") * beta_buf[
@@ -338,30 +325,30 @@ def create_gated_delta_net_func(
                                 )
 
                         # 4. Output: o[t, col] = dot(S_updated[:, col], q[t, :]) * scale
-                        with T.sblock("out_init"):
-                            vb = T.axis.spatial(batch_size, b_idx)
-                            vt = T.axis.opaque(seq_len, t)
-                            vh = T.axis.spatial(num_value_heads, h_idx)
-                            vc = T.axis.spatial(V, col)
+                        with Ts.sblock("out_init"):
+                            vb = Ts.axis.spatial(batch_size, b_idx)
+                            vt = Ts.axis.opaque(seq_len, t)
+                            vh = Ts.axis.spatial(num_value_heads, h_idx)
+                            vc = Ts.axis.spatial(V, col)
                             out_buf[vb, vt, vh, vc] = T.float32(0)
 
                         for row in range(K):
-                            with T.sblock("dot_sq"):
-                                vb = T.axis.spatial(batch_size, b_idx)
-                                vt = T.axis.opaque(seq_len, t)
-                                vr = T.axis.opaque(K, row)
-                                vh = T.axis.spatial(num_value_heads, h_idx)
-                                vc = T.axis.spatial(V, col)
+                            with Ts.sblock("dot_sq"):
+                                vb = Ts.axis.spatial(batch_size, b_idx)
+                                vt = Ts.axis.opaque(seq_len, t)
+                                vr = Ts.axis.opaque(K, row)
+                                vh = Ts.axis.spatial(num_value_heads, h_idx)
+                                vc = Ts.axis.spatial(V, col)
                                 out_buf[vb, vt, vh, vc] = out_buf[vb, vt, vh, vc] + state_out_buf[
                                     vb, vh, vr, vc
                                 ] * T.cast(q_buf[vb, vt, kh, vr], "float32")
 
                         # 5. Apply scale
-                        with T.sblock("scale"):
-                            vb = T.axis.spatial(batch_size, b_idx)
-                            vt = T.axis.opaque(seq_len, t)
-                            vh = T.axis.spatial(num_value_heads, h_idx)
-                            vc = T.axis.spatial(V, col)
+                        with Ts.sblock("scale"):
+                            vb = Ts.axis.spatial(batch_size, b_idx)
+                            vt = Ts.axis.opaque(seq_len, t)
+                            vh = Ts.axis.spatial(num_value_heads, h_idx)
+                            vc = Ts.axis.spatial(V, col)
                             out_buf[vb, vt, vh, vc] = out_buf[vb, vt, vh, vc] * T.float32(
                                 1.0 / math.sqrt(K)
                             )

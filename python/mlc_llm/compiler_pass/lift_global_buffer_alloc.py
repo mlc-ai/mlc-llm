@@ -3,7 +3,8 @@
 from typing import Dict, List, Tuple  # noqa: UP035
 
 import tvm
-from tvm import relax, tirx
+import tvm_ffi
+from tvm import relax, s_tir, tirx
 from tvm.ir.module import IRModule
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
@@ -94,7 +95,7 @@ def remove_global_buf_alloc(
     func: tirx.PrimFunc,
 ) -> Tuple[tirx.PrimFunc, List[relax.TensorType]]:  # noqa: UP006
     """Remove the global buffer allocation for a given TIR PrimFunc."""
-    assert isinstance(func.body, tirx.SBlockRealize)
+    assert isinstance(func.body, s_tir.SBlockRealize)
     params = list(func.params)
     tensor_sinfo = []
     alloc_buffers = []
@@ -122,7 +123,7 @@ def remove_global_buf_alloc(
     assert len(prev_root_block.match_buffers) == 0
     assert prev_root_block.name_hint == "root"
     assert prev_root_block.init is None
-    root_block = tirx.SBlock(
+    root_block = s_tir.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
@@ -134,7 +135,7 @@ def remove_global_buf_alloc(
 
     updated_func = tirx.PrimFunc(
         params=params,
-        body=tirx.SBlockRealize(iter_values=[], predicate=True, block=root_block),
+        body=s_tir.SBlockRealize(iter_values=[], predicate=True, block=root_block),
         ret_type=func.ret_type,
         attrs=func.attrs,
     )
@@ -189,6 +190,10 @@ def _resolve_tir_var_mapping(
             continue
         new_shape = []
         for dim in sinfo.shape.values:
-            new_shape.append(tirx.stmt_functor.substitute(dim, var_map))
+            new_shape.append(
+                tvm_ffi.structural_map(
+                    dim, (tirx.Var, lambda var: var_map.get(var, var)), order="post"
+                )
+            )
         updated_tensor_sinfo.append(relax.TensorType(new_shape, sinfo.dtype))
     return updated_tensor_sinfo, True

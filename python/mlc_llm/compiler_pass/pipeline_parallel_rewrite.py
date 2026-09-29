@@ -3,6 +3,7 @@
 from typing import Dict, List, Optional, Tuple  # noqa: UP035
 
 import tvm
+import tvm_ffi
 from tvm import relax, tirx
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
@@ -299,7 +300,7 @@ class _PipelineParallelRewriter(PyExprMutator):
                 new_var = tirx.Var(e.name, e.ty)
                 undefined_var_remap[e] = new_var
 
-        tirx.stmt_functor.post_order_visit(expr, _visit_expr)
+        tvm_ffi.structural_walk(expr, (tirx.Var, _visit_expr), order="post")
 
     def _update_shape(
         self,
@@ -309,7 +310,11 @@ class _PipelineParallelRewriter(PyExprMutator):
         new_shape = []
         for v in shape:
             self._copy_undefined_var(v, undefined_var_remap)
-            new_shape.append(tirx.stmt_functor.substitute(v, undefined_var_remap))
+            new_shape.append(
+                tvm_ffi.structural_map(
+                    v, (tirx.Var, lambda var: undefined_var_remap.get(var, var)), order="post"
+                )
+            )
         return new_shape
 
 
