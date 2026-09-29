@@ -83,6 +83,9 @@ The compiled half names entrypoints by role rather than by model family:
      }
    }
 
+Both sizes are computed from the parameter shapes.  A named dimension such as
+``vocab_size`` takes its value from the model config.
+
 ``estimated_device_memory_bytes`` is the total size of the model parameters.
 It does not include the KV cache or anything the runtime allocates, so treat
 it as a lower bound when picking a device.

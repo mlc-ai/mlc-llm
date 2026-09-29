@@ -150,3 +150,25 @@ def test_dump_model_package_manifest(tmp_path):
     assert json.loads(path.read_text())["schema"] == "mlc.model-package"
     assert "schema_" not in json.loads(path.read_text())
     assert ModelPackageManifest.model_validate_json(path.read_text()) == manifest
+
+
+@dataclass
+class _Dimension:
+    name: str
+
+
+def test_resource_sizes_resolve_named_dimensions():
+    params = [
+        ("embed", _Parameter((_Dimension("vocab_size"), 4), "float16")),
+        ("bias", _Parameter((6,), "float32")),
+    ]
+    compiled = build_compiled_program_artifact(
+        _tasks(), _programs(), params, symbolic_sizes={"vocab_size": 10}
+    )
+    assert compiled.resources.max_storage_buffer_binding_size == 10 * 4 * 2
+    assert compiled.resources.estimated_device_memory_bytes == 10 * 4 * 2 + 6 * 4
+    # The schema hash records the name, so it does not depend on the value.
+    assert compiled.parameter_schema_id == compute_parameter_schema_id(params)
+
+    with pytest.raises(ValueError, match="vocab_size"):
+        build_compiled_program_artifact(_tasks(), _programs(), params)
