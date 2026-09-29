@@ -1,4 +1,4 @@
-"""Scalar call_tir arguments computed from symbolic shapes must survive the pipeline's VM lowering."""
+"""Scalar call_tir arguments computed from symbolic shapes must survive VM lowering."""
 
 import pytest
 import tvm
@@ -32,7 +32,10 @@ def test_computed_scalar_argument_lowers(target_kind):
     resized = tirx.Cast(
         "int64",
         tirx.const(336.0, "float32")
-        * (tirx.Cast("float32", tirx.Select(w > h, w, h)) / tirx.Cast("float32", tirx.Select(w < h, w, h))),
+        * (
+            tirx.Cast("float32", tirx.Select(w > h, w, h))
+            / tirx.Cast("float32", tirx.Select(w < h, w, h))
+        ),
     )
     top = tirx.floordiv(resized - tirx.const(336, "int64"), tirx.const(2, "int64"))
 
@@ -42,12 +45,17 @@ def test_computed_scalar_argument_lowers(target_kind):
     with bb.function("main", [x, xm]):
         with bb.dataflow():
             gv = bb.add_func(take, "take")
-            out = bb.emit_output(relax.call_tir(gv, [x, top], out_ty=relax.TensorType((h,), "float32")))
+            call = relax.call_tir(gv, [x, top], out_ty=relax.TensorType((h,), "float32"))
+            out = bb.emit_output(call)
         bb.emit_func_output(out)
     mod = bb.get()
 
     target = tvm.target.Target(target_kind, host="llvm")
-    pipeline = _mlc_llm_pipeline(target, variable_bounds={"batch_size": 1}, metadata={"pipeline_parallel_stages": 1})
+    pipeline = _mlc_llm_pipeline(
+        target,
+        variable_bounds={"batch_size": 1},
+        metadata={"pipeline_parallel_stages": 1},
+    )
     with target:
         lowered = pipeline(mod)
     # Stop at VM codegen, which is where an unlowered PrimExpr argument is rejected. The TIR half of
