@@ -69,7 +69,7 @@ The compiled half names entrypoints by role rather than by model family:
          "kind": "token_generation",
          "exports": {
            "embed_tokens": "embed",
-           "prefill_prompt": "prefill_prompt",
+           "prefill_tokens": "prefill_prompt",
            "decode_tokens": "decode_tokens",
            "create_kv_cache": "create_tir_paged_kv_cache"
          },
@@ -78,8 +78,8 @@ The compiled half names entrypoints by role rather than by model family:
      },
      "resources": {
        "required_features": ["shader-f16"],
-       "max_storage_buffer_binding_size": 0,
-       "estimated_device_memory_bytes": 0
+       "max_storage_buffer_binding_size": 201326592,
+       "estimated_device_memory_bytes": 2797972550
      }
    }
 
@@ -87,12 +87,36 @@ The compiled half names entrypoints by role rather than by model family:
 It does not include the KV cache or anything the runtime allocates, so treat
 it as a lower bound when picking a device.
 
-``prefill_prompt`` consumes a canonical prompt bundle: embeddings with shape
-``[1, sequence_length, hidden_size]``, token IDs with shape ``[1,
-sequence_length]``, and modality IDs with the same shape.  The frontend owns
-portable decoding (for example WAV to mono 16 kHz float32 PCM).  The compiled
-adapter owns model-specific feature extraction and projection.  Adapter output
-length is dynamic and frontends must chunk it to the compiled prefill limit.
+Each key in ``exports`` is a role and each value is the name of a function in
+the compiled library.  A role fixes the arguments the frontend passes, so the
+function can have any name.  A ``token_generation`` program declares
+``embed_tokens``, ``create_kv_cache`` and exactly one of the two pairs below.
+All four functions also take the KV cache and the parameters.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Role
+     - Arguments
+   * - ``prefill_tokens``
+     - embeddings ``[1, seq_len, hidden_size]``, token IDs ``[1, seq_len]``,
+       modality IDs ``[1, seq_len]``
+   * - ``decode_tokens``
+     - token IDs ``[batch_size, 1]``
+   * - ``prefill_embeds``
+     - embeddings ``[1, seq_len, hidden_size]``
+   * - ``decode_embeds``
+     - embeddings ``[1, 1, hidden_size]``
+
+A model declares the token pair when it needs the token IDs inside the model,
+as Gemma 4 does for its per-layer embeddings.  Other models declare the
+embedding pair and point it at their existing ``prefill`` and ``decode``.  A
+modality ID is 0 for a text token and 1 for a position filled by an adapter.
+
+The frontend decodes the input, for example WAV to mono 16 kHz float32 PCM.
+The compiled adapter does the feature extraction and projection.  The number
+of embeddings an adapter returns can vary, and the frontend splits them to fit
+the compiled prefill limit.
 
 Compatibility and scope
 -----------------------
@@ -100,8 +124,8 @@ Compatibility and scope
 WebLLM is the first manifest consumer.  Other MLC backends continue to read
 ``mlc-chat-config.json`` and are unchanged; they do not gain audio ingestion
 merely by seeing this sidecar.  Gemma 4 needs the token IDs next to the
-embeddings at every layer, so it exports ``prefill_prompt`` and
-``decode_tokens`` only and cannot be served by the native engine yet.  Missing sidecars select the legacy path, while
+embeddings at every layer, so it declares the token pair only and cannot be
+served by the native engine yet.  Missing sidecars select the legacy path, while
 a present but malformed or mismatched contract is an error.
 
 Version 1 implements text and audio input for ``google/gemma-4-E2B-it`` and

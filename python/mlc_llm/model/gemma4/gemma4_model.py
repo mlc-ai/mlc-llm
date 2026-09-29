@@ -534,7 +534,7 @@ def gemma4_artifact_programs(_config: Gemma4Config):
             "kind": "token_generation",
             "exports": {
                 "embed_tokens": "embed",
-                "prefill_prompt": "prefill_prompt",
+                "prefill_tokens": "prefill_prompt",
                 "decode_tokens": "decode_tokens",
                 "create_kv_cache": "create_tir_paged_kv_cache",
             },
