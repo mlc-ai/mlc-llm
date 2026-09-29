@@ -192,6 +192,23 @@ def _convert_args(args: ConversionArgs) -> None:
             "BitsPerParam": total_bytes * 8.0 / total_params,
         }
 
+    # Check an existing manifest before the weights next to it are replaced.
+    expected_manifest = None
+    manifest_path = args.output / MODEL_PACKAGE_MANIFEST_FILENAME
+    if args.model.artifact is not None:
+        expected_manifest = build_model_package_manifest(
+            args.model.artifact.tasks(model_config), _named_params
+        )
+        if manifest_path.exists():
+            actual_manifest = ModelPackageManifest.model_validate_json(
+                manifest_path.read_text(encoding="utf-8")
+            )
+            if actual_manifest != expected_manifest:
+                raise ValueError(
+                    f"Existing {MODEL_PACKAGE_MANIFEST_FILENAME} does not match the weights "
+                    "being converted"
+                )
+
     # dump to output directory
     tvmjs.dump_tensor_cache(
         _param_generator(),
@@ -200,21 +217,8 @@ def _convert_args(args: ConversionArgs) -> None:
         encode_format="f32-to-bf16",
         show_progress=False,
     )
-    if args.model.artifact is not None:
-        expected_manifest = build_model_package_manifest(
-            args.model.artifact.tasks(model_config), _named_params
-        )
-        manifest_path = args.output / MODEL_PACKAGE_MANIFEST_FILENAME
-        if manifest_path.exists():
-            actual_manifest = ModelPackageManifest.model_validate_json(
-                manifest_path.read_text(encoding="utf-8")
-            )
-            if actual_manifest != expected_manifest:
-                raise ValueError(
-                    f"Existing {MODEL_PACKAGE_MANIFEST_FILENAME} does not match converted weights"
-                )
-        else:
-            dump_model_package_manifest(expected_manifest, args.output)
+    if expected_manifest is not None and not manifest_path.exists():
+        dump_model_package_manifest(expected_manifest, args.output)
     if named_params:
         raise ValueError(f"Parameter not found in source: {', '.join(named_params.keys())}")
     # Log necessary statistics
