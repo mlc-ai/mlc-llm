@@ -123,6 +123,60 @@ The frontend decodes the input, for example WAV to mono 16 kHz float32 PCM.
 The compiled adapter does the feature extraction and projection.  The frontend
 splits the adapter output to fit the prefill chunk size.
 
+Image inputs
+------------
+
+An image input uses the ``image_decode`` processor.  LLaVA 1.5 declares it
+like this:
+
+.. code:: json
+
+   {
+     "processor": {
+       "kind": "image_decode",
+       "format": "rgb_u8",
+       "layout": "nhwc",
+       "resize": {"mode": "center_crop", "height": 336, "width": 336},
+       "num_embeddings": 576
+     },
+     "adapter": "image",
+     "prompt": {"placeholder_token_id": 32000}
+   }
+
+The frontend decodes the image, drops the alpha channel, resizes it and
+passes a ``uint8`` tensor of shape ``[1, height, width, 3]`` to the adapter.
+The ``resize`` object names the policy and the target size:
+
+- ``stretch`` scales each axis on its own to the target size and ignores the
+  aspect ratio.
+- ``center_crop`` scales the image uniformly until it covers the target size,
+  then keeps the centered ``height`` by ``width`` region.
+
+The adapter converts the pixels to floating point, applies the mean and
+standard deviation normalization, runs the vision tower and projects the
+result.  It returns ``num_embeddings`` rows of shape
+``[num_embeddings, hidden_size]``.  The count is fixed, so a frontend can
+reserve the placeholder span and check the context window before it runs the
+adapter.  The manifest does not name a resampling filter.  Frontends should
+use bilinear or better.
+
+Models that pick a resolution or a crop grid per image, such as
+Phi-3.5-vision, cannot be described in this version.  Their embedding count
+depends on the input, and the rule that derives it differs per model family.
+They keep the ``image_embed`` path without a manifest until a resize mode is
+defined for them.  One contiguous placeholder span is still enough for such
+models when the adapter emits its row separators as embeddings.
+
+Adding a processor kind does not change ``schema_version``.  The documents
+keep the same fields, and a package that declares no image input produces the
+same bytes and the same ``interface_id`` as before.  A frontend that does not
+know ``image_decode`` rejects the package when it parses the processor.  That
+is the intended failure for a contract it cannot honor.
+
+LLaVA declares the embedding pair and points it at its existing ``prefill``
+and ``decode``.  It exports no new functions, so the native engine and
+released frontends keep working.
+
 Compatibility and scope
 -----------------------
 
@@ -132,6 +186,7 @@ serve Gemma 4 yet, since it does not pass token IDs to the model.  A model
 without a manifest loads as before.  A manifest that is malformed or does not
 match the library is an error.
 
-Version 1 covers text and audio input for ``google/gemma-4-E2B-it`` with text
-output.  Vision, video, compressed or remote audio, audio through the native
+Version 1 covers text and audio input for ``google/gemma-4-E2B-it``, text
+and fixed-size image input for LLaVA, and text output.  Dynamic resolution
+image input, video, compressed or remote audio, audio through the native
 server, and speech-only pipelines are not included.
