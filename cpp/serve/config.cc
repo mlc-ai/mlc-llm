@@ -695,7 +695,7 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
     // - Read the vocab size and compile-time prefill chunk size (which affects memory allocation).
     tvm::ffi::json::Object compile_time_model_config =
         json::Lookup<tvm::ffi::json::Object>(model_configs[i], "model_config");
-    int64_t vocab_size = json::Lookup<int64_t>(compile_time_model_config, "vocab_size");
+    int64_t vocab_size = json::Lookup<int64_t>(model_configs[i], "vocab_size");
     int64_t prefill_chunk_size =
         json::Lookup<int64_t>(compile_time_model_config, "prefill_chunk_size");
     // - Calculate KV cache memory usage.
@@ -994,7 +994,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
     // - Read the vocab size and compile-time prefill chunk size (which affects memory allocation).
     tvm::ffi::json::Object compile_time_model_config =
         json::Lookup<tvm::ffi::json::Object>(model_configs[i], "model_config");
-    int64_t vocab_size = json::Lookup<int64_t>(compile_time_model_config, "vocab_size");
+    int64_t vocab_size = json::Lookup<int64_t>(model_configs[i], "vocab_size");
     int64_t prefill_chunk_size =
         json::Lookup<int64_t>(compile_time_model_config, "prefill_chunk_size");
     int64_t head_size = json::Lookup<int64_t>(compile_time_model_config, "head_size");
