@@ -198,6 +198,7 @@ def _mlc_llm_pipeline(
                 tvm.relax.transform.LowerAllocTensor(),
                 tvm.relax.transform.KillAfterLastUse(),
                 tvm.relax.transform.LowerRuntimeBuiltin(),
+                tvm.relax.transform.ComputePrimValue(),
                 tvm.relax.transform.VMShapeLower(),
                 tvm.relax.transform.AttachGlobalSymbol(),
                 _LogProgress("Compiling external modules"),
