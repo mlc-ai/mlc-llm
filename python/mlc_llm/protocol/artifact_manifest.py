@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 from typing import (  # noqa: UP035
+    Annotated,
     Any,
     Callable,
     Dict,
@@ -61,10 +62,38 @@ class AudioDecodeProcessor(_ContractModel):
         return self
 
 
+class ImageResize(_ContractModel):
+    """Resize the frontend applies before calling a compiled image adapter.
+
+    ``stretch`` scales both axes independently to the target size.  ``center_crop`` scales
+    the image uniformly until it covers the target size and crops the centered region.
+    """
+
+    mode: Literal["stretch", "center_crop"]
+    height: int = Field(gt=0)
+    width: int = Field(gt=0)
+
+
+class ImageDecodeProcessor(_ContractModel):
+    """Canonical pixel representation accepted by a compiled image adapter."""
+
+    kind: Literal["image_decode"]
+    format: Literal["rgb_u8"]
+    layout: Literal["nhwc"]
+    resize: ImageResize
+    num_embeddings: int = Field(gt=0)
+
+
+Processor = Annotated[
+    Union[AudioDecodeProcessor, ImageDecodeProcessor],
+    Field(discriminator="kind"),
+]
+
+
 class TaskInput(_ContractModel):
     """One named input role in a task."""
 
-    processor: Union[str, AudioDecodeProcessor]  # noqa: UP007
+    processor: Union[str, Processor]  # noqa: UP007
     adapter: str | None = None
     prompt: PromptInsertion | None = None
 
@@ -73,7 +102,7 @@ class TaskInput(_ContractModel):
     def _validate_processor(cls, value: Any) -> Any:
         if isinstance(value, str) and value:
             return value
-        if isinstance(value, AudioDecodeProcessor):
+        if isinstance(value, (AudioDecodeProcessor, ImageDecodeProcessor)):
             return value
         raise ValueError("processor must be a non-empty name or a supported processor object")
 
