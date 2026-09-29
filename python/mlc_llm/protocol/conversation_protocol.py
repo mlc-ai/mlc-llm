@@ -42,6 +42,8 @@ class Conversation(BaseModel):
     system_template: str = MessagePlaceholders.SYSTEM.value
     # The content of the system prompt (without the template format).
     system_message: str = ""
+    # Whether the system template is rendered when the system message is empty.
+    render_empty_system_message: bool = True
     # The system token ids to be prepended at the beginning of tokenized
     # generated prompt.
     system_prefix_token_ids: Optional[List[int]] = None  # noqa: UP006
@@ -130,8 +132,10 @@ class Conversation(BaseModel):
         from ..serve import data
 
         # - Get the system message.
-        system_msg = self.system_template.replace(
-            MessagePlaceholders.SYSTEM.value, self.system_message
+        system_msg = (
+            self.system_template.replace(MessagePlaceholders.SYSTEM.value, self.system_message)
+            if self.system_message or self.render_empty_system_message
+            else ""
         )
 
         # - Get the message strings.

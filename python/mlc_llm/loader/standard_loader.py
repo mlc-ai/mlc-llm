@@ -98,7 +98,7 @@ def make_standard_hf_loader(
                             lambda q, k, v, dtype: np.concatenate(
                                 [q, k, v], axis=qkv_concat_axis
                             ).astype(dtype),
-                            dtype=mlc_param.dtype,
+                            dtype=str(mlc_param.dtype),
                         ),
                     )
 
@@ -113,7 +113,7 @@ def make_standard_hf_loader(
                                     lambda q, k, v, dtype: np.concatenate(
                                         [q, k, v], axis=qkv_concat_axis
                                     ).astype(dtype),
-                                    dtype=mlc_param.dtype,
+                                    dtype=str(mlc_param.dtype),
                                 ),
                             )
 
@@ -129,7 +129,7 @@ def make_standard_hf_loader(
                                 lambda gate, up, dtype: np.concatenate(
                                     [gate, up], axis=gate_up_concat_axis
                                 ).astype(dtype),
-                                dtype=mlc_param.dtype,
+                                dtype=str(mlc_param.dtype),
                             ),
                         )
 
@@ -143,7 +143,7 @@ def make_standard_hf_loader(
                     [name_transform_fn(mlc_name)],
                     functools.partial(
                         lambda x, dtype: x.astype(dtype),
-                        dtype=mlc_param.dtype,
+                        dtype=str(mlc_param.dtype),
                     ),
                 )
 

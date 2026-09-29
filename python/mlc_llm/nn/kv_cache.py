@@ -37,6 +37,7 @@ class PagedKVCache(TVMPagedKVCache):
         rope_scaling: Optional[Dict[str, Any]] = None,  # noqa: UP006
         rope_ext_factors: Optional[List[int]] = None,  # noqa: UP006
         layer_partition: Optional[List[int]] = None,  # noqa: UP006
+        layer_sliding_window_size: int = 1024,
         enable_disaggregation: bool = False,
         name: str = "paged_kv_cache",
     ) -> "PagedKVCache":
@@ -64,6 +65,7 @@ class PagedKVCache(TVMPagedKVCache):
                         prefill_chunk_size,
                         page_size,
                         support_sliding_window,
+                        layer_sliding_window_size,
                     ]
                 ),
                 rx.ShapeExpr(layer_partition),

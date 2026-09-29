@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Literal, Optional, Tuple  # noqa: UP035
 from tvm.relax.frontend import nn
 
 from mlc_llm.loader import ExternMapping, QuantizeMapping
+from mlc_llm.protocol.artifact_manifest import ArtifactDefinition
 from mlc_llm.quantization import make_quantization_functions
 from mlc_llm.quantization.quantization import Quantization
 
@@ -19,6 +20,7 @@ from .eagle import eagle_loader, eagle_model
 from .gemma import gemma_loader, gemma_model
 from .gemma2 import gemma2_loader, gemma2_model
 from .gemma3 import gemma3_loader, gemma3_model
+from .gemma4 import gemma4_loader, gemma4_model
 from .gpt2 import gpt2_loader, gpt2_model
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model
 from .gpt_j import gpt_j_loader, gpt_j_model
@@ -111,6 +113,12 @@ class Model:
 
     embedding_metadata: Optional[EmbeddingMetadata] = None
         Metadata for the embedding model. Default to None.
+
+    artifact: Optional[ArtifactDefinition] = None
+        Optional model-package/compiled-program contract. Legacy models leave this unset.
+
+    supports_flashinfer: bool = True
+        Whether this architecture can use the FlashInfer KV-cache implementation.
     """
 
     name: str
@@ -121,6 +129,8 @@ class Model:
 
     model_task: Literal["chat", "embedding"] = "chat"
     embedding_metadata: Optional[EmbeddingMetadata] = None
+    artifact: Optional[ArtifactDefinition] = None
+    supports_flashinfer: bool = True
 
     def __post_init__(self):
         if self.model_task == "embedding" and self.embedding_metadata is None:
@@ -237,6 +247,21 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
             gemma3_model.Gemma3ForCausalLM,
             supports_ft_quant=False,
         ),
+    ),
+    "gemma4": Model(
+        name="gemma4",
+        model=gemma4_model.Gemma4ForConditionalGeneration,
+        config=gemma4_model.Gemma4Config,
+        source={
+            "huggingface-torch": gemma4_loader.huggingface,
+            "huggingface-safetensor": gemma4_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            gemma4_model.Gemma4ForConditionalGeneration,
+            supports_ft_quant=False,
+        ),
+        artifact=gemma4_model.GEMMA4_ARTIFACT,
+        supports_flashinfer=False,
     ),
     "gpt2": Model(
         name="gpt2",

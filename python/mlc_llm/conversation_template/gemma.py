@@ -35,3 +35,20 @@ ConvTemplateRegistry.register_conv_template(
         system_prefix_token_ids=[2],
     )
 )
+
+# Gemma 4 Instruction
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="gemma4_instruction",
+        system_template=f"<|turn>system\n{MessagePlaceholders.SYSTEM.value}<turn|>\n",
+        system_message="",
+        render_empty_system_message=False,
+        roles={"user": "<|turn>user", "assistant": "<|turn>model"},
+        seps=["<turn|>\n"],
+        role_content_sep="\n",
+        role_empty_sep="\n",
+        stop_str=["<turn|>"],
+        stop_token_ids=[1, 106, 50],
+        system_prefix_token_ids=[2],
+    )
+)

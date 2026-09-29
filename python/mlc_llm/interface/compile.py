@@ -14,6 +14,7 @@ from mlc_llm import compiler_pass as _  # noqa: F401
 from mlc_llm import op as op_ext
 from mlc_llm.cli.model_metadata import _report_memory_usage
 from mlc_llm.model import Model
+from mlc_llm.protocol.artifact_manifest import build_compiled_program_artifact
 from mlc_llm.quantization import Quantization
 from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
@@ -107,10 +108,11 @@ def _infer_kv_state_kind(model_type) -> str:
 
 def _compile(args: CompileArgs, model_config: ConfigBase):
     def _get_variable_bounds(model_config) -> Dict[str, int]:  # noqa: UP006
-        if hasattr(model_config, "sliding_window_size"):
+        sliding_window_size = getattr(model_config, "sliding_window_size", -1)
+        if sliding_window_size > 0:
             return {
-                "rolling_cache_len": model_config.sliding_window_size,
-                "kv_seq_len": model_config.sliding_window_size + model_config.prefill_chunk_size,
+                "rolling_cache_len": sliding_window_size,
+                "kv_seq_len": sliding_window_size + model_config.prefill_chunk_size,
                 "seq_len": model_config.prefill_chunk_size,
                 "batch_size": getattr(model_config, "max_batch_size", 1),
             }
@@ -133,10 +135,15 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
     logger.info("TOP LEVEL MODEL CONFIG BEFORE OVERRIDES: %s", str(model_config))
     _kwargs = getattr(model_config, "kwargs", {})
     model_config = args.overrides.apply(model_config)
+    use_flashinfer = args.opt.flashinfer and args.model.supports_flashinfer
+    if args.opt.flashinfer and not use_flashinfer:
+        logger.info(
+            "Disabling FlashInfer because %s requires the generic KV cache", args.model.name
+        )
     with args.target:
         op_ext.enable(
             target=args.target,
-            flashinfer=args.opt.flashinfer,
+            flashinfer=use_flashinfer,
             faster_transformer=args.opt.faster_transformer,
             cutlass=args.opt.cutlass,
         )
@@ -194,8 +201,15 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         }
         if args.model.embedding_metadata:
             metadata["embedding_metadata"] = dataclasses.asdict(args.model.embedding_metadata)
-        logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
+        if args.model.artifact is not None:
+            metadata["artifact"] = build_compiled_program_artifact(
+                tasks=args.model.artifact.tasks(model_config),
+                programs=args.model.artifact.programs(model_config),
+                named_parameters=named_params,
+                required_features=args.model.artifact.required_features,
+            ).model_dump(exclude_none=True, by_alias=True)
+        logger.info("Registering metadata: %s", metadata)
         pass_config = {"relax.backend.use_cuda_graph": args.opt.cudagraph}
         # TODO: Remove this workaround when the TVM CSE regression is fixed.
         # Temporary workaround for TVM CSE regression that can produce
@@ -209,7 +223,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
                 pipeline=relax.get_pipeline(
                     "mlc_llm",
                     target=args.target,
-                    flashinfer=args.opt.flashinfer,
+                    flashinfer=use_flashinfer,
                     cublas_gemm=args.opt.cublas_gemm,
                     faster_transformer=args.opt.faster_transformer,
                     allreduce_strategy=args.opt.ipc_allreduce_strategy,

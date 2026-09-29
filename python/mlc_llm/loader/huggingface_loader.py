@@ -217,6 +217,9 @@ def _loading_order(param_map: ExternMapping, torch_to_path: Dict[str, Path]) -> 
             torch_to_mlc[torch_name].append(mlc_name)
     # Step 3. Construct the ordering that ensures file locality
     order = OrderedDict()
+    for mlc_name, torch_names in param_map.param_map.items():
+        if not torch_names:
+            order[mlc_name] = 1
     for _, torch_names in path_to_torch.items():
         for torch_name in torch_names:
             for mlc_name in torch_to_mlc[torch_name]:
