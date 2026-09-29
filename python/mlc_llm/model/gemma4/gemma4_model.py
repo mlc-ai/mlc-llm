@@ -395,7 +395,6 @@ class Gemma4ForConditionalGeneration(nn.Module):
         paged_kv_cache: PagedKVCache,
         token_ids: Tensor | None = None,
         modality_ids: Tensor | None = None,
-        logit_positions: Tensor | None = None,
     ) -> Tensor:
         op_ext.configure()
         hidden_states = self.language_model(
@@ -404,8 +403,6 @@ class Gemma4ForConditionalGeneration(nn.Module):
             token_ids=token_ids,
             modality_ids=modality_ids,
         )
-        if logit_positions is not None:
-            hidden_states = op.take(hidden_states, logit_positions, axis=1)
         return self.get_logits(hidden_states)
 
     def prefill_prompt(
@@ -432,32 +429,6 @@ class Gemma4ForConditionalGeneration(nn.Module):
             token_ids=token_ids,
         )
         return logits, paged_kv_cache
-
-    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-        hidden_states = self.language_model(input_embed, paged_kv_cache)
-        return self.get_logits(index_last_token(hidden_states)), paged_kv_cache
-
-    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        return self._forward(input_embed, paged_kv_cache), paged_kv_cache
-
-    def batch_prefill(
-        self,
-        input_embeds: Tensor,
-        logit_positions: Tensor,
-        paged_kv_cache: PagedKVCache,
-    ):
-        return self._forward(
-            input_embeds,
-            paged_kv_cache,
-            logit_positions=logit_positions,
-        ), paged_kv_cache
-
-    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        return self._forward(input_embeds, paged_kv_cache), paged_kv_cache
-
-    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        return self._forward(input_embeds, paged_kv_cache), paged_kv_cache
 
     def create_paged_kv_cache(
         self,
@@ -514,32 +485,6 @@ class Gemma4ForConditionalGeneration(nn.Module):
             },
             "decode_tokens": {
                 "token_ids": nn.spec.Tensor(["batch_size", 1], "int32"),
-                "paged_kv_cache": cache_arg,
-                "$": packed,
-            },
-            "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", hidden_size], self.dtype),
-                "paged_kv_cache": cache_arg,
-                "$": packed,
-            },
-            "decode": {
-                "input_embed": nn.spec.Tensor([1, 1, hidden_size], self.dtype),
-                "paged_kv_cache": cache_arg,
-                "$": packed,
-            },
-            "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", hidden_size], self.dtype),
-                "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
-                "paged_kv_cache": cache_arg,
-                "$": packed,
-            },
-            "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, hidden_size], self.dtype),
-                "paged_kv_cache": cache_arg,
-                "$": packed,
-            },
-            "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", hidden_size], self.dtype),
                 "paged_kv_cache": cache_arg,
                 "$": packed,
             },
