@@ -39,6 +39,7 @@ def test_nn_module_paged_kv_cache():
                             prefill_chunk_size_1,
                             page_size_1,
                             support_sliding_window_1,
+                            1024,
                         ]
                     ),
                     R.shape([0, 32]),
