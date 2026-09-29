@@ -15,8 +15,8 @@ pytestmark = [pytest.mark.op_correctness]
 @pytest.mark.parametrize("vocab", [3, 32, 64, 128])
 def test_top_p_renorm(batch_size, vocab):
     top_p = 0.95
-    init_pivots_np = np.array([1 - top_p, 0.02, 0.01]).astype(np.float32)
-    top_p_np = np.array([top_p]).astype(np.float32)
+    init_pivots_np = np.tile([1 - top_p, 0.02, 0.01], (batch_size, 1)).astype(np.float32)
+    top_p_np = np.full(batch_size, top_p).astype(np.float32)
 
     p_np = np.random.exponential(3, size=(batch_size, vocab)).astype(np.float32)
     p_np /= np.sum(p_np, axis=-1, keepdims=True)
@@ -24,27 +24,28 @@ def test_top_p_renorm(batch_size, vocab):
     final_lsum_np = np.zeros(batch_size).astype(np.float32)
 
     dev = tvm.cuda(0)
+    target = tvm.target.Target("cuda")
     var_prob = tvm.runtime.tensor(p_np, dev)
     var_init_pivots = tvm.runtime.tensor(init_pivots_np, dev)
     top_p_global = tvm.runtime.tensor(top_p_np, dev)
     var_final_pivot = tvm.runtime.tensor(final_pivot_np, dev)
     var_final_lsum = tvm.runtime.tensor(final_lsum_np, dev)
 
-    kernel = top_p_pivot(init_pivots_np.shape[0])
-    mod = tvm.build(kernel, target="cuda")
+    kernel = top_p_pivot(init_pivots_np.shape[1], target).with_attr("global_symbol", "top_p_pivot")
+    mod = tvm.compile(kernel, target=target)
     mod(var_prob, top_p_global, var_init_pivots, var_final_pivot, var_final_lsum)
 
-    final_pivot = var_final_pivot.asnumpy()
-    final_lsum = var_final_lsum.asnumpy()
+    final_pivot = var_final_pivot.numpy()
+    final_lsum = var_final_lsum.numpy()
 
     renorm_np = p_np.copy()
     var_renorm = tvm.runtime.tensor(renorm_np, dev)
 
-    kernel_renorm = top_p_renorm()
-    mod_renorm = tvm.build(kernel_renorm, target="cuda")
+    kernel_renorm = top_p_renorm(target).with_attr("global_symbol", "top_p_renorm")
+    mod_renorm = tvm.compile(kernel_renorm, target=target)
     mod_renorm(var_prob, var_final_pivot, var_final_lsum, var_renorm)
 
-    renorm = var_renorm.asnumpy()
+    renorm = var_renorm.numpy()
 
     def verify_pivot(probs: np.ndarray, pivot: float, lsum: float, renorm: np.ndarray):
         sorted_probs = np.sort(probs, axis=-1)[::-1]

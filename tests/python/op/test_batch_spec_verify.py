@@ -126,7 +126,7 @@ def test_batch_spec_verify(nbatch, vocab, plist):
 
     ### TVM
     kernel = batch_spec_verify(vocab).with_attr("global_symbol", "batch_spec_verify")
-    mod = tvm.build(kernel, target="cuda")
+    mod = tvm.compile(kernel, target="cuda")
     mod(
         draft_probs_tvm,
         draft_tokens_tvm,
@@ -136,15 +136,15 @@ def test_batch_spec_verify(nbatch, vocab, plist):
         uniform_samples_tvm,
         token_tree_parent_ptr_tvm,
     )
-    # print("model_probs", model_probs_tvm.asnumpy())
-    # print("token_tree_parent_ptr", token_tree_parent_ptr_tvm.asnumpy())
+    # print("model_probs", model_probs_tvm.numpy())
+    # print("token_tree_parent_ptr", token_tree_parent_ptr_tvm.numpy())
 
-    tvm.testing.assert_allclose(model_probs, model_probs_tvm.asnumpy())
+    tvm.testing.assert_allclose(model_probs, model_probs_tvm.numpy())
     tvm.testing.assert_allclose(
-        token_tree_parent_ptr, token_tree_parent_ptr_tvm.asnumpy(), rtol=0, atol=0
+        token_tree_parent_ptr, token_tree_parent_ptr_tvm.numpy(), rtol=0, atol=0
     )
 
-    time_evaluator = mod.time_evaluator(mod.entry_name, dev, number=10, repeat=3)
+    time_evaluator = mod.jit().time_evaluator("batch_spec_verify", dev, number=10, repeat=3)
     print(f"batch_size: {nbatch}, vocab_size: {vocab}, tree_structure: {plist}")
     print(
         time_evaluator(
