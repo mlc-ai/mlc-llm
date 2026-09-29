@@ -9,16 +9,18 @@ pytestmark = [pytest.mark.op_correctness]
 
 
 def test_two_stage_softmax():
-    from mlc_llm.compiler_pass.rewrite_softmax import _get_lse_and_softmax_func
+    from mlc_llm.compiler_pass.attach_softmax_with_temperature import (
+        _get_lse_and_softmax_func,
+    )
 
     chunk_size = 4096
     target = tvm.target.Target("cuda")
-    f_chunk_lse, f_softmax_with_lse = _get_lse_and_softmax_func(target, chunk_size)
-    mod = tvm.IRModule({"chunk_lse": f_chunk_lse, "softmax_with_chunked_lse": f_softmax_with_lse})
+    f_chunk_lse, f_softmax_with_lse = _get_lse_and_softmax_func(target, chunk_size, None)
+    mod = tvm.IRModule({"chunk_lse": f_chunk_lse, "softmax_with_chunked_sum": f_softmax_with_lse})
     with target:
         mod = dlight.ApplyDefaultSchedule(dlight.gpu.GeneralReduction())(mod)
 
-    runtime_mod = tvm.build(mod, target=target)
+    runtime_mod = tvm.compile(mod, target=target)
     device = tvm.cuda()
 
     num_runs = 5
@@ -31,15 +33,14 @@ def test_two_stage_softmax():
             y_np = scipy.special.softmax(x_np, axis=-1)
 
             x_nd = tvm.runtime.tensor(x_np, device=device)
-            r_nd = tvm.runtime.empty(
-                (batch_size, (vocab_size + chunk_size - 1) // chunk_size),
-                x_np.dtype,
-                device=device,
-            )
+            temperature_nd = tvm.runtime.tensor(np.ones(batch_size, dtype="float32"), device=device)
+            chunked_shape = (batch_size, (vocab_size + chunk_size - 1) // chunk_size)
+            sum_nd = tvm.runtime.empty(chunked_shape, x_np.dtype, device=device)
+            max_nd = tvm.runtime.empty(chunked_shape, x_np.dtype, device=device)
             y_nd = tvm.runtime.empty(x_np.shape, x_np.dtype, device=device)
 
-            runtime_mod["chunk_lse"](x_nd, r_nd)
-            runtime_mod["softmax_with_chunked_lse"](x_nd, r_nd, y_nd)
+            runtime_mod["chunk_lse"](x_nd, temperature_nd, sum_nd, max_nd)
+            runtime_mod["softmax_with_chunked_sum"](x_nd, temperature_nd, sum_nd, max_nd, y_nd)
 
             y_nd_arr = y_nd.numpy()
             np.testing.assert_allclose(y_nd_arr, y_np, atol=1e-6, rtol=1e-6)
