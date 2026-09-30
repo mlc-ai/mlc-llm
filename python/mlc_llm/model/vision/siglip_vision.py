@@ -85,13 +85,13 @@ class SigLIPVisionEmbeddings(Module):  # pylint: disable=too-many-instance-attri
 class SigLIPMLP(Module):
     def __init__(self, config: SigLIPVisionConfig):
         super().__init__()
-        self.activation_fn = nn.GELU()
         self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size)
         self.fc2 = nn.Linear(config.intermediate_size, config.hidden_size)
 
     def forward(self, hidden_states: Tensor) -> Tensor:
         hidden_states = self.fc1(hidden_states)
-        hidden_states = self.activation_fn(hidden_states)
+        # SigLIP uses the tanh form of GELU.
+        hidden_states = nn.op.gelu(hidden_states, approximate="tanh")
         hidden_states = self.fc2(hidden_states)
         return hidden_states
 
@@ -177,7 +177,9 @@ class SigLIPVisionTransformer(Module):
 
 
 class SigLIPVisionModel(Module):
-    no_quantization: bool = False
+    # Quantizing the tower to four bits drops the image features' cosine similarity to the
+    # reference from 0.998 to 0.78, so it stays in the model dtype like the CLIP tower.
+    no_quantization: bool = True
 
     def __init__(self, config: SigLIPVisionConfig):
         super().__init__()
