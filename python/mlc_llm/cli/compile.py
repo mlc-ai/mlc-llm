@@ -91,6 +91,18 @@ def main(argv):
         help=HELP["enable_subgroups"],
     )
     parser.add_argument(
+        "--enable-sampler-subgroups",
+        action="store_true",
+        help=HELP["enable_sampler_subgroups"],
+    )
+    parser.add_argument(
+        "--webgpu-sampler-workgroup-size",
+        type=int,
+        choices=[32, 64, 128, 256, 512, 1024],
+        default=None,
+        help=HELP["webgpu_sampler_workgroup_size"],
+    )
+    parser.add_argument(
         "--opt",
         type=OptimizationFlags.from_str,
         default="O2",
@@ -122,11 +134,15 @@ def main(argv):
         help=HELP["debug_dump"] + " (default: %(default)s)",
     )
     parsed = parser.parse_args(argv)
+    if parsed.enable_subgroups and parsed.enable_sampler_subgroups:
+        parser.error("--enable-subgroups and --enable-sampler-subgroups are mutually exclusive")
     target, build_func = detect_target_and_host(
         parsed.device,
         parsed.host,
         enable_subgroups=parsed.enable_subgroups,
     )
+    if parsed.webgpu_sampler_workgroup_size is not None and target.kind.name != "webgpu":
+        parser.error("--webgpu-sampler-workgroup-size is only supported for WebGPU targets")
     parsed.model_type = detect_model_type(parsed.model_type, parsed.model)
     parsed.quantization = detect_quantization(parsed.quantization, parsed.model)
     parsed.system_lib_prefix = detect_system_lib_prefix(
@@ -149,4 +165,6 @@ def main(argv):
         output=parsed.output,
         overrides=parsed.overrides,
         debug_dump=parsed.debug_dump,
+        webgpu_sampler_subgroups=parsed.enable_sampler_subgroups,
+        webgpu_sampler_workgroup_size=parsed.webgpu_sampler_workgroup_size,
     )

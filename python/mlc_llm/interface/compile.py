@@ -39,6 +39,8 @@ class CompileArgs:
     output: Path
     overrides: ModelConfigOverride
     debug_dump: Optional[Path]
+    webgpu_sampler_subgroups: bool = False
+    webgpu_sampler_workgroup_size: Optional[int] = None
 
     def __post_init__(self) -> None:
         self.opt.update(self.target, self.quantization)
@@ -55,6 +57,14 @@ class CompileArgs:
         print(f'  {bold("--system-lib-prefix"):<25} "{self.system_lib_prefix}"', file=out)
         print(f"  {bold('--output'):<25} {self.output}", file=out)
         print(f"  {bold('--overrides'):<25} {self.overrides}", file=out)
+        print(
+            f"  {bold('--enable-sampler-subgroups'):<25} {self.webgpu_sampler_subgroups}",
+            file=out,
+        )
+        print(
+            f"  {bold('--webgpu-sampler-workgroup-size'):<25} {self.webgpu_sampler_workgroup_size}",
+            file=out,
+        )
         # As it's debug only, no need to display
         # print(f"  {bold('--debug-dump'):<25} {self.debug_dump}", file=out)
         print(out.getvalue().rstrip())
@@ -238,6 +248,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
                     additional_tirs=additional_tirs,
                     ext_mods=ext_mods,
                     metadata=metadata,
+                    webgpu_sampler_subgroups=args.webgpu_sampler_subgroups,
+                    webgpu_sampler_workgroup_size=args.webgpu_sampler_workgroup_size,
                     debug_dump=args.debug_dump,
                 ),
             )
@@ -256,6 +268,8 @@ def compile(
     output: Path,
     overrides: ModelConfigOverride,
     debug_dump: Optional[Path] = None,
+    webgpu_sampler_subgroups: bool = False,
+    webgpu_sampler_workgroup_size: Optional[int] = None,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
     avs = None
@@ -280,6 +294,8 @@ def compile(
         output,
         overrides,
         debug_dump,
+        webgpu_sampler_subgroups,
+        webgpu_sampler_workgroup_size,
     )
     args.display()
     _compile(args, model_config)

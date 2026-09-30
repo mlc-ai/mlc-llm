@@ -89,6 +89,8 @@ def _mlc_llm_pipeline(
     cuda_graph_symbolic_capture_hints: Optional[Dict[str, List[str]]] = None,  # noqa: UP006
     additional_tirs: Optional[Dict[str, tvm.tirx.PrimFunc]] = None,  # noqa: UP006
     metadata: Optional[Dict[str, Any]] = None,  # noqa: UP006
+    webgpu_sampler_subgroups: bool = False,
+    webgpu_sampler_workgroup_size: Optional[int] = None,
     ext_mods: Optional[List[nn.ExternModule]] = None,  # noqa: UP006
     debug_dump: Optional[Path] = None,
 ):
@@ -113,7 +115,13 @@ def _mlc_llm_pipeline(
                 AttachLogitProcessFunc(target),
                 AttachAdditionalPrimFuncs(additional_tirs),
                 AttachAllocEmbeddingTensorFunc(metadata),
-                AttachGPUSamplingFunc(target, variable_bounds),
+                AttachGPUSamplingFunc(
+                    target,
+                    variable_bounds,
+                    metadata,
+                    webgpu_sampler_subgroups,
+                    webgpu_sampler_workgroup_size,
+                ),
                 AttachSpecDecodeAuxFuncs(tensor_parallel_shards),
                 AttachMemoryPlanAttr(),
                 AttachSequenceLengthPaddingFactor(target, metadata),
