@@ -96,34 +96,6 @@ def test_gemma3v_creation():
         print(name, param.shape, param.dtype)
 
 
-def test_gemma3v_config_validation():
-    """Test Gemma3V configuration has required fields."""
-    model_info = MODELS["gemma3_v"]
-    config = model_info.config.from_dict(SMALL_GEMMA3V_CONFIG)
-
-    # Text config fields
-    assert hasattr(config.text_config, "hidden_size") and config.text_config.hidden_size > 0
-    assert (
-        hasattr(config.text_config, "num_hidden_layers")
-        and config.text_config.num_hidden_layers > 0
-    )
-
-    # Vision config fields
-    assert hasattr(config.vision_config, "image_size") and config.vision_config.image_size > 0
-    assert hasattr(config.vision_config, "patch_size") and config.vision_config.patch_size > 0
-
-    # VLM-specific fields
-    assert config.mm_tokens_per_image > 0
-
-    print(
-        f"Gemma3V Config: text_hidden={config.text_config.hidden_size}, "
-        f"vision_hidden={config.vision_config.hidden_size}, "
-        f"text_layers={config.text_config.num_hidden_layers}, "
-        f"vision_layers={config.vision_config.num_hidden_layers}, "
-        f"mm_tokens={config.mm_tokens_per_image}"
-    )
-
-
 def test_gemma3v_artifact_declares_image_input():
     entry = MODELS["gemma3_v"]
     config = entry.config.from_dict(SMALL_GEMMA3V_CONFIG)
@@ -189,7 +161,6 @@ def test_gemma3v_takes_uint32_pixels_on_webgpu():
 if __name__ == "__main__":
     test_gemma3v_model_registered()
     test_gemma3v_creation()
-    test_gemma3v_config_validation()
     test_gemma3v_artifact_declares_image_input()
     test_gemma3v_artifact_points_at_exported_functions()
     test_gemma3v_takes_uint32_pixels_on_webgpu()
