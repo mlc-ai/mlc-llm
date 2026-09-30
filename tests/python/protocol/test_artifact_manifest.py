@@ -57,7 +57,7 @@ def _programs():
             "kind": "token_generation",
             "exports": {
                 "embed_tokens": "embed",
-                "prefill_prompt": "prefill_prompt",
+                "prefill_tokens": "prefill_tokens",
                 "decode_tokens": "decode_tokens",
                 "create_kv_cache": "create_tir_paged_kv_cache",
             },
@@ -172,3 +172,48 @@ def test_resource_sizes_resolve_named_dimensions():
 
     with pytest.raises(ValueError, match="vocab_size"):
         build_compiled_program_artifact(_tasks(), _programs(), params)
+
+
+def _exports(**roles):
+    return {"embed_tokens": "embed", "create_kv_cache": "create_tir_paged_kv_cache", **roles}
+
+
+@pytest.mark.parametrize(
+    "roles",
+    [
+        {"prefill_tokens": "prefill_tokens", "decode_tokens": "decode_tokens"},
+        {"prefill_embeds": "prefill", "decode_embeds": "decode"},
+        {
+            "prefill_tokens": "prefill_tokens",
+            "decode_tokens": "decode_tokens",
+            "prefill_embeds": "prefill",
+            "decode_embeds": "decode",
+        },
+    ],
+)
+def test_token_generation_accepts_either_role_pair(roles):
+    programs = {"generation": {"kind": "token_generation", "exports": _exports(**roles)}}
+    tasks = _tasks()
+    del tasks["chat.completions"]["inputs"]["audio"]
+    compiled = build_compiled_program_artifact(tasks, programs, _params())
+    assert compiled.programs["generation"].exports == _exports(**roles)
+
+
+@pytest.mark.parametrize(
+    "exports",
+    [
+        _exports(),
+        _exports(prefill_tokens="prefill_tokens"),
+        _exports(prefill_tokens="prefill_tokens", decode_embeds="decode"),
+        _exports(
+            prefill_tokens="prefill_tokens",
+            decode_tokens="decode_tokens",
+            prefill_embeds="prefill",
+        ),
+        {"prefill_embeds": "prefill", "decode_embeds": "decode", "embed_tokens": "embed"},
+    ],
+)
+def test_token_generation_rejects_incomplete_role_pairs(exports):
+    programs = {"generation": {"kind": "token_generation", "exports": exports}}
+    with pytest.raises(ValidationError, match="token_generation requires"):
+        build_compiled_program_artifact(_tasks(), programs, _params())

@@ -3,15 +3,15 @@
 Model Artifact Manifest
 =======================
 
-The artifact manifest is an opt-in contract between converted weights, a
-compiled model library, and a frontend.  Models without the sidecar keep the
-legacy ``mlc-chat-config.json`` behavior.
+The artifact manifest ties converted weights, a compiled model library and a
+frontend together.  It is opt-in.  A model without one loads from
+``mlc-chat-config.json`` as before.
 
 The converted model directory contains ``mlc-model-manifest.json``.  A
 compiled library carries the matching contract in ``_metadata.artifact``.
 Both documents use one top-level ``schema_version`` and reject unknown fields.
-The ``interface_id`` binds the public task description, while
-``parameter_schema_id`` binds post-quantization parameter names, shapes, and
+``interface_id`` is a hash of the task description and
+``parameter_schema_id`` a hash of the quantized parameter names, shapes and
 dtypes.
 
 For the experimental Gemma 4 text-and-audio target, the package sidecar has
@@ -69,7 +69,7 @@ The compiled half names entrypoints by role rather than by model family:
          "kind": "token_generation",
          "exports": {
            "embed_tokens": "embed",
-           "prefill_prompt": "prefill_prompt",
+           "prefill_tokens": "prefill_tokens",
            "decode_tokens": "decode_tokens",
            "create_kv_cache": "create_tir_paged_kv_cache"
          },
@@ -78,8 +78,8 @@ The compiled half names entrypoints by role rather than by model family:
      },
      "resources": {
        "required_features": ["shader-f16"],
-       "max_storage_buffer_binding_size": 0,
-       "estimated_device_memory_bytes": 0
+       "max_storage_buffer_binding_size": 201326592,
+       "estimated_device_memory_bytes": 2797972550
      }
    }
 
@@ -90,25 +90,48 @@ Both sizes are computed from the parameter shapes.  A named dimension such as
 It does not include the KV cache or anything the runtime allocates, so treat
 it as a lower bound when picking a device.
 
-``prefill_prompt`` consumes a canonical prompt bundle: embeddings with shape
-``[1, sequence_length, hidden_size]``, token IDs with shape ``[1,
-sequence_length]``, and modality IDs with the same shape.  The frontend owns
-portable decoding (for example WAV to mono 16 kHz float32 PCM).  The compiled
-adapter owns model-specific feature extraction and projection.  Adapter output
-length is dynamic and frontends must chunk it to the compiled prefill limit.
+Each key in ``exports`` is a role and the value is a function in the compiled
+library.  A ``token_generation`` program declares ``embed_tokens``,
+``create_kv_cache`` and one or both of the pairs below.  The four functions
+in the table also take the KV cache and the parameters.  ``embed_tokens``
+takes token IDs and the parameters.  ``create_kv_cache`` takes only its size
+arguments.  ``total_len`` is the length of all sequences in the batch laid end
+to end.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Role
+     - Arguments
+   * - ``prefill_tokens``
+     - embeddings ``[1, total_len, hidden_size]``, token IDs ``[1, total_len]``,
+       modality IDs ``[1, total_len]``
+   * - ``decode_tokens``
+     - token IDs ``[batch_size, 1]``
+   * - ``prefill_embeds``
+     - embeddings ``[1, total_len, hidden_size]``
+   * - ``decode_embeds``
+     - embeddings ``[1, 1, hidden_size]``
+
+Gemma 4 declares the token pair because it looks up token IDs at every layer.
+Other models declare the embedding pair and point it at their existing
+``prefill`` and ``decode``.  A model may declare both when they give the same
+result.  A modality ID is 0 for a text token and 1 for a position filled by an
+adapter.
+
+The frontend decodes the input, for example WAV to mono 16 kHz float32 PCM.
+The compiled adapter does the feature extraction and projection.  The frontend
+splits the adapter output to fit the prefill chunk size.
 
 Compatibility and scope
 -----------------------
 
-WebLLM is the first manifest consumer.  Other MLC backends continue to read
-``mlc-chat-config.json`` and are unchanged; they do not gain audio ingestion
-merely by seeing this sidecar.  Gemma 4 needs the token IDs next to the
-embeddings at every layer, so it exports ``prefill_prompt`` and
-``decode_tokens`` only and cannot be served by the native engine yet.  Missing sidecars select the legacy path, while
-a present but malformed or mismatched contract is an error.
+WebLLM is the first manifest consumer.  Other MLC backends read
+``mlc-chat-config.json`` and ignore the manifest.  The native engine cannot
+serve Gemma 4 yet, since it does not pass token IDs to the model.  A model
+without a manifest loads as before.  A manifest that is malformed or does not
+match the library is an error.
 
-Version 1 implements text and audio input for ``google/gemma-4-E2B-it`` and
-text output.  Vision and video towers, remote or compressed audio, native
-server audio ingestion, and speech-only/ASR pipelines are outside this
-milestone.  Future canonical processors can reuse the task/adapter structure,
-but each frontend must implement that canonical representation once.
+Version 1 covers text and audio input for ``google/gemma-4-E2B-it`` with text
+output.  Vision, video, compressed or remote audio, audio through the native
+server, and speech-only pipelines are not included.

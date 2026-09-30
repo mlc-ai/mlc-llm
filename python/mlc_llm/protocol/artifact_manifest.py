@@ -133,6 +133,13 @@ class ModelPackageManifest(_ContractModel):
         return _validate_sha256(value)
 
 
+# Prefill and decode roles, named by what the functions take next to the KV cache.
+TOKEN_GENERATION_ROLE_PAIRS = (
+    ("prefill_tokens", "decode_tokens"),
+    ("prefill_embeds", "decode_embeds"),
+)
+
+
 class ProgramSpec(_ContractModel):
     kind: str
     exports: Dict[str, str] = Field(min_length=1)  # noqa: UP006
@@ -151,6 +158,25 @@ class ProgramSpec(_ContractModel):
         if any(not name or not entrypoint for name, entrypoint in value.items()):
             raise ValueError("entrypoint names and symbols must not be empty")
         return value
+
+    @model_validator(mode="after")
+    def _validate_token_generation_roles(self):
+        if self.kind != "token_generation":
+            return self
+        for role in ("embed_tokens", "create_kv_cache"):
+            if role not in self.exports:
+                raise ValueError(f"token_generation requires the {role} role")
+        declared = [
+            pair
+            for pair in TOKEN_GENERATION_ROLE_PAIRS
+            if any(role in self.exports for role in pair)
+        ]
+        if not declared or not all(role in self.exports for pair in declared for role in pair):
+            raise ValueError(
+                "token_generation requires a complete pair of prefill and decode roles: "
+                "prefill_tokens with decode_tokens, or prefill_embeds with decode_embeds"
+            )
+        return self
 
 
 class ResourceRequirements(_ContractModel):
