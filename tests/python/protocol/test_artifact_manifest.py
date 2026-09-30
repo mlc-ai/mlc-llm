@@ -324,9 +324,15 @@ def test_token_generation_rejects_incomplete_role_pairs(exports):
 
 def test_adapter_dtypes_name_declared_adapters():
     programs = _programs()
+    compiled = build_compiled_program_artifact(_tasks(), programs, _params())
+    assert "adapter_dtypes" not in compiled.model_dump(exclude_none=True)["programs"]["generation"]
+
     programs["generation"]["adapter_dtypes"] = {"audio": "uint32"}
     compiled = build_compiled_program_artifact(_tasks(), programs, _params())
     assert compiled.programs["generation"].adapter_dtypes == {"audio": "uint32"}
+    assert compiled.model_dump(exclude_none=True)["programs"]["generation"]["adapter_dtypes"] == {
+        "audio": "uint32"
+    }
 
     programs["generation"]["adapter_dtypes"] = {"image": "uint32"}
     with pytest.raises(ValidationError, match="unknown adapter"):

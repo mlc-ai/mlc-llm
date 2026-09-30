@@ -17,7 +17,15 @@ from typing import (  # noqa: UP035
     Union,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 from tvm.runtime import DataType
 
 MODEL_PACKAGE_MANIFEST_FILENAME = "mlc-model-manifest.json"
@@ -198,6 +206,15 @@ class ProgramSpec(_ContractModel):
                 raise ValueError(f"adapter_dtypes names an unknown adapter: {name}")
             DataType(dtype)
         return self
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_adapter_dtypes(self, handler: SerializerFunctionWrapHandler):
+        # Frontends reject fields they do not know, so a program without dtype
+        # overrides serializes as it did before the field existed.
+        data = handler(self)
+        if not data.get("adapter_dtypes"):
+            data.pop("adapter_dtypes", None)
+        return data
 
     @model_validator(mode="after")
     def _validate_token_generation_roles(self):
