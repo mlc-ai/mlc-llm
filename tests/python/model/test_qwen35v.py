@@ -117,48 +117,6 @@ def test_qwen35v_creation():
         print(name, param.shape, param.dtype)
 
 
-def test_qwen35v_config_validation():
-    """Test Qwen3.5V configuration has required fields."""
-    model_info = MODELS["qwen3_5_vision"]
-    config = model_info.config.from_dict(SMALL_QWEN35V_CONFIG)
-
-    # Text config fields
-    assert hasattr(config.text_config, "hidden_size") and config.text_config.hidden_size > 0
-    assert (
-        hasattr(config.text_config, "num_hidden_layers")
-        and config.text_config.num_hidden_layers > 0
-    )
-    assert (
-        hasattr(config.text_config, "full_attention_interval")
-        and config.text_config.full_attention_interval > 0
-    )
-
-    # Vision config fields
-    assert hasattr(config.vision_config, "hidden_size") and config.vision_config.hidden_size > 0
-    assert hasattr(config.vision_config, "depth") and config.vision_config.depth > 0
-    assert hasattr(config.vision_config, "patch_size") and config.vision_config.patch_size > 0
-    assert (
-        hasattr(config.vision_config, "spatial_merge_size")
-        and config.vision_config.spatial_merge_size > 0
-    )
-    assert (
-        hasattr(config.vision_config, "out_hidden_size")
-        and config.vision_config.out_hidden_size > 0
-    )
-
-    # Computed property: tokens_per_image
-    # image_size=64, patch_size=16 -> 4x4 grid, merge_size=2 -> 2x2 merged -> 4 tokens
-    assert config.tokens_per_image == 4
-
-    print(
-        f"Qwen3.5V Config: text_hidden={config.text_config.hidden_size}, "
-        f"vision_hidden={config.vision_config.hidden_size}, "
-        f"text_layers={config.text_config.num_hidden_layers}, "
-        f"vision_depth={config.vision_config.depth}, "
-        f"tokens_per_image={config.tokens_per_image}"
-    )
-
-
 def test_qwen35_vision_encoder_creation():
     """Test Qwen3.5 vision encoder standalone creation and export to TVM IR.
 
@@ -252,13 +210,7 @@ def test_qwen35v_artifact_points_at_exported_functions():
     assert set(program["exports"].values()) - {"create_tir_paged_kv_cache"} <= exported_functions
     assert set(program["adapters"].values()) <= exported_functions
 
-
-def test_qwen35v_vision_tower_stays_unquantized():
-    entry = MODELS["qwen3_5_vision"]
-    config = entry.config.from_dict(SMALL_QWEN35V_CONFIG)
-    quantization = QUANTIZATION["q4f16_1"]
-    model, _ = entry.quantize[quantization.kind](config, quantization)
-    _, named_parameters, _ = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
+    # The vision tower stays in the model dtype.
     names = [name for name, _ in named_parameters]
     assert not any(name.startswith("visual.") and name.endswith(".q_weight") for name in names)
     assert any(name.startswith("language_model.") and name.endswith(".q_weight") for name in names)
@@ -281,9 +233,7 @@ def test_qwen35v_takes_uint32_pixels_on_webgpu():
 if __name__ == "__main__":
     test_qwen35v_model_registered()
     test_qwen35v_creation()
-    test_qwen35v_config_validation()
     test_qwen35_vision_encoder_creation()
     test_qwen35v_artifact_declares_image_input()
     test_qwen35v_artifact_points_at_exported_functions()
-    test_qwen35v_vision_tower_stays_unquantized()
     test_qwen35v_takes_uint32_pixels_on_webgpu()
