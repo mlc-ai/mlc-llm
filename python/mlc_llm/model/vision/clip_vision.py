@@ -14,6 +14,8 @@ from tvm.relax.frontend.nn.op import (
     add,
     broadcast_to,
     concat,
+    conv2d,
+    matmul,
     permute_dims,
     reshape,
     wrap_nested,
@@ -67,7 +69,12 @@ class CLIPVisionEmbeddings(Module):
 
     def forward(self, pixel_values: Tensor) -> Tensor:
         batch_size = pixel_values.shape[0]
-        patch_embeds = self.patch_embedding(pixel_values)  # shape = [*, width, grid, grid]
+        # Accumulate the patch projection in float32 for the same reason as Linear below.
+        patch_embeds = conv2d(
+            pixel_values.astype("float32"),
+            self.patch_embedding.weight.astype("float32"),
+            stride=self.patch_size,
+        ).astype(pixel_values.dtype)  # shape = [*, width, grid, grid]
         patch_embeds = reshape(patch_embeds, shape=(batch_size, self.embed_dim, -1))
         patch_embeds = permute_dims(
             patch_embeds, axes=(0, 2, 1)
@@ -107,6 +114,21 @@ def sigmoid(x: Tensor, name: str = "sigmoid") -> Tensor:
     return wrap_nested(relax.op.sigmoid(x._expr), name)
 
 
+class Linear(nn.Linear):
+    """Linear layer that accumulates in float32 and rounds the result back to the input dtype.
+
+    The tower's residual stream amplifies accumulation error in float16: with plain float16
+    matmuls and convolution, a few dozen of LLaVA's 576 image features drift far from the
+    reference while the reference itself, run in float16, drifts on one or two.
+    """
+
+    def forward(self, x: Tensor) -> Tensor:
+        out = matmul(x, permute_dims(self.weight), out_dtype="float32")
+        if self.bias is not None:
+            out = out + self.bias.astype("float32")
+        return out.astype(x.dtype)
+
+
 class QuickGELU(Module):
     def forward(self, input_tensor: Tensor) -> Tensor:
         return input_tensor * sigmoid(input_tensor * 1.702)
@@ -116,8 +138,8 @@ class CLIPMLP(Module):
     def __init__(self, config: CLIPVisionConfig):
         super().__init__()
         self.activation_fn = QuickGELU()
-        self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size)
-        self.fc2 = nn.Linear(config.intermediate_size, config.hidden_size)
+        self.fc1 = Linear(config.hidden_size, config.intermediate_size)
+        self.fc2 = Linear(config.intermediate_size, config.hidden_size)
 
     def forward(self, hidden_states: Tensor) -> Tensor:
         hidden_states = self.fc1(hidden_states)
@@ -138,10 +160,10 @@ class CLIPAttention(Module):
                 f" and `num_heads`: {self.num_heads})."
             )
         self.scale = self.head_dim**-0.5
-        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.q_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.out_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.k_proj = Linear(self.embed_dim, self.embed_dim)
+        self.v_proj = Linear(self.embed_dim, self.embed_dim)
+        self.q_proj = Linear(self.embed_dim, self.embed_dim)
+        self.out_proj = Linear(self.embed_dim, self.embed_dim)
 
     def forward(
         self,

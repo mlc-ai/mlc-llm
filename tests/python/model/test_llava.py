@@ -82,6 +82,18 @@ def test_llava_artifact_points_at_exported_functions():
     assert set(program["adapters"].values()) <= exported_functions
 
 
+def test_llava_keeps_vision_tower_and_projector_unquantized():
+    config = _config()
+    quantization = QUANTIZATION["q4f16_1"]
+    model, _ = MODELS["llava"].quantize[quantization.kind](config, quantization)
+    _, named_parameters, _ = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
+    names = [name for name, _ in named_parameters]
+    quantized = [name for name in names if name.endswith(".q_weight")]
+    assert quantized and all(name.startswith("language_model.") for name in quantized)
+    assert "vision_tower.vision_model.encoder.layers.0.mlp.fc1.weight" in names
+    assert "multi_modal_projector.linear_1.weight" in names
+
+
 def test_llava_takes_uint32_pixels_on_webgpu():
     import tvm
 
