@@ -185,6 +185,7 @@
 <li class="toctree-l1"><a class="reference internal" href="convert_weights.html">Convert Model Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Model Libraries</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Model Artifact Manifest</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#image-inputs">Image inputs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#compatibility-and-scope">Compatibility and scope</a></li>
 </ul>
 </li>
@@ -411,6 +412,57 @@ adapter.</p>
 <p>The frontend decodes the input, for example WAV to mono 16 kHz float32 PCM.
 The compiled adapter does the feature extraction and projection.  The frontend
 splits the adapter output to fit the prefill chunk size.</p>
+<section id="image-inputs">
+<h2>Image inputs<a class="headerlink" href="#image-inputs" title="Permalink to this heading">¶</a></h2>
+<p>An image input uses the <code class="docutils literal notranslate"><span class="pre">image_decode</span></code> processor.  LLaVA 1.5 declares it
+like this:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;processor&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;image_decode&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;format&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;rgb_u8&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;layout&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;nhwc&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;resize&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;mode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;center_crop&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;height&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">336</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;width&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">336</span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;num_embeddings&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">576</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;adapter&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;image&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;placeholder_token_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">32000</span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The frontend decodes the image, drops the alpha channel, resizes it and
+passes a <code class="docutils literal notranslate"><span class="pre">uint8</span></code> tensor of shape <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">height,</span> <span class="pre">width,</span> <span class="pre">3]</span></code> to the adapter.
+When the compiled library needs the same values in a wider type, its program
+lists the adapter under <code class="docutils literal notranslate"><span class="pre">adapter_dtypes</span></code>.  WebGPU has no 8 bit storage
+type, so a WebGPU library takes the pixels as <code class="docutils literal notranslate"><span class="pre">uint32</span></code>.
+The <code class="docutils literal notranslate"><span class="pre">resize</span></code> object names the policy and the target size:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">stretch</span></code> scales each axis on its own to the target size and ignores the
+aspect ratio.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">center_crop</span></code> scales the image uniformly until it covers the target size,
+then keeps the centered <code class="docutils literal notranslate"><span class="pre">height</span></code> by <code class="docutils literal notranslate"><span class="pre">width</span></code> region.</p></li>
+</ul>
+<p>The adapter converts the pixels to floating point, applies the mean and
+standard deviation normalization, runs the vision tower and projects the
+result.  It returns <code class="docutils literal notranslate"><span class="pre">num_embeddings</span></code> rows of shape
+<code class="docutils literal notranslate"><span class="pre">[num_embeddings,</span> <span class="pre">hidden_size]</span></code>.  The count is fixed, so a frontend can
+reserve the placeholder span and check the context window before it runs the
+adapter.  The manifest does not name a resampling filter.  Frontends should
+use bilinear or better.</p>
+<p>Models that pick a resolution or a crop grid per image, such as
+Phi-3.5-vision, cannot be described in this version.  Their embedding count
+depends on the input, and the rule that derives it differs per model family.
+They keep the <code class="docutils literal notranslate"><span class="pre">image_embed</span></code> path without a manifest until a resize mode is
+defined for them.  One contiguous placeholder span is still enough for such
+models when the adapter emits its row separators as embeddings.</p>
+<p>Adding a processor kind does not change <code class="docutils literal notranslate"><span class="pre">schema_version</span></code>.  The documents
+keep the same fields, and a package that declares no image input produces the
+same bytes and the same <code class="docutils literal notranslate"><span class="pre">interface_id</span></code> as before.  A frontend that does not
+know <code class="docutils literal notranslate"><span class="pre">image_decode</span></code> rejects the package when it parses the processor.  That
+is the intended failure for a contract it cannot honor.</p>
+<p>LLaVA declares the embedding pair and points it at its existing <code class="docutils literal notranslate"><span class="pre">prefill</span></code>
+and <code class="docutils literal notranslate"><span class="pre">decode</span></code>.  It exports no new functions, so the native engine and
+released frontends keep working.</p>
+</section>
 <section id="compatibility-and-scope">
 <h2>Compatibility and scope<a class="headerlink" href="#compatibility-and-scope" title="Permalink to this heading">¶</a></h2>
 <p>WebLLM is the first manifest consumer.  Other MLC backends read
@@ -418,8 +470,9 @@ splits the adapter output to fit the prefill chunk size.</p>
 serve Gemma 4 yet, since it does not pass token IDs to the model.  A model
 without a manifest loads as before.  A manifest that is malformed or does not
 match the library is an error.</p>
-<p>Version 1 covers text and audio input for <code class="docutils literal notranslate"><span class="pre">google/gemma-4-E2B-it</span></code> with text
-output.  Vision, video, compressed or remote audio, audio through the native
+<p>Version 1 covers text and audio input for <code class="docutils literal notranslate"><span class="pre">google/gemma-4-E2B-it</span></code>, text
+and fixed-size image input for LLaVA, and text output.  Dynamic resolution
+image input, video, compressed or remote audio, audio through the native
 server, and speech-only pipelines are not included.</p>
 </section>
 </section>
