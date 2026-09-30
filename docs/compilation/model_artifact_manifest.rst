@@ -92,9 +92,11 @@ it as a lower bound when picking a device.
 
 Each key in ``exports`` is a role and the value is a function in the compiled
 library.  A ``token_generation`` program declares ``embed_tokens``,
-``create_kv_cache`` and one or both of the pairs below.  Every function also
-takes the KV cache and the parameters.  ``total_len`` is the length of all
-sequences in the batch laid end to end.
+``create_kv_cache`` and one or both of the pairs below.  The four functions
+in the table also take the KV cache and the parameters.  ``embed_tokens``
+takes token IDs and the parameters.  ``create_kv_cache`` takes only its size
+arguments.  ``total_len`` is the length of all sequences in the batch laid end
+to end.
 
 .. list-table::
    :header-rows: 1
