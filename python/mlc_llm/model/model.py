@@ -579,6 +579,7 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
             supports_awq=True,
             supports_ft_quant=False,
         ),
+        artifact=llava_model.LLAVA_ARTIFACT,
     ),
     "rwkv6": Model(
         name="rwkv6",

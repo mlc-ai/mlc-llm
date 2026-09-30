@@ -17,6 +17,7 @@ from mlc_llm import op as op_ext
 from mlc_llm.model.model_preset import MODEL_PRESETS
 from mlc_llm.model.vision import CLIPVisionConfig, CLIPVisionModel, ImageProcessor
 from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.protocol.artifact_manifest import ArtifactDefinition
 
 from ...support.config import ConfigBase
 from ..llama.llama_model import LlamaConfig, LlamaForCausalLM
@@ -332,3 +333,49 @@ class LlavaForCausalLM(Module):
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)
+
+
+def llava_artifact_tasks(config: LlavaConfig):
+    vision = config.vision_config
+    return {
+        "chat.completions": {
+            "executor": "generation",
+            "inputs": {
+                "text": {"processor": "tokenizer"},
+                "image": {
+                    "processor": {
+                        "kind": "image_decode",
+                        "format": "rgb_u8",
+                        "layout": "nhwc",
+                        "resize": {
+                            "mode": "center_crop",
+                            "height": vision.image_size,
+                            "width": vision.image_size,
+                        },
+                        "num_embeddings": (vision.image_size // vision.patch_size) ** 2,
+                    },
+                    "adapter": "image",
+                    "prompt": {"placeholder_token_id": config.image_token_index},
+                },
+            },
+            "output": "text",
+        }
+    }
+
+
+def llava_artifact_programs(_config: LlavaConfig):
+    return {
+        "generation": {
+            "kind": "token_generation",
+            "exports": {
+                "embed_tokens": "embed",
+                "prefill_embeds": "prefill",
+                "decode_embeds": "decode",
+                "create_kv_cache": "create_tir_paged_kv_cache",
+            },
+            "adapters": {"image": "image_embed"},
+        }
+    }
+
+
+LLAVA_ARTIFACT = ArtifactDefinition(tasks=llava_artifact_tasks, programs=llava_artifact_programs)
