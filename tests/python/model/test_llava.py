@@ -80,3 +80,17 @@ def test_llava_artifact_points_at_exported_functions():
     exported_functions = {global_var.name_hint for global_var in mod.get_global_vars()}
     assert set(program["exports"].values()) - {"create_tir_paged_kv_cache"} <= exported_functions
     assert set(program["adapters"].values()) <= exported_functions
+
+
+def test_llava_takes_uint32_pixels_on_webgpu():
+    import tvm
+
+    config = _config()
+    entry = MODELS["llava"]
+    with tvm.target.Target("webgpu"):
+        model = entry.model(config)
+        programs = entry.artifact.programs(config)
+    assert model.image_dtype == "uint32"
+    assert programs["generation"]["adapter_dtypes"] == {"image": "uint32"}
+    assert entry.model(config).image_dtype == "uint8"
+    assert "adapter_dtypes" not in entry.artifact.programs(config)["generation"]

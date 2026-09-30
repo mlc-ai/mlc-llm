@@ -145,6 +145,9 @@ like this:
 
 The frontend decodes the image, drops the alpha channel, resizes it and
 passes a ``uint8`` tensor of shape ``[1, height, width, 3]`` to the adapter.
+When the compiled library needs the same values in a wider type, its program
+lists the adapter under ``adapter_dtypes``.  WebGPU has no 8 bit storage
+type, so a WebGPU library takes the pixels as ``uint32``.
 The ``resize`` object names the policy and the target size:
 
 - ``stretch`` scales each axis on its own to the target size and ignores the

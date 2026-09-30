@@ -7,7 +7,7 @@ import dataclasses
 import logging
 from typing import Any, Dict, Optional  # noqa: UP035
 
-from tvm import tirx
+from tvm import target, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor
 from tvm.relax.frontend.nn.op import permute_dims, reshape, wrap_nested
@@ -138,6 +138,12 @@ class LlavaForCausalLM(Module):
         self.config = config
         self.vision_tower = CLIPVisionModel(config.vision_config)
         self.image_processor = ImageProcessor()
+        # WebGPU has no 8 bit storage type, so the pixels arrive in uint32 there.
+        self.image_dtype = (
+            "uint32"
+            if target.Target.current() and target.Target.current().kind.name == "webgpu"
+            else "uint8"
+        )
         self.multi_modal_projector = LlavaMultiModalProjector(config)
         self.language_model = ARCHITECTURE_MAP[config.text_architecture](config.text_config)
         self.vocab_size = config.vocab_size
@@ -262,7 +268,7 @@ class LlavaForCausalLM(Module):
             "image_embed": {
                 "pixel_values": nn.spec.Tensor(
                     [1, "image_height", "image_width", 3],
-                    "uint8",
+                    self.image_dtype,
                 ),
                 "$": {
                     "param_mode": "packed",
@@ -364,18 +370,20 @@ def llava_artifact_tasks(config: LlavaConfig):
 
 
 def llava_artifact_programs(_config: LlavaConfig):
-    return {
-        "generation": {
-            "kind": "token_generation",
-            "exports": {
-                "embed_tokens": "embed",
-                "prefill_embeds": "prefill",
-                "decode_embeds": "decode",
-                "create_kv_cache": "create_tir_paged_kv_cache",
-            },
-            "adapters": {"image": "image_embed"},
-        }
+    program = {
+        "kind": "token_generation",
+        "exports": {
+            "embed_tokens": "embed",
+            "prefill_embeds": "prefill",
+            "decode_embeds": "decode",
+            "create_kv_cache": "create_tir_paged_kv_cache",
+        },
+        "adapters": {"image": "image_embed"},
     }
+    current = target.Target.current()
+    if current and current.kind.name == "webgpu":
+        program["adapter_dtypes"] = {"image": "uint32"}
+    return {"generation": program}
 
 
 LLAVA_ARTIFACT = ArtifactDefinition(tasks=llava_artifact_tasks, programs=llava_artifact_programs)

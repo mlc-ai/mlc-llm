@@ -320,3 +320,14 @@ def test_token_generation_rejects_incomplete_role_pairs(exports):
     programs = {"generation": {"kind": "token_generation", "exports": exports}}
     with pytest.raises(ValidationError, match="token_generation requires"):
         build_compiled_program_artifact(_tasks(), programs, _params())
+
+
+def test_adapter_dtypes_name_declared_adapters():
+    programs = _programs()
+    programs["generation"]["adapter_dtypes"] = {"audio": "uint32"}
+    compiled = build_compiled_program_artifact(_tasks(), programs, _params())
+    assert compiled.programs["generation"].adapter_dtypes == {"audio": "uint32"}
+
+    programs["generation"]["adapter_dtypes"] = {"image": "uint32"}
+    with pytest.raises(ValidationError, match="unknown adapter"):
+        build_compiled_program_artifact(_tasks(), programs, _params())

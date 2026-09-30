@@ -173,6 +173,9 @@ class ProgramSpec(_ContractModel):
     kind: str
     exports: Dict[str, str] = Field(min_length=1)  # noqa: UP006
     adapters: Dict[str, str] = Field(default_factory=dict)  # noqa: UP006
+    # The tensor dtype an adapter takes when it differs from the processor's natural one, for
+    # example uint32 pixels on WebGPU, which has no 8 bit storage type.
+    adapter_dtypes: Dict[str, str] = Field(default_factory=dict)  # noqa: UP006
 
     @field_validator("kind")
     @classmethod
@@ -187,6 +190,14 @@ class ProgramSpec(_ContractModel):
         if any(not name or not entrypoint for name, entrypoint in value.items()):
             raise ValueError("entrypoint names and symbols must not be empty")
         return value
+
+    @model_validator(mode="after")
+    def _validate_adapter_dtypes(self):
+        for name, dtype in self.adapter_dtypes.items():
+            if name not in self.adapters:
+                raise ValueError(f"adapter_dtypes names an unknown adapter: {name}")
+            DataType(dtype)
+        return self
 
     @model_validator(mode="after")
     def _validate_token_generation_roles(self):
