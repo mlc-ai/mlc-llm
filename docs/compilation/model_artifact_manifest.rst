@@ -119,6 +119,11 @@ Other models declare the embedding pair and point it at their existing
 result.  A modality ID is 0 for a text token and 1 for a position filled by an
 adapter.
 
+A model that keeps a recurrent state next to the KV cache, such as Qwen3.5,
+also declares ``create_rnn_state``.  Its prefill and decode functions then
+take the KV cache and the recurrent state, in that order, before the
+parameters.
+
 The frontend decodes the input, for example WAV to mono 16 kHz float32 PCM.
 The compiled adapter does the feature extraction and projection.  The frontend
 splits the adapter output to fit the prefill chunk size.
