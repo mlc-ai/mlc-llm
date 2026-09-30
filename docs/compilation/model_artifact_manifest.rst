@@ -3,15 +3,15 @@
 Model Artifact Manifest
 =======================
 
-The artifact manifest is an opt-in contract between converted weights, a
-compiled model library, and a frontend.  Models without the sidecar keep the
-legacy ``mlc-chat-config.json`` behavior.
+The artifact manifest ties converted weights, a compiled model library and a
+frontend together.  It is opt-in.  A model without one loads from
+``mlc-chat-config.json`` as before.
 
 The converted model directory contains ``mlc-model-manifest.json``.  A
 compiled library carries the matching contract in ``_metadata.artifact``.
 Both documents use one top-level ``schema_version`` and reject unknown fields.
-The ``interface_id`` binds the public task description, while
-``parameter_schema_id`` binds post-quantization parameter names, shapes, and
+``interface_id`` is a hash of the task description and
+``parameter_schema_id`` a hash of the quantized parameter names, shapes and
 dtypes.
 
 For the experimental Gemma 4 text-and-audio target, the package sidecar has
@@ -130,8 +130,6 @@ serve Gemma 4 yet, since it does not pass token IDs to the model.  A model
 without a manifest loads as before.  A manifest that is malformed or does not
 match the library is an error.
 
-Version 1 implements text and audio input for ``google/gemma-4-E2B-it`` and
-text output.  Vision and video towers, remote or compressed audio, native
-server audio ingestion, and speech-only/ASR pipelines are outside this
-milestone.  Future canonical processors can reuse the task/adapter structure,
-but each frontend must implement that canonical representation once.
+Version 1 covers text and audio input for ``google/gemma-4-E2B-it`` with text
+output.  Vision, video, compressed or remote audio, audio through the native
+server, and speech-only pipelines are not included.
