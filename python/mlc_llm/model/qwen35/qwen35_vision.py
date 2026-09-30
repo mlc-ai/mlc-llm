@@ -36,6 +36,21 @@ class Qwen35VisionConfig(ConfigBase):
         return self.hidden_size // self.num_heads
 
 
+class _Linear(nn.Linear):
+    """Linear layer that accumulates in float32 and returns the input dtype.
+
+    The tower's residual stream carries activations in the thousands, and float16
+    accumulation over the 768 and 3072 wide contractions loses too much of the small
+    channels next to them.
+    """
+
+    def __init__(self, in_features: int, out_features: int):
+        super().__init__(in_features, out_features, bias=True, out_dtype="float32")
+
+    def forward(self, x: Tensor) -> Tensor:
+        return super().forward(x).astype(x.dtype)
+
+
 class Qwen35PatchEmbed(nn.Module):
     """Conv2D patch embedding.
 
@@ -69,8 +84,8 @@ class Qwen35VisionAttention(nn.Module):
     def __init__(self, config: Qwen35VisionConfig):
         self.num_heads = config.num_heads
         self.head_dim = config.head_dim
-        self.qkv = nn.Linear(config.hidden_size, 3 * config.hidden_size, bias=True)
-        self.proj = nn.Linear(config.hidden_size, config.hidden_size, bias=True)
+        self.qkv = _Linear(config.hidden_size, 3 * config.hidden_size)
+        self.proj = _Linear(config.hidden_size, config.hidden_size)
 
     def forward(self, hidden_states: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
         b, seq_len, _ = hidden_states.shape
@@ -95,8 +110,8 @@ class Qwen35VisionAttention(nn.Module):
 
 class Qwen35VisionMLP(nn.Module):
     def __init__(self, config: Qwen35VisionConfig):
-        self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size, bias=True)
-        self.fc2 = nn.Linear(config.intermediate_size, config.hidden_size, bias=True)
+        self.fc1 = _Linear(config.hidden_size, config.intermediate_size)
+        self.fc2 = _Linear(config.intermediate_size, config.hidden_size)
         # The checkpoints use gelu_pytorch_tanh in the blocks; the merger keeps exact GELU.
         self.approximate = "tanh" if config.hidden_act == "gelu_pytorch_tanh" else None
 
@@ -136,8 +151,8 @@ class Qwen35PatchMerger(nn.Module):
         self.grid_h = grid_h
         self.grid_w = grid_w
         self.norm = nn.LayerNorm(config.hidden_size, eps=1e-6)
-        self.fc1 = nn.Linear(merge_dim, merge_dim, bias=True)
-        self.fc2 = nn.Linear(merge_dim, config.out_hidden_size, bias=True)
+        self.fc1 = _Linear(merge_dim, merge_dim)
+        self.fc2 = _Linear(merge_dim, config.out_hidden_size)
 
     def forward(self, x: Tensor) -> Tensor:
         # x: (1, grid_h * grid_w, hidden_size) in raster order
