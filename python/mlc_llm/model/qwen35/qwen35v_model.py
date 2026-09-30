@@ -1,13 +1,12 @@
 """Qwen3.5 Vision-Language model wrapper (hybrid DeltaNet + full attention)."""
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import relax, target, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Object, Tensor, op
 
-from mlc_llm import op as op_ext
 from mlc_llm.model.vision import ImageProcessor
 from mlc_llm.nn.kv_cache import PagedKVCache
 from mlc_llm.nn.rnn_state import RNNState
@@ -37,7 +36,7 @@ class Qwen35VConfig(ConfigBase):
     max_batch_size: int = 1
     context_window_size: int = -1
     prefill_chunk_size: int = -1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         # Parse text_config
@@ -127,7 +126,7 @@ class Qwen35VForCausalLM(nn.Module):
             .current()
             .match_cast(
                 pixel_values._expr,
-                relax.TensorStructInfo([1, 3, image_size, image_size], pixel_values.dtype),
+                relax.TensorType([1, 3, image_size, image_size], pixel_values.dtype),
             ),
             "resized_image",
         )
@@ -159,9 +158,7 @@ class Qwen35VForCausalLM(nn.Module):
 
         # Reshape to 2D for C++ runtime (requires ndim == 2)
         tokens_per_image = self.config.tokens_per_image
-        vision_outputs = op.reshape(
-            vision_outputs, (tokens_per_image, self.hidden_size)
-        )
+        vision_outputs = op.reshape(vision_outputs, (tokens_per_image, self.hidden_size))
         return vision_outputs
 
     def embed(self, input_ids: Tensor):
@@ -240,9 +237,7 @@ class Qwen35VForCausalLM(nn.Module):
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "rnn_state": nn.spec.Object(object_type=RNNState),
@@ -252,9 +247,7 @@ class Qwen35VForCausalLM(nn.Module):
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "rnn_state": nn.spec.Object(object_type=RNNState),
                 "$": {
@@ -263,9 +256,7 @@ class Qwen35VForCausalLM(nn.Module):
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "rnn_state": nn.spec.Object(object_type=RNNState),
                 "$": {

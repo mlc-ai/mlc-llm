@@ -116,9 +116,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-branches,too-many-s
                     mapping.add_mapping(
                         mlc_name,
                         [f"{hf_lin}.{param_name}"],
-                        functools.partial(
-                            lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype
-                        ),
+                        functools.partial(lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype),
                     )
 
             # conv1d weight
@@ -265,9 +263,9 @@ def _mlc_to_hf(mlc_name: str) -> str:
     """Convert MLC parameter name to HuggingFace parameter name."""
     # Language model: language_model.model.X -> model.language_model.X
     if mlc_name.startswith("language_model.model."):
-        return "model.language_model." + mlc_name[len("language_model.model."):]
+        return "model.language_model." + mlc_name[len("language_model.model.") :]
     if mlc_name.startswith("language_model.lm_head."):
-        return "model.language_model." + mlc_name[len("language_model."):]
+        return "model.language_model." + mlc_name[len("language_model.") :]
     # Vision: visual.X -> model.visual.X
     if mlc_name.startswith("visual."):
         return "model." + mlc_name

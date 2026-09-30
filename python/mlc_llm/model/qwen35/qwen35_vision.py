@@ -1,11 +1,9 @@
 """Vision encoder for Qwen3.5 VLM: custom ViT with 2D RoPE and patch merging."""
 
 import dataclasses
-import math
-from typing import Any, Dict
+from typing import Any, Dict  # noqa: UP035
 
 import numpy as np
-
 from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
@@ -30,7 +28,7 @@ class Qwen35VisionConfig(ConfigBase):
     out_hidden_size: int = 2560
     in_channels: int = 3
     num_position_embeddings: int = 2304
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     @property
     def head_dim(self) -> int:
@@ -73,9 +71,7 @@ class Qwen35VisionAttention(nn.Module):
         self.qkv = nn.Linear(config.hidden_size, 3 * config.hidden_size, bias=True)
         self.proj = nn.Linear(config.hidden_size, config.hidden_size, bias=True)
 
-    def forward(
-        self, hidden_states: Tensor, cos: Tensor, sin: Tensor
-    ) -> Tensor:
+    def forward(self, hidden_states: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
         b, seq_len, _ = hidden_states.shape
         # Project QKV
         qkv = self.qkv(hidden_states)  # (1, seq, 3*hidden)
@@ -152,9 +148,7 @@ class Qwen35PatchMerger(nn.Module):
         x = op.reshape(x, (b, self.grid_h, self.grid_w, self.hidden_size))
 
         # Group 2x2 blocks: (1, grid_h//2, 2, grid_w//2, 2, hidden)
-        x = op.reshape(
-            x, (b, self.grid_h // m, m, self.grid_w // m, m, self.hidden_size)
-        )
+        x = op.reshape(x, (b, self.grid_h // m, m, self.grid_w // m, m, self.hidden_size))
         # Permute to (1, grid_h//2, grid_w//2, 2, 2, hidden)
         x = op.permute_dims(x, (0, 1, 3, 2, 4, 5))
         # Flatten merge dims: (1, merged_tokens, 4*hidden)
@@ -186,9 +180,7 @@ class Qwen35VisionModel(nn.Module):
 
         self.patch_embed = Qwen35PatchEmbed(config)
         self.pos_embed = nn.Parameter((num_patches, config.hidden_size))
-        self.blocks = nn.ModuleList(
-            [Qwen35VisionBlock(config) for _ in range(config.depth)]
-        )
+        self.blocks = nn.ModuleList([Qwen35VisionBlock(config) for _ in range(config.depth)])
         self.merger = Qwen35PatchMerger(config, self.grid_h, self.grid_w)
 
         # Pre-compute 2D RoPE cos/sin as constants (raster order)
@@ -243,9 +235,7 @@ def _apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     return result.astype(orig_dtype)
 
 
-def _precompute_2d_rope(
-    grid_h: int, grid_w: int, head_dim: int, theta: float = 10000.0
-) -> tuple:
+def _precompute_2d_rope(grid_h: int, grid_w: int, head_dim: int, theta: float = 10000.0) -> tuple:
     """Pre-compute 2D RoPE cos/sin for vision patches in raster order.
 
     Matches HF's Qwen3_5VisionRotaryEmbedding + rot_pos_emb + apply logic:

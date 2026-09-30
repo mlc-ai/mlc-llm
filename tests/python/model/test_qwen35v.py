@@ -1,13 +1,10 @@
 # pylint: disable=invalid-name,missing-docstring
 """Unit tests for Qwen3.5 Vision-Language model architecture."""
 
-import pytest
-
 from tvm.relax.frontend.nn import spec as nn_spec
 
 from mlc_llm.model import MODELS
 from mlc_llm.model.qwen35.qwen35_vision import Qwen35VisionConfig, Qwen35VisionModel
-
 
 # Minimal config with small dimensions for fast testing.
 # Must exercise both DeltaNet (linear) and full attention layers.
