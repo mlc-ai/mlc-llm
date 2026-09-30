@@ -1,7 +1,7 @@
 """Implementation for Gemma3 Vision-Language architecture."""
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from tvm import relax, target, te, tirx
 from tvm.relax.frontend import nn
@@ -45,14 +45,14 @@ class Gemma3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = -1
     sliding_window_size: int = -1
     prefill_chunk_size: int = -1
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
         # Parse text_config
         if self.text_config is None:
             raise ValueError("Gemma3VConfig requires text_config")
 
-        text_config_dict: Dict[str, Any]
+        text_config_dict: Dict[str, Any]  # noqa: UP006
         if isinstance(self.text_config, Gemma3TextConfig):
             text_config_dict = dataclasses.asdict(self.text_config)
         else:
@@ -64,7 +64,7 @@ class Gemma3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         self.text_config = Gemma3TextConfig.from_dict(text_config_dict)
 
         # Parse vision_config
-        vision_config_dict: Dict[str, Any]
+        vision_config_dict: Dict[str, Any]  # noqa: UP006
         if isinstance(self.vision_config, SigLIPVisionConfig):
             vision_config_dict = dataclasses.asdict(self.vision_config)
         elif self.vision_config is not None:
@@ -166,7 +166,7 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             .current()
             .match_cast(
                 pixel_values._expr,
-                relax.TensorStructInfo([1, 3, image_size, image_size], pixel_values.dtype),
+                relax.TensorType([1, 3, image_size, image_size], pixel_values.dtype),
             ),
             "resized_image",
         )

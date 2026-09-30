@@ -9,7 +9,7 @@ Key differences from CLIP (clip_vision.py):
 """
 
 import dataclasses
-from typing import Any, Dict
+from typing import Any, Dict  # noqa: UP035
 
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor
@@ -38,7 +38,7 @@ class SigLIPVisionConfig(ConfigBase):  # pylint: disable=too-many-instance-attri
     patch_size: int
     num_channels: int = 3
     layer_norm_eps: float = 1e-06
-    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
 
 # pylint: disable=invalid-name,missing-docstring

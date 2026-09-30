@@ -5,7 +5,6 @@ from tvm.relax.frontend.nn import spec as nn_spec
 
 from mlc_llm.model.vision import SigLIPVisionConfig, SigLIPVisionModel
 
-
 SMALL_SIGLIP_CONFIG = {
     "hidden_size": 64,
     "image_size": 28,

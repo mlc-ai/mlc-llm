@@ -1,10 +1,7 @@
 # pylint: disable=invalid-name,missing-docstring
 """Unit tests for Gemma3V vision-language model architecture."""
 
-import pytest
-
 from mlc_llm.model import MODELS
-
 
 # Minimal config dict with small dimensions for fast testing.
 # Mirrors the structure of a real HuggingFace gemma-3-4b-it config.json.
