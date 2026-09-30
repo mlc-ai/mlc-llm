@@ -57,7 +57,7 @@ def _programs():
             "kind": "token_generation",
             "exports": {
                 "embed_tokens": "embed",
-                "prefill_tokens": "prefill_prompt",
+                "prefill_tokens": "prefill_tokens",
                 "decode_tokens": "decode_tokens",
                 "create_kv_cache": "create_tir_paged_kv_cache",
             },
@@ -159,10 +159,10 @@ def _exports(**roles):
 @pytest.mark.parametrize(
     "roles",
     [
-        {"prefill_tokens": "prefill_prompt", "decode_tokens": "decode_tokens"},
+        {"prefill_tokens": "prefill_tokens", "decode_tokens": "decode_tokens"},
         {"prefill_embeds": "prefill", "decode_embeds": "decode"},
         {
-            "prefill_tokens": "prefill_prompt",
+            "prefill_tokens": "prefill_tokens",
             "decode_tokens": "decode_tokens",
             "prefill_embeds": "prefill",
             "decode_embeds": "decode",
@@ -181,10 +181,10 @@ def test_token_generation_accepts_either_role_pair(roles):
     "exports",
     [
         _exports(),
-        _exports(prefill_tokens="prefill_prompt"),
-        _exports(prefill_tokens="prefill_prompt", decode_embeds="decode"),
+        _exports(prefill_tokens="prefill_tokens"),
+        _exports(prefill_tokens="prefill_tokens", decode_embeds="decode"),
         _exports(
-            prefill_tokens="prefill_prompt",
+            prefill_tokens="prefill_tokens",
             decode_tokens="decode_tokens",
             prefill_embeds="prefill",
         ),

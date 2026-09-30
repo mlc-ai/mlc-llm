@@ -69,7 +69,7 @@ The compiled half names entrypoints by role rather than by model family:
          "kind": "token_generation",
          "exports": {
            "embed_tokens": "embed",
-           "prefill_tokens": "prefill_prompt",
+           "prefill_tokens": "prefill_tokens",
            "decode_tokens": "decode_tokens",
            "create_kv_cache": "create_tir_paged_kv_cache"
          },
@@ -99,14 +99,20 @@ All four functions also take the KV cache and the parameters.
    * - Role
      - Arguments
    * - ``prefill_tokens``
-     - embeddings ``[1, seq_len, hidden_size]``, token IDs ``[1, seq_len]``,
-       modality IDs ``[1, seq_len]``
+     - embeddings ``[1, total_len, hidden_size]``, token IDs ``[1, total_len]``,
+       modality IDs ``[1, total_len]``
    * - ``decode_tokens``
      - token IDs ``[batch_size, 1]``
    * - ``prefill_embeds``
-     - embeddings ``[1, seq_len, hidden_size]``
+     - embeddings ``[1, total_len, hidden_size]``
    * - ``decode_embeds``
      - embeddings ``[1, 1, hidden_size]``
+
+Prefill has no batch dimension.  Sequences are laid end to end along
+``total_len`` and the KV cache is told where each one starts.
+``decode_tokens`` takes one token per sequence and stacks them along
+``batch_size``.  ``decode_embeds`` matches the existing ``decode`` export,
+which takes one sequence.
 
 A model declares the token pair when it needs the token IDs inside the model,
 as Gemma 4 does for its per-layer embeddings.  Other models declare the

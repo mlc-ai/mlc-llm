@@ -428,4 +428,4 @@ def test_loader_covers_unquantized_and_q4_parameter_schemas():
     )
     assert artifact.resources.max_storage_buffer_binding_size <= 256 * 1024 * 1024
     exported_functions = {global_var.name_hint for global_var in mod.get_global_vars()}
-    assert {"audio_embed", "prefill_prompt", "decode_tokens"}.issubset(exported_functions)
+    assert {"audio_embed", "prefill_tokens", "decode_tokens"}.issubset(exported_functions)
