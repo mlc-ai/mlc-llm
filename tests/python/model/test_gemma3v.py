@@ -166,9 +166,24 @@ def test_gemma3v_artifact_points_at_exported_functions():
         "decode_embeds": "decode",
         "create_kv_cache": "create_tir_paged_kv_cache",
     }
+    assert program["adapters"] == {"image": "embed_image"}
     exported_functions = {global_var.name_hint for global_var in mod.get_global_vars()}
     assert set(program["exports"].values()) - {"create_tir_paged_kv_cache"} <= exported_functions
     assert set(program["adapters"].values()) <= exported_functions
+
+
+def test_gemma3v_takes_uint32_pixels_on_webgpu():
+    import tvm
+
+    entry = MODELS["gemma3_v"]
+    config = entry.config.from_dict(SMALL_GEMMA3V_CONFIG)
+    with tvm.target.Target("webgpu"):
+        model = entry.model(config)
+        programs = entry.artifact.programs(config)
+    assert model.image_dtype == "uint32"
+    assert programs["generation"]["adapter_dtypes"] == {"image": "uint32"}
+    assert entry.model(config).image_dtype == "uint8"
+    assert "adapter_dtypes" not in entry.artifact.programs(config)["generation"]
 
 
 if __name__ == "__main__":
@@ -177,3 +192,4 @@ if __name__ == "__main__":
     test_gemma3v_config_validation()
     test_gemma3v_artifact_declares_image_input()
     test_gemma3v_artifact_points_at_exported_functions()
+    test_gemma3v_takes_uint32_pixels_on_webgpu()

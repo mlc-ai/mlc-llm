@@ -189,6 +189,12 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         crop_height,
         crop_width,
     ) -> Tensor:
+        return self._embed_image(pixel_values)
+
+    def embed_image(self, pixel_values: Tensor) -> Tensor:
+        return self._embed_image(pixel_values)
+
+    def _embed_image(self, pixel_values: Tensor) -> Tensor:
         # Step 1: Preprocess
         pixel_values = self.image_preprocess(pixel_values)
 
@@ -347,6 +353,15 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                     "effect_mode": "none",
                 },
             },
+            "embed_image": {
+                "pixel_values": nn.spec.Tensor(
+                    [1, "image_height", "image_width", 3], self.image_dtype
+                ),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
             "prefill": {
                 "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
@@ -432,18 +447,20 @@ def gemma3v_artifact_tasks(config: Gemma3VConfig):
 
 
 def gemma3v_artifact_programs(_config: Gemma3VConfig):
-    return {
-        "generation": {
-            "kind": "token_generation",
-            "exports": {
-                "embed_tokens": "embed",
-                "prefill_embeds": "prefill",
-                "decode_embeds": "decode",
-                "create_kv_cache": "create_tir_paged_kv_cache",
-            },
-            "adapters": {"image": "image_embed"},
-        }
+    program = {
+        "kind": "token_generation",
+        "exports": {
+            "embed_tokens": "embed",
+            "prefill_embeds": "prefill",
+            "decode_embeds": "decode",
+            "create_kv_cache": "create_tir_paged_kv_cache",
+        },
+        "adapters": {"image": "embed_image"},
     }
+    current = target.Target.current()
+    if current and current.kind.name == "webgpu":
+        program["adapter_dtypes"] = {"image": "uint32"}
+    return {"generation": program}
 
 
 GEMMA3V_ARTIFACT = ArtifactDefinition(
