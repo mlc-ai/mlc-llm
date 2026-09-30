@@ -28,6 +28,7 @@ class Qwen35VisionConfig(ConfigBase):
     out_hidden_size: int = 2560
     in_channels: int = 3
     num_position_embeddings: int = 2304
+    hidden_act: str = "gelu_pytorch_tanh"
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     @property
@@ -96,9 +97,11 @@ class Qwen35VisionMLP(nn.Module):
     def __init__(self, config: Qwen35VisionConfig):
         self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size, bias=True)
         self.fc2 = nn.Linear(config.intermediate_size, config.hidden_size, bias=True)
+        # The checkpoints use gelu_pytorch_tanh in the blocks; the merger keeps exact GELU.
+        self.approximate = "tanh" if config.hidden_act == "gelu_pytorch_tanh" else None
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.fc2(op.gelu(self.fc1(x)))
+        return self.fc2(op.gelu(self.fc1(x), approximate=self.approximate))
 
 
 class Qwen35VisionBlock(nn.Module):
