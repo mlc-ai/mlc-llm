@@ -369,6 +369,8 @@ this shape (hashes are abbreviated here):</p>
 <span class="p">}</span>
 </pre></div>
 </div>
+<p>Both sizes are computed from the parameter shapes.  A named dimension such as
+<code class="docutils literal notranslate"><span class="pre">vocab_size</span></code> takes its value from the model config.</p>
 <p><code class="docutils literal notranslate"><span class="pre">estimated_device_memory_bytes</span></code> is the total size of the model parameters.
 It does not include the KV cache or anything the runtime allocates, so treat
 it as a lower bound when picking a device.</p>
