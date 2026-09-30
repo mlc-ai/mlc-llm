@@ -261,13 +261,20 @@ def compute_parameter_schema_id(named_parameters: Iterable[tuple[str, Any]]) -> 
     return _sha256_json(parameter_specs(named_parameters))
 
 
-def _parameter_resources(named_parameters: Iterable[tuple[str, Any]]) -> tuple[int, int]:
+def _parameter_resources(
+    named_parameters: Iterable[tuple[str, Any]],
+    symbolic_sizes: Mapping[str, int],
+) -> tuple[int, int]:
     sizes = []
     for spec in parameter_specs(named_parameters):
-        if not all(isinstance(dim, int) for dim in spec["shape"]):
-            raise ValueError(f"resource size requires static parameter shape: {spec['name']}")
         elements = 1
         for dim in spec["shape"]:
+            if not isinstance(dim, int):
+                if dim not in symbolic_sizes:
+                    raise ValueError(
+                        f"resource size needs a value for {dim!r} in the shape of {spec['name']}"
+                    )
+                dim = symbolic_sizes[dim]
             elements *= dim
         sizes.append(elements * DataType(spec["dtype"]).itemsize)
     return (max(sizes, default=0), sum(sizes))
@@ -294,8 +301,13 @@ def build_compiled_program_artifact(
     programs: Mapping[str, Any],
     named_parameters: Iterable[tuple[str, Any]],
     required_features: Iterable[str] = (),
+    symbolic_sizes: Mapping[str, int] | None = None,
 ) -> CompiledProgramArtifact:
-    """Build metadata embedded in the compiled VM library."""
+    """Build metadata embedded in the compiled VM library.
+
+    `symbolic_sizes` gives the value to use for each named dimension in a parameter shape, such
+    as `vocab_size`, when the resource sizes are computed.
+    """
     named_parameters = list(named_parameters)
     normalized_tasks = normalize_tasks(tasks)
     normalized_programs = normalize_programs(programs)
@@ -309,7 +321,7 @@ def build_compiled_program_artifact(
                     f"Task {task_name!r} input {input_name!r} references missing adapter "
                     f"{task_input.adapter!r}"
                 )
-    max_buffer_size, total_size = _parameter_resources(named_parameters)
+    max_buffer_size, total_size = _parameter_resources(named_parameters, symbolic_sizes or {})
     return CompiledProgramArtifact(
         interface_id=compute_interface_id(normalized_tasks),
         parameter_schema_id=compute_parameter_schema_id(named_parameters),
