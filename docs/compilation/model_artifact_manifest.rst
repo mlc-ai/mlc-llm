@@ -90,7 +90,7 @@ it as a lower bound when picking a device.
 Each key in ``exports`` is a role and each value is the name of a function in
 the compiled library.  A role fixes the arguments the frontend passes, so the
 function can have any name.  A ``token_generation`` program declares
-``embed_tokens``, ``create_kv_cache`` and exactly one of the two pairs below.
+``embed_tokens``, ``create_kv_cache`` and at least one of the two pairs below.
 All four functions also take the KV cache and the parameters.
 
 .. list-table::
@@ -111,6 +111,8 @@ All four functions also take the KV cache and the parameters.
 A model declares the token pair when it needs the token IDs inside the model,
 as Gemma 4 does for its per-layer embeddings.  Other models declare the
 embedding pair and point it at their existing ``prefill`` and ``decode``.  A
+model may declare both pairs when both give the same result, and a frontend
+then calls the one it implements.  Half a pair is rejected.  A
 modality ID is 0 for a text token and 1 for a position filled by an adapter.
 
 The frontend decodes the input, for example WAV to mono 16 kHz float32 PCM.

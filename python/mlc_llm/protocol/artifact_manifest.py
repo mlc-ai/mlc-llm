@@ -133,8 +133,9 @@ class ModelPackageManifest(_ContractModel):
         return _validate_sha256(value)
 
 
-# A token_generation program declares one of these pairs.  The role name states what the
-# function takes next to the KV cache: embeddings with token and modality IDs, or embeddings only.
+# A token_generation program declares at least one of these pairs.  The role name states what
+# the function takes next to the KV cache: embeddings with token and modality IDs, or embeddings
+# only.  A program that declares both must give the same result through either.
 TOKEN_GENERATION_ROLE_PAIRS = (
     ("prefill_tokens", "decode_tokens"),
     ("prefill_embeds", "decode_embeds"),
@@ -172,10 +173,10 @@ class ProgramSpec(_ContractModel):
             for pair in TOKEN_GENERATION_ROLE_PAIRS
             if any(role in self.exports for role in pair)
         ]
-        if len(declared) != 1 or not all(role in self.exports for role in declared[0]):
+        if not declared or not all(role in self.exports for pair in declared for role in pair):
             raise ValueError(
-                "token_generation requires exactly one complete pair of prefill and decode "
-                "roles: prefill_tokens with decode_tokens, or prefill_embeds with decode_embeds"
+                "token_generation requires a complete pair of prefill and decode roles: "
+                "prefill_tokens with decode_tokens, or prefill_embeds with decode_embeds"
             )
         return self
 

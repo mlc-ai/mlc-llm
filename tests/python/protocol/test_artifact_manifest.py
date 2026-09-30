@@ -161,6 +161,12 @@ def _exports(**roles):
     [
         {"prefill_tokens": "prefill_prompt", "decode_tokens": "decode_tokens"},
         {"prefill_embeds": "prefill", "decode_embeds": "decode"},
+        {
+            "prefill_tokens": "prefill_prompt",
+            "decode_tokens": "decode_tokens",
+            "prefill_embeds": "prefill",
+            "decode_embeds": "decode",
+        },
     ],
 )
 def test_token_generation_accepts_either_role_pair(roles):
@@ -181,12 +187,11 @@ def test_token_generation_accepts_either_role_pair(roles):
             prefill_tokens="prefill_prompt",
             decode_tokens="decode_tokens",
             prefill_embeds="prefill",
-            decode_embeds="decode",
         ),
         {"prefill_embeds": "prefill", "decode_embeds": "decode", "embed_tokens": "embed"},
     ],
 )
-def test_token_generation_rejects_incomplete_or_mixed_roles(exports):
+def test_token_generation_rejects_incomplete_role_pairs(exports):
     programs = {"generation": {"kind": "token_generation", "exports": exports}}
     with pytest.raises(ValidationError, match="token_generation requires"):
         build_compiled_program_artifact(_tasks(), programs, _params())
