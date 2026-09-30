@@ -59,6 +59,8 @@ class Qwen35Config(ConfigBase):
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
+        if self.tensor_parallel_shards != 1:
+            raise ValueError("Qwen3.5 declares no sharding strategies, so it runs on one device")
         # Handle VLM wrapper: Qwen3.5 HF config has all text params inside text_config
         if "text_config" in self.kwargs:
             text_config = self.kwargs.pop("text_config")

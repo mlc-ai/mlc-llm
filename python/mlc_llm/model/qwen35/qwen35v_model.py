@@ -52,6 +52,7 @@ class Qwen35VConfig(ConfigBase):
         # Flatten nested kwargs to avoid double-kwargs in from_dict round-trips
         for k, v in text_dict.pop("kwargs", {}).items():
             text_dict[k] = v
+        text_dict["tensor_parallel_shards"] = self.tensor_parallel_shards
         self.text_config = Qwen35Config.from_dict(text_dict)
 
         # Parse vision_config
