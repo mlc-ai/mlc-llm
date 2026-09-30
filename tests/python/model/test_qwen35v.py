@@ -12,10 +12,7 @@ from mlc_llm.protocol.artifact_manifest import (
 )
 from mlc_llm.quantization import QUANTIZATION
 
-# Minimal config with small dimensions for fast testing.
-# Must exercise both DeltaNet (linear) and full attention layers.
-# With full_attention_interval=4 and num_hidden_layers=4:
-#   layers 0,1,2 = DeltaNet, layer 3 = full attention.
+# Four layers with full_attention_interval 4: three DeltaNet layers and one attention layer.
 SMALL_QWEN35V_CONFIG = {
     "text_config": {
         "hidden_size": 256,
@@ -44,39 +41,27 @@ SMALL_QWEN35V_CONFIG = {
         "depth": 2,
         "intermediate_size": 128,
         "patch_size": 16,
-        "temporal_patch_size": 2,
         "spatial_merge_size": 2,
         "out_hidden_size": 256,
         "in_channels": 3,
         "num_position_embeddings": 64,
     },
-    # image_size=64, patch_size=16 -> 4x4 grid, spatial_merge_size=2 -> 2x2 -> 4 tokens
+    # A 4 by 4 patch grid merged 2 by 2 gives 4 image tokens.
     "image_size": 64,
     "image_token_id": 248056,
     "vision_start_token_id": 248053,
     "vision_end_token_id": 248054,
 }
 
-# Standalone vision config matching the vision_config above
 SMALL_VISION_CONFIG = SMALL_QWEN35V_CONFIG["vision_config"]
 SMALL_VISION_IMAGE_SIZE = SMALL_QWEN35V_CONFIG["image_size"]
 
 
 def test_qwen35v_model_registered():
-    """Verify Qwen3.5 Vision model is in the registry."""
-    assert "qwen3_5_vision" in MODELS, "qwen3_5_vision should be registered in MODELS"
+    assert "qwen3_5_vision" in MODELS
 
 
 def test_qwen35v_creation():
-    """Test Qwen3.5V model creation and export to TVM IR.
-
-    Verifies:
-    - Config can be loaded from dict
-    - Model instance can be created
-    - Model exports to TVM IR successfully
-    - Named parameters include visual (vision encoder) and model (language model) components
-    - All expected functions are exported, including create_rnn_state (hybrid architecture)
-    """
     model_info = MODELS["qwen3_5_vision"]
     config = model_info.config.from_dict(SMALL_QWEN35V_CONFIG)
     model = model_info.model(config)
@@ -84,19 +69,9 @@ def test_qwen35v_creation():
         spec=model.get_default_spec(),  # type: ignore
     )
 
-    # Verify export succeeded
-    assert mod is not None
-    assert len(named_params) > 0
-
-    # Verify VLM composition: params from both components
     param_names = [name for name, _ in named_params]
-    has_visual = any(n.startswith("visual.") for n in param_names)
-    has_language = any(n.startswith("language_model.") for n in param_names)
-    assert has_visual, "Should have visual.* parameters (vision encoder)"
-    assert has_language, "Should have language_model.* parameters (text model)"
-
-    # Verify all expected functions are exported
-    # create_rnn_state is unique to Qwen3.5's hybrid DeltaNet architecture
+    assert any(n.startswith("visual.") for n in param_names)
+    assert any(n.startswith("language_model.") for n in param_names)
     expected_funcs = [
         "embed",
         "image_embed",
@@ -110,22 +85,10 @@ def test_qwen35v_creation():
         "create_rnn_state",
     ]
     for func_name in expected_funcs:
-        assert func_name in mod, f"Module should contain '{func_name}' function"
-
-    mod.show(black_format=False)
-    for name, param in named_params:
-        print(name, param.shape, param.dtype)
+        assert func_name in mod
 
 
 def test_qwen35_vision_encoder_creation():
-    """Test Qwen3.5 vision encoder standalone creation and export to TVM IR.
-
-    Verifies:
-    - Config can be loaded from dict
-    - Vision model can be created
-    - Model exports to TVM IR successfully
-    - Named parameters include patch_embed, pos_embed, blocks, and merger components
-    """
     config = Qwen35VisionConfig.from_dict(SMALL_VISION_CONFIG)
     model = Qwen35VisionModel(config, SMALL_VISION_IMAGE_SIZE)
     image_size = SMALL_VISION_IMAGE_SIZE
@@ -142,24 +105,9 @@ def test_qwen35_vision_encoder_creation():
     )
     mod, named_params = model.export_tvm(spec=mod_spec)
 
-    assert mod is not None
-    assert len(named_params) > 0
-
     param_names = [name for name, _ in named_params]
-
-    has_patch_embed = any("patch_embed" in n for n in param_names)
-    has_pos_embed = any("pos_embed" in n for n in param_names)
-    has_blocks = any("blocks" in n for n in param_names)
-    has_merger = any("merger" in n for n in param_names)
-
-    assert has_patch_embed, "Should have patch_embed parameters"
-    assert has_pos_embed, "Should have pos_embed parameters"
-    assert has_blocks, "Should have blocks (encoder layer) parameters"
-    assert has_merger, "Should have merger parameters"
-
-    mod.show(black_format=False)
-    for name, param in named_params:
-        print(name, param.shape, param.dtype)
+    for module in ("patch_embed", "pos_embed", "blocks", "merger"):
+        assert any(module in n for n in param_names)
 
 
 def test_qwen35v_artifact_declares_image_input():

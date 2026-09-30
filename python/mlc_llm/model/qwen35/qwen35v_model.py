@@ -12,13 +12,10 @@ from mlc_llm.model.vision import ImageProcessor
 from mlc_llm.nn.kv_cache import PagedKVCache
 from mlc_llm.nn.rnn_state import RNNState
 from mlc_llm.protocol.artifact_manifest import ArtifactDefinition
-from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
 
 from .qwen35_model import Qwen35Config, Qwen35LMHeadModel
 from .qwen35_vision import Qwen35VisionConfig, Qwen35VisionModel
-
-logger = logging.getLogger(__name__)
 
 # pylint: disable=invalid-name,missing-docstring,too-many-instance-attributes
 
@@ -53,6 +50,9 @@ class Qwen35VConfig(ConfigBase):
         for k, v in text_dict.pop("kwargs", {}).items():
             text_dict[k] = v
         text_dict["tensor_parallel_shards"] = self.tensor_parallel_shards
+        # Qwen3.5-9B sets tie_word_embeddings at the top level only.
+        if "tie_word_embeddings" in self.kwargs:
+            text_dict.setdefault("tie_word_embeddings", self.kwargs.pop("tie_word_embeddings"))
         self.text_config = Qwen35Config.from_dict(text_dict)
 
         # Parse vision_config
@@ -66,23 +66,17 @@ class Qwen35VConfig(ConfigBase):
             vision_dict[k] = v
         self.vision_config = Qwen35VisionConfig.from_dict(vision_dict)
 
-        # Propagate sizes from text_config
         for k in ["vocab_size", "context_window_size", "prefill_chunk_size"]:
-            if getattr(self, k) <= 0 and hasattr(self.text_config, k):
+            if getattr(self, k) <= 0:
                 setattr(self, k, getattr(self.text_config, k))
 
     @property
-    def grid_h(self) -> int:
-        return self.image_size // self.vision_config.patch_size
-
-    @property
-    def grid_w(self) -> int:
+    def grid(self) -> int:
         return self.image_size // self.vision_config.patch_size
 
     @property
     def tokens_per_image(self) -> int:
-        m = self.vision_config.spatial_merge_size
-        return (self.grid_h // m) * (self.grid_w // m)
+        return (self.grid // self.vision_config.spatial_merge_size) ** 2
 
 
 class Qwen35VForCausalLM(nn.Module):
@@ -92,7 +86,6 @@ class Qwen35VForCausalLM(nn.Module):
         self.visual = Qwen35VisionModel(config.vision_config, config.image_size)
         self.image_processor = ImageProcessor()
 
-        # Expose text model attributes for engine/compile
         self.hidden_size = config.text_config.hidden_size
         self.vocab_size = config.text_config.vocab_size
         self.num_hidden_layers = config.text_config.num_hidden_layers
@@ -113,17 +106,11 @@ class Qwen35VForCausalLM(nn.Module):
 
     # pylint: disable=protected-access
     def image_preprocess(self, pixel_values: Tensor) -> Tensor:
-        # NHWC -> NCHW
-        pixel_values = op.permute_dims(pixel_values, axes=[0, 3, 1, 2])
-
+        pixel_values = op.permute_dims(pixel_values, axes=[0, 3, 1, 2])  # NHWC -> NCHW
         image_size = self.config.image_size
-
-        # Resize to fixed image_size x image_size
         pixel_values = self.image_processor.resize(
             pixel_values, params={"height": image_size, "width": image_size}
         )
-
-        # match_cast to fix shape after resize
         pixel_values = op.wrap_nested(
             relax.BlockBuilder()
             .current()
@@ -133,14 +120,9 @@ class Qwen35VForCausalLM(nn.Module):
             ),
             "resized_image",
         )
-
-        # Rescale: uint8 -> float32, /255
         pixel_values = self.image_processor.rescale(pixel_values)
-
-        # Normalize with mean=0.5, std=0.5
-        pixel_values = self.image_processor.normalize_siglip(pixel_values)
-
-        return pixel_values
+        # The checkpoints normalize with mean and std 0.5, which normalize_siglip applies.
+        return self.image_processor.normalize_siglip(pixel_values)
 
     def image_embed(  # pylint: disable=too-many-arguments,unused-argument
         self,
@@ -153,19 +135,9 @@ class Qwen35VForCausalLM(nn.Module):
         return self.embed_image(pixel_values)
 
     def embed_image(self, pixel_values: Tensor) -> Tensor:
-        # Preprocess
-        pixel_values = self.image_preprocess(pixel_values)
-
-        # Cast to model dtype
-        pixel_values = pixel_values.astype(self.dtype)
-
-        # Vision encoder -> (1, tokens_per_image, out_hidden_size)
+        pixel_values = self.image_preprocess(pixel_values).astype(self.dtype)
         vision_outputs = self.visual(pixel_values)
-
-        # Reshape to 2D for C++ runtime (requires ndim == 2)
-        tokens_per_image = self.config.tokens_per_image
-        vision_outputs = op.reshape(vision_outputs, (tokens_per_image, self.hidden_size))
-        return vision_outputs
+        return op.reshape(vision_outputs, (self.config.tokens_per_image, self.hidden_size))
 
     def embed(self, input_ids: Tensor):
         return self.language_model.embed(input_ids)
@@ -376,7 +348,7 @@ def qwen35v_artifact_tasks(config: Qwen35VConfig):
 
 def qwen35v_artifact_programs(_config: Qwen35VConfig):
     # The recurrent layers keep their state next to the KV cache, so prefill and decode take
-    # the RNN state as a third argument and the program names its creator.
+    # the RNN state as a third argument and the program declares create_rnn_state.
     program = {
         "kind": "token_generation",
         "exports": {
