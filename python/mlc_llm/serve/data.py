@@ -153,8 +153,10 @@ class ImageData(Data):
             return config["model_config"].get("mm_tokens_per_image", 256)
 
         if model_type == "qwen3_5_vision":
-            # (image_size / patch_size / spatial_merge_size)^2 = (448/16/2)^2 = 196
-            return 196
+            model_config = config["model_config"]
+            vision_config = model_config["vision_config"]
+            grid = model_config.get("image_size", 448) // vision_config["patch_size"]
+            return (grid // vision_config["spatial_merge_size"]) ** 2
 
         # Default: (image_size / patch_size)^2
         return ImageData.get_embed_size(config)

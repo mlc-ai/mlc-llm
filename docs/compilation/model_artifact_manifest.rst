@@ -195,6 +195,6 @@ without a manifest loads as before.  A manifest that is malformed or does not
 match the library is an error.
 
 Version 1 covers text and audio input for ``google/gemma-4-E2B-it``, text
-and fixed-size image input for LLaVA and Gemma 3, and text output.  Dynamic resolution
+and fixed-size image input for LLaVA, Gemma 3 and Qwen3.5, and text output.  Dynamic resolution
 image input, video, compressed or remote audio, audio through the native
 server, and speech-only pipelines are not included.
