@@ -3,13 +3,15 @@
 import dataclasses
 from typing import Any, Dict, Optional  # noqa: UP035
 
-from tvm import relax, target, tirx
+from tvm import relax, target, te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Object, Tensor, op
 
+from mlc_llm import op as op_ext
 from mlc_llm.model.vision import ImageProcessor
 from mlc_llm.nn.kv_cache import PagedKVCache
 from mlc_llm.nn.rnn_state import RNNState
+from mlc_llm.protocol.artifact_manifest import ArtifactDefinition
 from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
 
@@ -147,6 +149,9 @@ class Qwen35VForCausalLM(nn.Module):
         crop_height,
         crop_width,
     ) -> Tensor:
+        return self.embed_image(pixel_values)
+
+    def embed_image(self, pixel_values: Tensor) -> Tensor:
         # Preprocess
         pixel_values = self.image_preprocess(pixel_values)
 
@@ -163,6 +168,32 @@ class Qwen35VForCausalLM(nn.Module):
 
     def embed(self, input_ids: Tensor):
         return self.language_model.embed(input_ids)
+
+    def get_logits(self, hidden_states: Tensor):
+        language_model = self.language_model
+        if language_model.tie_word_embeddings:
+            logits = language_model.model.embed_tokens.lm_head_forward(hidden_states)
+        else:
+            logits = language_model.lm_head(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits
+
+    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache, rnn_state: RNNState):
+        op_ext.configure()
+
+        def _index(x: te.Tensor):  # x[:, -1, :]
+            b, s, d = x.shape
+            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
+
+        hidden_states, rnn_state = self.language_model.model(input_embed, paged_kv_cache, rnn_state)
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        return self.get_logits(hidden_states), paged_kv_cache, rnn_state
+
+    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache, rnn_state: RNNState):
+        op_ext.configure()
+        hidden_states, rnn_state = self.language_model.model(input_embed, paged_kv_cache, rnn_state)
+        return self.get_logits(hidden_states), paged_kv_cache, rnn_state
 
     def batch_prefill(
         self,
@@ -236,6 +267,33 @@ class Qwen35VForCausalLM(nn.Module):
                     "effect_mode": "none",
                 },
             },
+            "embed_image": {
+                "pixel_values": nn.spec.Tensor(
+                    [1, "image_height", "image_width", 3], self.image_dtype
+                ),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "prefill": {
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "rnn_state": nn.spec.Object(object_type=RNNState),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "decode": {
+                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "rnn_state": nn.spec.Object(object_type=RNNState),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
             "batch_prefill": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
@@ -285,3 +343,56 @@ class Qwen35VForCausalLM(nn.Module):
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)
+
+
+def qwen35v_artifact_tasks(config: Qwen35VConfig):
+    image_size = config.image_size
+    return {
+        "chat.completions": {
+            "executor": "generation",
+            "inputs": {
+                "text": {"processor": "tokenizer"},
+                "image": {
+                    "processor": {
+                        "kind": "image_decode",
+                        "format": "rgb_u8",
+                        "layout": "nhwc",
+                        "resize": {"mode": "stretch", "height": image_size, "width": image_size},
+                        "num_embeddings": config.tokens_per_image,
+                    },
+                    "adapter": "image",
+                    "prompt": {
+                        "prefix_token_ids": [config.vision_start_token_id],
+                        "placeholder_token_id": config.image_token_id,
+                        "suffix_token_ids": [config.vision_end_token_id],
+                    },
+                },
+            },
+            "output": "text",
+        }
+    }
+
+
+def qwen35v_artifact_programs(_config: Qwen35VConfig):
+    # The recurrent layers keep their state next to the KV cache, so prefill and decode take
+    # the RNN state as a third argument and the program names its creator.
+    program = {
+        "kind": "token_generation",
+        "exports": {
+            "embed_tokens": "embed",
+            "prefill_embeds": "prefill",
+            "decode_embeds": "decode",
+            "create_kv_cache": "create_tir_paged_kv_cache",
+            "create_rnn_state": "create_rnn_state",
+        },
+        "adapters": {"image": "embed_image"},
+    }
+    current = target.Target.current()
+    if current and current.kind.name == "webgpu":
+        program["adapter_dtypes"] = {"image": "uint32"}
+    return {"generation": program}
+
+
+QWEN35V_ARTIFACT = ArtifactDefinition(
+    tasks=qwen35v_artifact_tasks, programs=qwen35v_artifact_programs
+)

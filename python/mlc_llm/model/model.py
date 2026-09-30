@@ -480,6 +480,7 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
             qwen35v_model.Qwen35VForCausalLM,
             supports_ft_quant=False,
         ),
+        artifact=qwen35v_model.QWEN35V_ARTIFACT,
     ),
     "qwen3_moe": Model(
         name="qwen3_moe",
