@@ -90,11 +90,11 @@ Both sizes are computed from the parameter shapes.  A named dimension such as
 It does not include the KV cache or anything the runtime allocates, so treat
 it as a lower bound when picking a device.
 
-Each key in ``exports`` is a role and each value is the name of a function in
-the compiled library.  A role fixes the arguments the frontend passes, so the
-function can have any name.  A ``token_generation`` program declares
-``embed_tokens``, ``create_kv_cache`` and at least one of the two pairs below.
-All four functions also take the KV cache and the parameters.
+Each key in ``exports`` is a role and the value is a function in the compiled
+library.  A ``token_generation`` program declares ``embed_tokens``,
+``create_kv_cache`` and one or both of the pairs below.  Every function also
+takes the KV cache and the parameters.  ``total_len`` is the length of all
+sequences in the batch laid end to end.
 
 .. list-table::
    :header-rows: 1
@@ -111,33 +111,24 @@ All four functions also take the KV cache and the parameters.
    * - ``decode_embeds``
      - embeddings ``[1, 1, hidden_size]``
 
-Prefill has no batch dimension.  Sequences are laid end to end along
-``total_len`` and the KV cache is told where each one starts.
-``decode_tokens`` takes one token per sequence and stacks them along
-``batch_size``.  ``decode_embeds`` matches the existing ``decode`` export,
-which takes one sequence.
-
-A model declares the token pair when it needs the token IDs inside the model,
-as Gemma 4 does for its per-layer embeddings.  Other models declare the
-embedding pair and point it at their existing ``prefill`` and ``decode``.  A
-model may declare both pairs when both give the same result, and a frontend
-then calls the one it implements.  Half a pair is rejected.  A
-modality ID is 0 for a text token and 1 for a position filled by an adapter.
+Gemma 4 declares the token pair because it looks up token IDs at every layer.
+Other models declare the embedding pair and point it at their existing
+``prefill`` and ``decode``.  A model may declare both when they give the same
+result.  A modality ID is 0 for a text token and 1 for a position filled by an
+adapter.
 
 The frontend decodes the input, for example WAV to mono 16 kHz float32 PCM.
-The compiled adapter does the feature extraction and projection.  The number
-of embeddings an adapter returns can vary, and the frontend splits them to fit
-the compiled prefill limit.
+The compiled adapter does the feature extraction and projection.  The frontend
+splits the adapter output to fit the prefill chunk size.
 
 Compatibility and scope
 -----------------------
 
-WebLLM is the first manifest consumer.  Other MLC backends continue to read
-``mlc-chat-config.json`` and are unchanged; they do not gain audio ingestion
-merely by seeing this sidecar.  Gemma 4 needs the token IDs next to the
-embeddings at every layer, so it declares the token pair only and cannot be
-served by the native engine yet.  Missing sidecars select the legacy path, while
-a present but malformed or mismatched contract is an error.
+WebLLM is the first manifest consumer.  Other MLC backends read
+``mlc-chat-config.json`` and ignore the manifest.  The native engine cannot
+serve Gemma 4 yet, since it does not pass token IDs to the model.  A model
+without a manifest loads as before.  A manifest that is malformed or does not
+match the library is an error.
 
 Version 1 implements text and audio input for ``google/gemma-4-E2B-it`` and
 text output.  Vision and video towers, remote or compressed audio, native
