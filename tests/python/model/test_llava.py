@@ -81,12 +81,7 @@ def test_llava_artifact_points_at_exported_functions():
     assert set(program["exports"].values()) - {"create_tir_paged_kv_cache"} <= exported_functions
     assert set(program["adapters"].values()) <= exported_functions
 
-
-def test_llava_keeps_vision_tower_and_projector_unquantized():
-    config = _config()
-    quantization = QUANTIZATION["q4f16_1"]
-    model, _ = MODELS["llava"].quantize[quantization.kind](config, quantization)
-    _, named_parameters, _ = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
+    # The vision tower and projector stay in the model dtype.
     names = [name for name, _ in named_parameters]
     quantized = [name for name in names if name.endswith(".q_weight")]
     assert quantized and all(name.startswith("language_model.") for name in quantized)
