@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from mlc_llm.support import logging
-from mlc_llm.support.auto_config import detect_config
+from mlc_llm.support.auto_config import detect_config, detect_model_type
 
 logging.enable_logging()
 
@@ -41,3 +41,16 @@ def test_detect_config_fail():
 if __name__ == "__main__":
     test_detect_config()
     test_detect_config_fail()
+
+
+def test_detect_model_type_picks_the_vision_model_for_a_multimodal_config():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_json_path = Path(tmpdir) / "config.json"
+        _create_json_file(config_json_path, {"model_type": "gemma3", "text_config": {}})
+        assert detect_model_type("auto", config_json_path).name == "gemma3"
+
+        _create_json_file(
+            config_json_path, {"model_type": "gemma3", "text_config": {}, "vision_config": {}}
+        )
+        assert detect_model_type("auto", config_json_path).name == "gemma3_v"
+        assert detect_model_type("gemma3", config_json_path).name == "gemma3"

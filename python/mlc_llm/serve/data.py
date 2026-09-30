@@ -150,8 +150,7 @@ class ImageData(Data):
             return sub_tokens + 1 + glb_tokens
 
         if model_type == "gemma3_v":
-            # fixed to 256 per image
-            return 256
+            return config["model_config"].get("mm_tokens_per_image", 256)
 
         # Default: (image_size / patch_size)^2
         return ImageData.get_embed_size(config)
