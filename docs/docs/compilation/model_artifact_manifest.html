@@ -295,14 +295,14 @@
             
   <section id="model-artifact-manifest">
 <span id="id1"></span><h1>Model Artifact Manifest<a class="headerlink" href="#model-artifact-manifest" title="Permalink to this heading">¶</a></h1>
-<p>The artifact manifest is an opt-in contract between converted weights, a
-compiled model library, and a frontend.  Models without the sidecar keep the
-legacy <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> behavior.</p>
+<p>The artifact manifest ties converted weights, a compiled model library and a
+frontend together.  It is opt-in.  A model without one loads from
+<code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> as before.</p>
 <p>The converted model directory contains <code class="docutils literal notranslate"><span class="pre">mlc-model-manifest.json</span></code>.  A
 compiled library carries the matching contract in <code class="docutils literal notranslate"><span class="pre">_metadata.artifact</span></code>.
 Both documents use one top-level <code class="docutils literal notranslate"><span class="pre">schema_version</span></code> and reject unknown fields.
-The <code class="docutils literal notranslate"><span class="pre">interface_id</span></code> binds the public task description, while
-<code class="docutils literal notranslate"><span class="pre">parameter_schema_id</span></code> binds post-quantization parameter names, shapes, and
+<code class="docutils literal notranslate"><span class="pre">interface_id</span></code> is a hash of the task description and
+<code class="docutils literal notranslate"><span class="pre">parameter_schema_id</span></code> a hash of the quantized parameter names, shapes and
 dtypes.</p>
 <p>For the experimental Gemma 4 text-and-audio target, the package sidecar has
 this shape (hashes are abbreviated here):</p>
@@ -354,7 +354,7 @@ this shape (hashes are abbreviated here):</p>
 <span class="w">      </span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;token_generation&quot;</span><span class="p">,</span>
 <span class="w">      </span><span class="nt">&quot;exports&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="nt">&quot;embed_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;embed&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;prefill_prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;prefill_prompt&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;prefill_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;prefill_tokens&quot;</span><span class="p">,</span>
 <span class="w">        </span><span class="nt">&quot;decode_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;decode_tokens&quot;</span><span class="p">,</span>
 <span class="w">        </span><span class="nt">&quot;create_kv_cache&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;create_tir_paged_kv_cache&quot;</span>
 <span class="w">      </span><span class="p">},</span>
@@ -363,8 +363,8 @@ this shape (hashes are abbreviated here):</p>
 <span class="w">  </span><span class="p">},</span>
 <span class="w">  </span><span class="nt">&quot;resources&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nt">&quot;required_features&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;shader-f16&quot;</span><span class="p">],</span>
-<span class="w">    </span><span class="nt">&quot;max_storage_buffer_binding_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;estimated_device_memory_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span>
+<span class="w">    </span><span class="nt">&quot;max_storage_buffer_binding_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">201326592</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;estimated_device_memory_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2797972550</span>
 <span class="w">  </span><span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -374,25 +374,53 @@ this shape (hashes are abbreviated here):</p>
 <p><code class="docutils literal notranslate"><span class="pre">estimated_device_memory_bytes</span></code> is the total size of the model parameters.
 It does not include the KV cache or anything the runtime allocates, so treat
 it as a lower bound when picking a device.</p>
-<p><code class="docutils literal notranslate"><span class="pre">prefill_prompt</span></code> consumes a canonical prompt bundle: embeddings with shape
-<code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">sequence_length,</span> <span class="pre">hidden_size]</span></code>, token IDs with shape <code class="docutils literal notranslate"><span class="pre">[1,</span>
-<span class="pre">sequence_length]</span></code>, and modality IDs with the same shape.  The frontend owns
-portable decoding (for example WAV to mono 16 kHz float32 PCM).  The compiled
-adapter owns model-specific feature extraction and projection.  Adapter output
-length is dynamic and frontends must chunk it to the compiled prefill limit.</p>
+<p>Each key in <code class="docutils literal notranslate"><span class="pre">exports</span></code> is a role and the value is a function in the compiled
+library.  A <code class="docutils literal notranslate"><span class="pre">token_generation</span></code> program declares <code class="docutils literal notranslate"><span class="pre">embed_tokens</span></code>,
+<code class="docutils literal notranslate"><span class="pre">create_kv_cache</span></code> and one or both of the pairs below.  The four functions
+in the table also take the KV cache and the parameters.  <code class="docutils literal notranslate"><span class="pre">embed_tokens</span></code>
+takes token IDs and the parameters.  <code class="docutils literal notranslate"><span class="pre">create_kv_cache</span></code> takes only its size
+arguments.  <code class="docutils literal notranslate"><span class="pre">total_len</span></code> is the length of all sequences in the batch laid end
+to end.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Role</p></th>
+<th class="head"><p>Arguments</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prefill_tokens</span></code></p></td>
+<td><p>embeddings <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">total_len,</span> <span class="pre">hidden_size]</span></code>, token IDs <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">total_len]</span></code>,
+modality IDs <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">total_len]</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">decode_tokens</span></code></p></td>
+<td><p>token IDs <code class="docutils literal notranslate"><span class="pre">[batch_size,</span> <span class="pre">1]</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prefill_embeds</span></code></p></td>
+<td><p>embeddings <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">total_len,</span> <span class="pre">hidden_size]</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">decode_embeds</span></code></p></td>
+<td><p>embeddings <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">1,</span> <span class="pre">hidden_size]</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>Gemma 4 declares the token pair because it looks up token IDs at every layer.
+Other models declare the embedding pair and point it at their existing
+<code class="docutils literal notranslate"><span class="pre">prefill</span></code> and <code class="docutils literal notranslate"><span class="pre">decode</span></code>.  A model may declare both when they give the same
+result.  A modality ID is 0 for a text token and 1 for a position filled by an
+adapter.</p>
+<p>The frontend decodes the input, for example WAV to mono 16 kHz float32 PCM.
+The compiled adapter does the feature extraction and projection.  The frontend
+splits the adapter output to fit the prefill chunk size.</p>
 <section id="compatibility-and-scope">
 <h2>Compatibility and scope<a class="headerlink" href="#compatibility-and-scope" title="Permalink to this heading">¶</a></h2>
-<p>WebLLM is the first manifest consumer.  Other MLC backends continue to read
-<code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> and are unchanged; they do not gain audio ingestion
-merely by seeing this sidecar.  Gemma 4 needs the token IDs next to the
-embeddings at every layer, so it exports <code class="docutils literal notranslate"><span class="pre">prefill_prompt</span></code> and
-<code class="docutils literal notranslate"><span class="pre">decode_tokens</span></code> only and cannot be served by the native engine yet.  Missing sidecars select the legacy path, while
-a present but malformed or mismatched contract is an error.</p>
-<p>Version 1 implements text and audio input for <code class="docutils literal notranslate"><span class="pre">google/gemma-4-E2B-it</span></code> and
-text output.  Vision and video towers, remote or compressed audio, native
-server audio ingestion, and speech-only/ASR pipelines are outside this
-milestone.  Future canonical processors can reuse the task/adapter structure,
-but each frontend must implement that canonical representation once.</p>
+<p>WebLLM is the first manifest consumer.  Other MLC backends read
+<code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> and ignore the manifest.  The native engine cannot
+serve Gemma 4 yet, since it does not pass token IDs to the model.  A model
+without a manifest loads as before.  A manifest that is malformed or does not
+match the library is an error.</p>
+<p>Version 1 covers text and audio input for <code class="docutils literal notranslate"><span class="pre">google/gemma-4-E2B-it</span></code> with text
+output.  Vision, video, compressed or remote audio, audio through the native
+server, and speech-only pipelines are not included.</p>
 </section>
 </section>
 
