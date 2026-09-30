@@ -7,7 +7,7 @@ import dataclasses
 import logging
 from typing import Any, Dict, Optional  # noqa: UP035
 
-from tvm import tirx
+from tvm import target, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor
 from tvm.relax.frontend.nn.op import permute_dims, reshape, wrap_nested
@@ -16,7 +16,9 @@ from tvm.relax.op import strided_slice
 from mlc_llm import op as op_ext
 from mlc_llm.model.model_preset import MODEL_PRESETS
 from mlc_llm.model.vision import CLIPVisionConfig, CLIPVisionModel, ImageProcessor
+from mlc_llm.model.vision.clip_vision import Linear
 from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.protocol.artifact_manifest import ArtifactDefinition
 
 from ...support.config import ConfigBase
 from ..llama.llama_model import LlamaConfig, LlamaForCausalLM
@@ -113,14 +115,19 @@ class LlavaConfig(ConfigBase):
 
 
 class LlavaMultiModalProjector(nn.Module):
+    # Kept in the activation dtype like the vision tower. Quantizing these two
+    # layers to 4 bit lowers the mean cosine to the reference image features
+    # by about 0.002 for a negligible size saving.
+    no_quantization: bool = True
+
     def __init__(self, config: LlavaConfig):
         super().__init__()
 
-        self.linear_1 = nn.Linear(
+        self.linear_1 = Linear(
             config.vision_config.hidden_size, config.text_config.hidden_size, bias=True
         )
         self.act = nn.GELU()
-        self.linear_2 = nn.Linear(
+        self.linear_2 = Linear(
             config.text_config.hidden_size, config.text_config.hidden_size, bias=True
         )
 
@@ -137,6 +144,12 @@ class LlavaForCausalLM(Module):
         self.config = config
         self.vision_tower = CLIPVisionModel(config.vision_config)
         self.image_processor = ImageProcessor()
+        # WebGPU has no 8 bit storage type, so the pixels arrive in uint32 there.
+        self.image_dtype = (
+            "uint32"
+            if target.Target.current() and target.Target.current().kind.name == "webgpu"
+            else "uint8"
+        )
         self.multi_modal_projector = LlavaMultiModalProjector(config)
         self.language_model = ARCHITECTURE_MAP[config.text_architecture](config.text_config)
         self.vocab_size = config.vocab_size
@@ -261,7 +274,7 @@ class LlavaForCausalLM(Module):
             "image_embed": {
                 "pixel_values": nn.spec.Tensor(
                     [1, "image_height", "image_width", 3],
-                    "uint8",
+                    self.image_dtype,
                 ),
                 "$": {
                     "param_mode": "packed",
@@ -332,3 +345,51 @@ class LlavaForCausalLM(Module):
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)
+
+
+def llava_artifact_tasks(config: LlavaConfig):
+    vision = config.vision_config
+    return {
+        "chat.completions": {
+            "executor": "generation",
+            "inputs": {
+                "text": {"processor": "tokenizer"},
+                "image": {
+                    "processor": {
+                        "kind": "image_decode",
+                        "format": "rgb_u8",
+                        "layout": "nhwc",
+                        "resize": {
+                            "mode": "center_crop",
+                            "height": vision.image_size,
+                            "width": vision.image_size,
+                        },
+                        "num_embeddings": (vision.image_size // vision.patch_size) ** 2,
+                    },
+                    "adapter": "image",
+                    "prompt": {"placeholder_token_id": config.image_token_index},
+                },
+            },
+            "output": "text",
+        }
+    }
+
+
+def llava_artifact_programs(_config: LlavaConfig):
+    program = {
+        "kind": "token_generation",
+        "exports": {
+            "embed_tokens": "embed",
+            "prefill_embeds": "prefill",
+            "decode_embeds": "decode",
+            "create_kv_cache": "create_tir_paged_kv_cache",
+        },
+        "adapters": {"image": "image_embed"},
+    }
+    current = target.Target.current()
+    if current and current.kind.name == "webgpu":
+        program["adapter_dtypes"] = {"image": "uint32"}
+    return {"generation": program}
+
+
+LLAVA_ARTIFACT = ArtifactDefinition(tasks=llava_artifact_tasks, programs=llava_artifact_programs)

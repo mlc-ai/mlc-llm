@@ -6,9 +6,12 @@ from dataclasses import dataclass
 import pytest
 from pydantic import ValidationError
 
+from mlc_llm.model import MODELS
+from mlc_llm.model.gemma4.gemma4_config import Gemma4Config
 from mlc_llm.protocol.artifact_manifest import (
     MODEL_PACKAGE_MANIFEST_FILENAME,
     CompiledProgramArtifact,
+    ImageDecodeProcessor,
     ModelPackageManifest,
     build_compiled_program_artifact,
     build_model_package_manifest,
@@ -44,6 +47,29 @@ def _tasks():
                         "placeholder_token_id": 258881,
                         "suffix_token_ids": [258883],
                     },
+                },
+            },
+            "output": "text",
+        }
+    }
+
+
+def _image_tasks():
+    return {
+        "chat.completions": {
+            "executor": "generation",
+            "inputs": {
+                "text": {"processor": "tokenizer"},
+                "image": {
+                    "processor": {
+                        "kind": "image_decode",
+                        "format": "rgb_u8",
+                        "layout": "nhwc",
+                        "resize": {"mode": "center_crop", "height": 336, "width": 336},
+                        "num_embeddings": 576,
+                    },
+                    "adapter": "image",
+                    "prompt": {"placeholder_token_id": 32000},
                 },
             },
             "output": "text",
@@ -143,6 +169,83 @@ def test_contract_rejects_invalid_audio_bounds_and_token_ids():
         build_model_package_manifest(tasks, _params())
 
 
+def test_image_processor_round_trips_through_the_contract():
+    programs = _programs()
+    programs["generation"]["adapters"] = {"image": "image_embed"}
+    package = build_model_package_manifest(_image_tasks(), _params())
+    compiled = build_compiled_program_artifact(_image_tasks(), programs, _params())
+    assert package.schema_version == 1
+    assert package.interface_id == compiled.interface_id
+    assert package.interface_id != compute_interface_id(_tasks())
+
+    processor = package.tasks["chat.completions"].inputs["image"].processor
+    assert isinstance(processor, ImageDecodeProcessor)
+    assert (processor.resize.height, processor.resize.width) == (336, 336)
+    assert ModelPackageManifest.model_validate_json(package.model_dump_json(by_alias=True)) == (
+        package
+    )
+
+    changed = _image_tasks()
+    changed["chat.completions"]["inputs"]["image"]["processor"]["resize"]["mode"] = "stretch"
+    assert compute_interface_id(changed) != package.interface_id
+
+
+@pytest.mark.parametrize(
+    "path, value, match",
+    [
+        (("kind",), "video_decode", "does not match any of the expected tags"),
+        (("format",), "rgba_u8", "rgb_u8"),
+        (("layout",), "nchw", "nhwc"),
+        (("num_embeddings",), 0, "greater than 0"),
+        (("resize", "mode"), "dynamic_grid", "stretch"),
+        (("resize", "height"), 0, "greater than 0"),
+        (("sample_rate_hz",), 16000, "Extra inputs are not permitted"),
+    ],
+)
+def test_contract_rejects_invalid_image_processor(path, value, match):
+    tasks = _image_tasks()
+    target = tasks["chat.completions"]["inputs"]["image"]["processor"]
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    with pytest.raises(ValidationError, match=match):
+        build_model_package_manifest(tasks, _params())
+
+
+def test_gemma4_interface_id_is_pinned():
+    tasks = MODELS["gemma4"].artifact.tasks(Gemma4Config.from_dict({}))
+    assert compute_interface_id(tasks) == (
+        "sha256:6453d39d6c1a05b41e3d10ac1547892e2fde2ae228c6705b122ffde5e4c9c490"
+    )
+    manifest = build_model_package_manifest(tasks, _params())
+    assert manifest.schema_version == 1
+    assert manifest.model_dump(exclude_none=True, by_alias=True)["tasks"] == {
+        "chat.completions": {
+            "executor": "generation",
+            "inputs": {
+                "text": {"processor": "tokenizer"},
+                "audio": {
+                    "processor": {
+                        "kind": "audio_decode",
+                        "format": "pcm_f32",
+                        "sample_rate_hz": 16000,
+                        "channels": 1,
+                        "min_samples": 161,
+                        "max_samples": 480000,
+                    },
+                    "adapter": "audio",
+                    "prompt": {
+                        "prefix_token_ids": (256000,),
+                        "placeholder_token_id": 258881,
+                        "suffix_token_ids": (258883,),
+                    },
+                },
+            },
+            "output": "text",
+        }
+    }
+
+
 def test_dump_model_package_manifest(tmp_path):
     manifest = build_model_package_manifest(_tasks(), _params())
     path = dump_model_package_manifest(manifest, tmp_path)
@@ -216,4 +319,21 @@ def test_token_generation_accepts_either_role_pair(roles):
 def test_token_generation_rejects_incomplete_role_pairs(exports):
     programs = {"generation": {"kind": "token_generation", "exports": exports}}
     with pytest.raises(ValidationError, match="token_generation requires"):
+        build_compiled_program_artifact(_tasks(), programs, _params())
+
+
+def test_adapter_dtypes_name_declared_adapters():
+    programs = _programs()
+    compiled = build_compiled_program_artifact(_tasks(), programs, _params())
+    assert "adapter_dtypes" not in compiled.model_dump(exclude_none=True)["programs"]["generation"]
+
+    programs["generation"]["adapter_dtypes"] = {"audio": "uint32"}
+    compiled = build_compiled_program_artifact(_tasks(), programs, _params())
+    assert compiled.programs["generation"].adapter_dtypes == {"audio": "uint32"}
+    assert compiled.model_dump(exclude_none=True)["programs"]["generation"]["adapter_dtypes"] == {
+        "audio": "uint32"
+    }
+
+    programs["generation"]["adapter_dtypes"] = {"image": "uint32"}
+    with pytest.raises(ValidationError, match="unknown adapter"):
         build_compiled_program_artifact(_tasks(), programs, _params())
