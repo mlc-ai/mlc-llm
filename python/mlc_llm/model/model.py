@@ -275,6 +275,7 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
             gemma3v_model.Gemma3VForCausalLM,
             supports_ft_quant=False,
         ),
+        artifact=gemma3v_model.GEMMA3V_ARTIFACT,
     ),
     "gpt2": Model(
         name="gpt2",

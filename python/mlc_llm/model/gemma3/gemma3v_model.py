@@ -10,6 +10,7 @@ from tvm.relax.frontend.nn import Tensor, op
 from mlc_llm import op as op_ext
 from mlc_llm.model.vision import ImageProcessor, SigLIPVisionConfig, SigLIPVisionModel
 from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.protocol.artifact_manifest import ArtifactDefinition
 from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
 
@@ -40,6 +41,7 @@ class Gemma3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     mm_tokens_per_image: int = 256
     boi_token_index: int = 255999
     eoi_token_index: int = 256000
+    image_token_index: int = 262144
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
     context_window_size: int = -1
@@ -399,3 +401,51 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)
+
+
+def gemma3v_artifact_tasks(config: Gemma3VConfig):
+    image_size = config.vision_config.image_size
+    return {
+        "chat.completions": {
+            "executor": "generation",
+            "inputs": {
+                "text": {"processor": "tokenizer"},
+                "image": {
+                    "processor": {
+                        "kind": "image_decode",
+                        "format": "rgb_u8",
+                        "layout": "nhwc",
+                        "resize": {"mode": "stretch", "height": image_size, "width": image_size},
+                        "num_embeddings": config.mm_tokens_per_image,
+                    },
+                    "adapter": "image",
+                    "prompt": {
+                        "prefix_token_ids": [config.boi_token_index],
+                        "placeholder_token_id": config.image_token_index,
+                        "suffix_token_ids": [config.eoi_token_index],
+                    },
+                },
+            },
+            "output": "text",
+        }
+    }
+
+
+def gemma3v_artifact_programs(_config: Gemma3VConfig):
+    return {
+        "generation": {
+            "kind": "token_generation",
+            "exports": {
+                "embed_tokens": "embed",
+                "prefill_embeds": "prefill",
+                "decode_embeds": "decode",
+                "create_kv_cache": "create_tir_paged_kv_cache",
+            },
+            "adapters": {"image": "image_embed"},
+        }
+    }
+
+
+GEMMA3V_ARTIFACT = ArtifactDefinition(
+    tasks=gemma3v_artifact_tasks, programs=gemma3v_artifact_programs
+)

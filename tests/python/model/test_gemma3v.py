@@ -2,6 +2,12 @@
 """Unit tests for Gemma3V vision-language model architecture."""
 
 from mlc_llm.model import MODELS
+from mlc_llm.protocol.artifact_manifest import (
+    ImageDecodeProcessor,
+    build_compiled_program_artifact,
+    build_model_package_manifest,
+)
+from mlc_llm.quantization import QUANTIZATION
 
 # Minimal config dict with small dimensions for fast testing.
 # Mirrors the structure of a real HuggingFace gemma-3-4b-it config.json.
@@ -118,7 +124,56 @@ def test_gemma3v_config_validation():
     )
 
 
+def test_gemma3v_artifact_declares_image_input():
+    entry = MODELS["gemma3_v"]
+    config = entry.config.from_dict(SMALL_GEMMA3V_CONFIG)
+    image = entry.artifact.tasks(config)["chat.completions"]["inputs"]["image"]
+    processor = ImageDecodeProcessor.model_validate(image["processor"])
+    assert (processor.resize.mode, processor.resize.height, processor.resize.width) == (
+        "stretch",
+        56,
+        56,
+    )
+    assert processor.num_embeddings == config.mm_tokens_per_image
+    assert image["prompt"] == {
+        "prefix_token_ids": [255999],
+        "placeholder_token_id": 262144,
+        "suffix_token_ids": [256000],
+    }
+
+
+def test_gemma3v_artifact_points_at_exported_functions():
+    entry = MODELS["gemma3_v"]
+    config = entry.config.from_dict(SMALL_GEMMA3V_CONFIG)
+    quantization = QUANTIZATION["q4f16_1"]
+    model, _ = entry.quantize[quantization.kind](config, quantization)
+    mod, named_parameters, _ = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
+
+    tasks = entry.artifact.tasks(config)
+    programs = entry.artifact.programs(config)
+    artifact = build_compiled_program_artifact(
+        tasks, programs, named_parameters, symbolic_sizes={"vocab_size": config.vocab_size}
+    )
+    package = build_model_package_manifest(tasks, named_parameters)
+    assert artifact.interface_id == package.interface_id
+    assert artifact.parameter_schema_id == package.weights.parameter_schema_id
+    assert artifact.resources.estimated_device_memory_bytes > 0
+
+    program = programs["generation"]
+    assert program["exports"] == {
+        "embed_tokens": "embed",
+        "prefill_embeds": "prefill",
+        "decode_embeds": "decode",
+        "create_kv_cache": "create_tir_paged_kv_cache",
+    }
+    exported_functions = {global_var.name_hint for global_var in mod.get_global_vars()}
+    assert set(program["exports"].values()) - {"create_tir_paged_kv_cache"} <= exported_functions
+    assert set(program["adapters"].values()) <= exported_functions
+
+
 if __name__ == "__main__":
     test_gemma3v_model_registered()
     test_gemma3v_creation()
     test_gemma3v_config_validation()
+    test_gemma3v_artifact_declares_image_input()
+    test_gemma3v_artifact_points_at_exported_functions()
