@@ -114,6 +114,9 @@ def detect_config(config: str) -> Path:
     return config_json_path
 
 
+VISION_MODEL_TYPES = {"gemma3": "gemma3_v"}
+
+
 def detect_model_type(model_type: str, config: Path) -> "Model":
     """Detect the model type from the configuration file. If `model_type` is "auto", it will be
     inferred from the configuration file. Otherwise, it will be used as the model type, and sanity
@@ -146,6 +149,9 @@ def detect_model_type(model_type: str, config: Path) -> "Model":
                 f"Please explicitly specify `--model-type` instead."
             )
         model_type = cfg["model_type"] if "model_type" in cfg else cfg["model_config"]["model_type"]
+        # Hugging Face labels a multimodal checkpoint with the text model type.
+        if "vision_config" in cfg and model_type in VISION_MODEL_TYPES:
+            model_type = VISION_MODEL_TYPES[model_type]
     if model_type in ["mixformer-sequential"]:
         model_type = "phi-msft"
     logger.info("%s model type: %s. Use `--model-type` to override.", FOUND, bold(model_type))

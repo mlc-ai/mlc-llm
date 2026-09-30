@@ -2,3 +2,4 @@
 
 from .clip_vision import CLIPVisionConfig, CLIPVisionModel
 from .image_processing import ImageProcessor
+from .siglip_vision import SigLIPVisionConfig, SigLIPVisionModel

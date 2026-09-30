@@ -21,7 +21,7 @@ def attention(
     q: nn.Tensor,
     k: nn.Tensor,
     v: nn.Tensor,
-    casual_mask: nn.Tensor,
+    casual_mask: Optional[nn.Tensor],
     attn_score_scaling_factor: float = 1.0,
     qk_dtype: Optional[str] = None,
 ) -> nn.Tensor:
@@ -65,7 +65,7 @@ def attention(
     group_size = h_q // h_kv
 
     def _fallback():
-        from tvm.relax.frontend.nn.llm.kv_cache import (
+        from tvm.relax.frontend.nn.llm.kv_cache import (  # pylint: disable=import-outside-toplevel
             _attention_sequence_prefill,
         )
 
@@ -78,7 +78,7 @@ def attention(
             k = k.repeat(h_q // h_kv, axis=2)
             v = v.repeat(h_q // h_kv, axis=2)
 
-        target = tvm.target.Target("cuda")
+        target = _extern.get_store().target or tvm.target.Target("cuda")
         attn_output, _ = op.tensor_ir_op(
             _attention_sequence_prefill(
                 h_kv=h_kv,
