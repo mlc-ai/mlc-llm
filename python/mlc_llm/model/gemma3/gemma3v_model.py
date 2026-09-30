@@ -9,6 +9,7 @@ from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
 from mlc_llm.model.vision import ImageProcessor, SigLIPVisionConfig, SigLIPVisionModel
+from mlc_llm.model.vision.clip_vision import Linear
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.protocol.artifact_manifest import ArtifactDefinition
 from mlc_llm.support import logging
@@ -101,7 +102,7 @@ class Gemma3MultiModalProjector(nn.Module):
         # RMSNorm (Gemma +1 is fused during weight loading)
         self.mm_soft_emb_norm = nn.RMSNorm(vision_hidden, -1, 1e-6, bias=False)
         # Linear projection: vision -> text hidden size
-        self.mm_input_projection = nn.Linear(vision_hidden, text_hidden, bias=False)
+        self.mm_input_projection = Linear(vision_hidden, text_hidden, bias=False)
 
     def forward(self, vision_features: Tensor) -> Tensor:
         vision_features = self.mm_soft_emb_norm(vision_features)
