@@ -1,5 +1,6 @@
 """Correctness tests for the Gemma 4 E2B text+audio implementation."""
 
+import inspect
 import math
 
 import numpy as np
@@ -312,6 +313,12 @@ def test_audio_positions_use_pad_token_for_per_layer_identity():
     np.testing.assert_array_equal(actual, expected)
 
 
+def test_decoder_requires_token_ids():
+    for function in (Gemma4TextModel.forward, Gemma4TextModel._per_layer_inputs):
+        parameter = inspect.signature(function).parameters["token_ids"]
+        assert parameter.default is inspect.Parameter.empty
+
+
 def test_audio_embeddings_feed_per_layer_context_projection():
     config = Gemma4TextConfig(
         vocab_size=16,
@@ -428,4 +435,14 @@ def test_loader_covers_unquantized_and_q4_parameter_schemas():
     )
     assert artifact.resources.max_storage_buffer_binding_size <= 256 * 1024 * 1024
     exported_functions = {global_var.name_hint for global_var in mod.get_global_vars()}
-    assert {"audio_embed", "prefill_tokens", "decode_tokens"}.issubset(exported_functions)
+    assert {
+        "audio_embed",
+        "prefill_tokens",
+        "decode_tokens",
+        "batch_prefill_tokens",
+        "batch_decode_tokens",
+        "batch_verify_tokens",
+    }.issubset(exported_functions)
+    assert not {"prefill", "decode", "batch_prefill", "batch_decode", "batch_verify"}.intersection(
+        exported_functions
+    )
