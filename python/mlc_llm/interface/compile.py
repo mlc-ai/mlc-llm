@@ -208,6 +208,12 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
                 programs=args.model.artifact.programs(model_config),
                 named_parameters=named_params,
                 required_features=args.model.artifact.required_features,
+                symbolic_sizes={
+                    dim.name: getattr(model_config, dim.name)
+                    for _, param in named_params
+                    for dim in param.shape
+                    if not isinstance(dim, int)
+                },
             ).model_dump(exclude_none=True, by_alias=True)
         logger.info("Registering metadata: %s", metadata)
         pass_config = {"relax.backend.use_cuda_graph": args.opt.cudagraph}
