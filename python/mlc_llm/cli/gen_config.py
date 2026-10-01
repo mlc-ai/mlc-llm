@@ -7,7 +7,7 @@ from mlc_llm.interface.gen_config import CONV_TEMPLATES, gen_config
 from mlc_llm.interface.help import HELP
 from mlc_llm.model import MODELS
 from mlc_llm.quantization import QUANTIZATION
-from mlc_llm.support.argparse import ArgumentParser
+from mlc_llm.support.argparse import ArgumentParser, boolean
 from mlc_llm.support.auto_config import detect_config, detect_model_type
 
 
@@ -85,7 +85,7 @@ def main(argv):
     )
     parser.add_argument(
         "--disaggregation",
-        type=bool,
+        type=boolean,
         default=None,
         help=HELP["disaggregation"] + ' (default: "%(default)s")',
     )
