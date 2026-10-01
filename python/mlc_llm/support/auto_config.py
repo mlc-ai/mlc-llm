@@ -114,7 +114,7 @@ def detect_config(config: str) -> Path:
     return config_json_path
 
 
-VISION_MODEL_TYPES = {"gemma3": "gemma3_v"}
+VISION_MODEL_TYPES = {"gemma3": "gemma3_v", "qwen3_5": "qwen3_5_vision"}
 
 
 def detect_model_type(model_type: str, config: Path) -> "Model":

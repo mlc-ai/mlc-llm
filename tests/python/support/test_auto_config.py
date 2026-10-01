@@ -54,3 +54,8 @@ def test_detect_model_type_picks_the_vision_model_for_a_multimodal_config():
         )
         assert detect_model_type("auto", config_json_path).name == "gemma3_v"
         assert detect_model_type("gemma3", config_json_path).name == "gemma3"
+
+        _create_json_file(
+            config_json_path, {"model_type": "qwen3_5", "text_config": {}, "vision_config": {}}
+        )
+        assert detect_model_type("auto", config_json_path).name == "qwen3_5_vision"

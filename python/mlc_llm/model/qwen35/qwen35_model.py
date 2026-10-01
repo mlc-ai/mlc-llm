@@ -59,6 +59,8 @@ class Qwen35Config(ConfigBase):
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
 
     def __post_init__(self):
+        if self.tensor_parallel_shards != 1:
+            raise ValueError("Qwen3.5 declares no sharding strategies, so it runs on one device")
         # Handle VLM wrapper: Qwen3.5 HF config has all text params inside text_config
         if "text_config" in self.kwargs:
             text_config = self.kwargs.pop("text_config")
@@ -266,8 +268,6 @@ def create_gated_delta_net_func(
         for b_idx in T.thread_binding(batch_size, thread="blockIdx.y"):
             for h_idx in T.thread_binding(num_value_heads, thread="blockIdx.x"):
                 for col in T.thread_binding(V, thread="threadIdx.x"):
-                    kh = h_idx // heads_per_group
-
                     # Init state from state_in
                     for row in range(K):
                         with Ts.sblock("init_state"):
@@ -305,7 +305,7 @@ def create_gated_delta_net_func(
                                 vc = Ts.axis.spatial(V, col)
                                 out_buf[vb, vt, vh, vc] = out_buf[vb, vt, vh, vc] + state_out_buf[
                                     vb, vh, vr, vc
-                                ] * T.cast(k_buf[vb, vt, kh, vr], "float32")
+                                ] * T.cast(k_buf[vb, vt, vh // heads_per_group, vr], "float32")
 
                         # 3. Delta rule: S += k * beta * (v - dot_sk)
                         for row in range(K):
@@ -317,9 +317,9 @@ def create_gated_delta_net_func(
                                 vc = Ts.axis.spatial(V, col)
                                 state_out_buf[vb, vh, vr, vc] = state_out_buf[
                                     vb, vh, vr, vc
-                                ] + T.cast(k_buf[vb, vt, kh, vr], "float32") * beta_buf[
-                                    vb, vt, vh
-                                ] * (
+                                ] + T.cast(
+                                    k_buf[vb, vt, vh // heads_per_group, vr], "float32"
+                                ) * beta_buf[vb, vt, vh] * (
                                     T.cast(v_buf[vb, vt, vh, vc], "float32")
                                     - out_buf[vb, vt, vh, vc]
                                 )
@@ -341,7 +341,7 @@ def create_gated_delta_net_func(
                                 vc = Ts.axis.spatial(V, col)
                                 out_buf[vb, vt, vh, vc] = out_buf[vb, vt, vh, vc] + state_out_buf[
                                     vb, vh, vr, vc
-                                ] * T.cast(q_buf[vb, vt, kh, vr], "float32")
+                                ] * T.cast(q_buf[vb, vt, vh // heads_per_group, vr], "float32")
 
                         # 5. Apply scale
                         with Ts.sblock("scale"):
