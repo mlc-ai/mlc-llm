@@ -409,6 +409,10 @@ Other models declare the embedding pair and point it at their existing
 <code class="docutils literal notranslate"><span class="pre">prefill</span></code> and <code class="docutils literal notranslate"><span class="pre">decode</span></code>.  A model may declare both when they give the same
 result.  A modality ID is 0 for a text token and 1 for a position filled by an
 adapter.</p>
+<p>A model that keeps a recurrent state next to the KV cache, such as Qwen3.5,
+also declares <code class="docutils literal notranslate"><span class="pre">create_rnn_state</span></code>.  Its prefill and decode functions then
+take the KV cache and the recurrent state, in that order, before the
+parameters.</p>
 <p>The frontend decodes the input, for example WAV to mono 16 kHz float32 PCM.
 The compiled adapter does the feature extraction and projection.  The frontend
 splits the adapter output to fit the prefill chunk size.</p>
@@ -471,9 +475,9 @@ serve Gemma 4 yet, since it does not pass token IDs to the model.  A model
 without a manifest loads as before.  A manifest that is malformed or does not
 match the library is an error.</p>
 <p>Version 1 covers text and audio input for <code class="docutils literal notranslate"><span class="pre">google/gemma-4-E2B-it</span></code>, text
-and fixed-size image input for LLaVA and Gemma 3, and text output.  Dynamic resolution
-image input, video, compressed or remote audio, audio through the native
-server, and speech-only pipelines are not included.</p>
+and fixed-size image input for LLaVA, Gemma 3 and Qwen3.5, and text output.
+Dynamic resolution image input, video, compressed or remote audio, audio
+through the native server, and speech-only pipelines are not included.</p>
 </section>
 </section>
 
