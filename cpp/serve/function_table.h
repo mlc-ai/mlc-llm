@@ -96,6 +96,11 @@ struct FunctionTable {
   Function decode_func_;
   Function extend_func_;
   Function verify_func_;
+  // Token-aware counterparts of prefill/decode/verify, which take the token ids
+  // next to the embeddings. A model provides either these or the functions above.
+  Function token_prefill_func_;
+  Function token_decode_func_;
+  Function token_verify_func_;
   Function single_batch_prefill_to_last_hidden_func_;
   Function single_batch_decode_to_last_hidden_func_;
   Function prefill_to_last_hidden_func_;

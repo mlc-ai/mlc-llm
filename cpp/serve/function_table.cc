@@ -214,6 +214,9 @@ void FunctionTable::_InitFunctions() {
   this->decode_func_ = mod_get_func("batch_decode");
   this->extend_func_ = mod_get_func("batch_extend");
   this->verify_func_ = mod_get_func("batch_verify");
+  this->token_prefill_func_ = mod_get_func("batch_prefill_tokens");
+  this->token_decode_func_ = mod_get_func("batch_decode_tokens");
+  this->token_verify_func_ = mod_get_func("batch_verify_tokens");
   this->single_batch_prefill_to_last_hidden_func_ = mod_get_func("prefill_to_last_hidden_states");
   this->single_batch_decode_to_last_hidden_func_ = mod_get_func("decode_to_last_hidden_states");
   this->prefill_to_last_hidden_func_ = mod_get_func("batch_prefill_to_last_hidden_states");

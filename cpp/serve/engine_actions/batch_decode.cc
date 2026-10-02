@@ -137,12 +137,12 @@ class BatchDecodeActionObj : public EngineActionObj {
     RECORD_EVENT(trace_recorder_, request_ids, "start decode");
     Tensor logits;
     if (is_every_request_single_token) {
-      logits = models_[0]->BatchDecode(embeddings, request_internal_ids);
+      logits = models_[0]->BatchDecode(embeddings, request_internal_ids, input_tokens);
       TVM_FFI_ICHECK_EQ(logits->ndim, 3);
       TVM_FFI_ICHECK_EQ(logits->shape[0], num_rsentries);
       TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
     } else {
-      logits = models_[0]->BatchPrefill(embeddings, request_internal_ids, lengths);
+      logits = models_[0]->BatchPrefill(embeddings, request_internal_ids, lengths, input_tokens);
       TVM_FFI_ICHECK_EQ(logits->ndim, 3);
       TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
       TVM_FFI_ICHECK_EQ(logits->shape[1], num_rsentries);

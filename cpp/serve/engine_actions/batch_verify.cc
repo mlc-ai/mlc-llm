@@ -116,8 +116,9 @@ class BatchVerifyActionObj : public EngineActionObj {
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify embedding");
 
     RECORD_EVENT(trace_recorder_, request_ids, "start verify");
-    Tensor logits = models_[verify_model_id_]->BatchVerify(embeddings, request_internal_ids,
-                                                           verify_lengths, token_tree_parent_ptr);
+    Tensor logits =
+        models_[verify_model_id_]->BatchVerify(embeddings, request_internal_ids, verify_lengths,
+                                               token_tree_parent_ptr, all_tokens_to_verify);
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify");
     TVM_FFI_ICHECK_EQ(logits->ndim, 3);
     TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
