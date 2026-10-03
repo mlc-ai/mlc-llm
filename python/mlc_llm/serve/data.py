@@ -86,20 +86,33 @@ class ImageData(Data):
         """Get the image from the given URL, process and return the image tensor as TVM Tensor."""
 
         import base64
+        import binascii
         from io import BytesIO
 
         import numpy as np
         import requests
-        from PIL import Image
+        from PIL import Image, UnidentifiedImageError
+
+        from ..protocol.error_protocol import BadRequestError
 
         if url.startswith("data:image"):
             # The image is encoded in base64 format
-            base64_image = url.split(",")[1]
-            image_data = base64.b64decode(base64_image)
-            image_tensor = Image.open(BytesIO(image_data)).convert("RGB")
+            try:
+                base64_image = url.split(",")[1]
+                image_data = base64.b64decode(base64_image)
+                image_tensor = Image.open(BytesIO(image_data)).convert("RGB")
+            except (IndexError, binascii.Error, UnidentifiedImageError) as e:
+                raise BadRequestError(
+                    "Malformed image data URL, expected 'data:image/<format>;base64,<base64 data>'",
+                ) from e
         elif url.startswith("http"):
             response = requests.get(url, timeout=5)
-            image_tensor = Image.open(BytesIO(response.content)).convert("RGB")
+            try:
+                image_tensor = Image.open(BytesIO(response.content)).convert("RGB")
+            except UnidentifiedImageError as e:
+                raise BadRequestError(
+                    "The image fetched from the URL could not be decoded",
+                ) from e
         else:
             raise ValueError(f"Unsupported image URL format: {url}")
 
