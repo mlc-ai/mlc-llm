@@ -40,15 +40,6 @@ The GPU device to compile the model to. If not set, it is inferred from GPUs ava
 Enable WebGPU subgroups in codegen. This only applies to WebGPU targets and will set
 supports_subgroups accordingly.
 """.strip(),
-    "enable_sampler_subgroups": """
-Enable WebGPU subgroup codegen only for the greedy sampler. The target adapter must support
-subgroups; model reductions retain the default non-subgroup codegen.
-""".strip(),
-    "webgpu_sampler_workgroup_size": """
-Set the WebGPU greedy sampler workgroup size. Values above 256 require a target adapter whose
-maxComputeInvocationsPerWorkgroup limit is at least the requested size. The model-wide target is
-unchanged.
-""".strip(),
     "device_quantize": """
 The device used to do quantization such as "cuda" or "cuda:0". Will detect from local available GPUs
 if not specified.

@@ -10,20 +10,9 @@ from mlc_llm.compiler_pass.attach_sampler import (
 )
 
 
-def _build_greedy_module(
-    target: tvm.target.Target,
-    active_vocab_size: int,
-    webgpu_sampler_subgroups: bool = False,
-    webgpu_sampler_workgroup_size: int | None = None,
-) -> tvm.IRModule:
+def _build_greedy_module(target: tvm.target.Target, active_vocab_size: int) -> tvm.IRModule:
     bb = relax.BlockBuilder()
-    gv = _attach_greedy_sampling_func(
-        bb,
-        target,
-        active_vocab_size,
-        webgpu_sampler_subgroups,
-        webgpu_sampler_workgroup_size,
-    )
+    gv = _attach_greedy_sampling_func(bb, target, active_vocab_size)
     mod = bb.finalize()
     mod[gv] = (
         mod[gv]
@@ -50,50 +39,6 @@ def test_attach_webgpu_greedy_sampler():
 def test_webgpu_greedy_sampler_builds():
     target = tvm.target.Target("webgpu", host="llvm")
     relax.build(_build_greedy_module(target, active_vocab_size=7), target=target)
-
-
-def test_webgpu_greedy_sampler_subgroups_are_local():
-    target = tvm.target.Target("webgpu", host="llvm")
-    mod = _build_greedy_module(
-        target,
-        active_vocab_size=7,
-        webgpu_sampler_subgroups=True,
-    )
-
-    sampler_target = mod["greedy_argmax"].attrs["target"]
-    assert dict(target.export())["supports_subgroups"] is False
-    assert dict(target.export())["thread_warp_size"] == 1
-    assert dict(sampler_target.export())["supports_subgroups"] is True
-    assert dict(sampler_target.export())["thread_warp_size"] == 32
-    relax.build(mod, target=target)
-
-
-@pytest.mark.parametrize("workgroup_size", [1024])
-def test_webgpu_greedy_sampler_workgroup_size_is_local(workgroup_size: int):
-    target = tvm.target.Target("webgpu", host="llvm")
-    mod = _build_greedy_module(
-        target,
-        active_vocab_size=128256,
-        webgpu_sampler_subgroups=True,
-        webgpu_sampler_workgroup_size=workgroup_size,
-    )
-
-    sampler = mod["greedy_argmax"]
-    sampler_target = sampler.attrs["target"]
-    assert dict(target.export())["max_num_threads"] == 256
-    assert dict(sampler_target.export())["max_num_threads"] == workgroup_size
-    assert f'T.thread_binding({workgroup_size}, thread="threadIdx.x")' in sampler.script()
-    relax.build(mod, target=target)
-
-
-@pytest.mark.parametrize("workgroup_size", [48])
-def test_webgpu_greedy_sampler_rejects_invalid_workgroup_size(workgroup_size: int):
-    with pytest.raises(ValueError, match="workgroup size must be one of"):
-        _build_greedy_module(
-            tvm.target.Target("webgpu", host="llvm"),
-            active_vocab_size=128256,
-            webgpu_sampler_workgroup_size=workgroup_size,
-        )
 
 
 def test_greedy_sampler_runtime():

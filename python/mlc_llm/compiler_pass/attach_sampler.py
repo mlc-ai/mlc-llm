@@ -22,8 +22,6 @@ class AttachGPUSamplingFunc:
         target: tvm.target.Target,
         variable_bounds: Dict[str, int],  # noqa: UP006
         metadata: Optional[Dict[str, Any]] = None,  # noqa: UP006
-        webgpu_sampler_subgroups: bool = False,
-        webgpu_sampler_workgroup_size: Optional[int] = None,
     ):
         # Specifically for RWKV workloads, which contains -1 max_seq_len
         max_batch_size = variable_bounds["batch_size"]
@@ -35,8 +33,6 @@ class AttachGPUSamplingFunc:
         self.non_negative_var = ["vocab_size"]
         self.target = target
         self.active_vocab_size = metadata.get("active_vocab_size") if metadata else None
-        self.webgpu_sampler_subgroups = webgpu_sampler_subgroups
-        self.webgpu_sampler_workgroup_size = webgpu_sampler_workgroup_size
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
@@ -51,13 +47,7 @@ class AttachGPUSamplingFunc:
             gv_names = [
                 gv.name_hint
                 for gv in [
-                    _attach_greedy_sampling_func(
-                        bb,
-                        self.target,
-                        self.active_vocab_size,
-                        self.webgpu_sampler_subgroups,
-                        self.webgpu_sampler_workgroup_size,
-                    ),
+                    _attach_greedy_sampling_func(bb, self.target, self.active_vocab_size),
                     _attach_argsort_func(bb),
                     _attach_sample_with_top_p(bb),
                 ]
@@ -160,8 +150,6 @@ def _attach_greedy_sampling_func(
     bb: relax.BlockBuilder,
     target: tvm.target.Target,
     active_vocab_size: Optional[int] = None,
-    webgpu_sampler_subgroups: bool = False,
-    webgpu_sampler_workgroup_size: Optional[int] = None,
 ):
     batch_size = tirx.Var("batch_size", "int64")
     vocab_size = tirx.Var("vocab_size", "int64")
@@ -171,12 +159,7 @@ def _attach_greedy_sampling_func(
             sampled_tokens = bb.emit(
                 relax.call_tir(
                     bb.add_func(
-                        _get_greedy_argmax_func(
-                            target,
-                            active_vocab_size,
-                            webgpu_sampler_subgroups,
-                            webgpu_sampler_workgroup_size,
-                        ),
+                        _get_greedy_argmax_func(target, active_vocab_size),
                         "greedy_argmax",
                     ),
                     args=[logits],
@@ -188,22 +171,8 @@ def _attach_greedy_sampling_func(
     return gv
 
 
-def _get_greedy_argmax_func(
-    target: tvm.target.Target,
-    active_vocab_size: Optional[int] = None,
-    webgpu_sampler_subgroups: bool = False,
-    webgpu_sampler_workgroup_size: Optional[int] = None,
-):
-    if webgpu_sampler_workgroup_size is not None:
-        if target.kind.name != "webgpu":
-            raise ValueError("Sampler workgroup size is only supported for WebGPU targets")
-        if webgpu_sampler_workgroup_size not in [32, 64, 128, 256, 512, 1024]:
-            raise ValueError(
-                "WebGPU sampler workgroup size must be one of 32, 64, 128, 256, 512, or 1024"
-            )
-        threads = webgpu_sampler_workgroup_size
-    else:
-        threads = min(256, get_max_num_threads_per_block(target))
+def _get_greedy_argmax_func(target: tvm.target.Target, active_vocab_size: Optional[int] = None):
+    threads = min(256, get_max_num_threads_per_block(target))
     invalid_index = -1
 
     def choose_lhs(lhs_index, lhs_value, rhs_index, rhs_value):
@@ -278,24 +247,7 @@ def _get_greedy_argmax_func(
                         if tx == 0:
                             output[batch] = reduced_index[0]
 
-    needs_sampler_target = webgpu_sampler_subgroups or threads > get_max_num_threads_per_block(
-        target
-    )
-    if not needs_sampler_target:
-        return greedy_argmax
-    if webgpu_sampler_subgroups and target.kind.name != "webgpu":
-        raise ValueError("Sampler subgroups are only supported for WebGPU targets")
-
-    sampler_target_config = dict(target.export())
-    sampler_target_config.pop("host", None)
-    if webgpu_sampler_subgroups:
-        sampler_target_config["supports_subgroups"] = True
-    sampler_target_config["max_num_threads"] = max(
-        threads,
-        int(sampler_target_config["max_num_threads"]),
-    )
-    sampler_target = tvm.target.Target(sampler_target_config)
-    return greedy_argmax.with_attr("target", sampler_target)
+    return greedy_argmax
 
 
 batch_size = T.dynamic("batch_size", "int32")
