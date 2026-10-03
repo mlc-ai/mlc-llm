@@ -113,7 +113,7 @@ def _mlc_llm_pipeline(
                 AttachLogitProcessFunc(target),
                 AttachAdditionalPrimFuncs(additional_tirs),
                 AttachAllocEmbeddingTensorFunc(metadata),
-                AttachGPUSamplingFunc(target, variable_bounds),
+                AttachGPUSamplingFunc(target, variable_bounds, metadata),
                 AttachSpecDecodeAuxFuncs(tensor_parallel_shards),
                 AttachMemoryPlanAttr(),
                 AttachSequenceLengthPaddingFactor(target, metadata),
