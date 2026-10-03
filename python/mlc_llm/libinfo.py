@@ -1,6 +1,7 @@
 """Library information. This is a standalone file that can be used to get various info"""
 
 #! pylint: disable=protected-access
+import ctypes
 import os
 import sys
 
@@ -37,6 +38,21 @@ def get_dll_directories():
     return [os.path.abspath(p) for p in dll_path if os.path.isdir(p)]
 
 
+def get_lib_file_name(name):
+    """Get the platform specific file name of a shared library
+
+    Parameters
+    ----------
+    name : str
+        The name of the library, e.g. ``mlc_llm`` or ``tvm``
+    """
+    if sys.platform.startswith("win32"):
+        return f"{name}.dll"
+    if sys.platform.startswith("darwin"):
+        return f"lib{name}.dylib"
+    return f"lib{name}.so"
+
+
 def find_lib_path(name, optional=False):
     """Find mlc llm library
 
@@ -48,14 +64,7 @@ def find_lib_path(name, optional=False):
     optional: boolean
         Whether the library is required
     """
-    if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
-        lib_name = f"lib{name}.so"
-    elif sys.platform.startswith("win32"):
-        lib_name = f"{name}.dll"
-    elif sys.platform.startswith("darwin"):
-        lib_name = f"lib{name}.dylib"
-    else:
-        lib_name = f"lib{name}.so"
+    lib_name = get_lib_file_name(name)
 
     dll_paths = get_dll_directories()
     lib_dll_path = [os.path.join(p, lib_name) for p in dll_paths]
@@ -69,3 +78,40 @@ def find_lib_path(name, optional=False):
             )
             raise RuntimeError(message)
     return lib_found
+
+
+def load_lib(path):
+    """Load a shared library, raising a clear error when a dependency is missing.
+
+    ``ctypes.CDLL`` raises a bare ``OSError`` (e.g. ``libtvm.so: cannot open shared
+    object file``) when the library itself is present but one of its shared
+    dependencies cannot be resolved. The TVM runtime library is provided by the
+    ``mlc-ai`` / TVM package rather than by ``mlc-llm`` itself, so this typically
+    points at a missing or mismatched ``mlc-ai`` installation. Wrap the load to turn
+    that opaque failure into an actionable message.
+
+    Parameters
+    ----------
+    path : str
+        The full path to the shared library to load.
+
+    Returns
+    -------
+    lib : ctypes.CDLL
+        The loaded library handle.
+    """
+    try:
+        return ctypes.CDLL(path)
+    except OSError as error:
+        raise RuntimeError(
+            f"Failed to load the MLC LLM library at '{path}'.\n"
+            f"Underlying error: {error}\n"
+            "This usually means one of its shared dependencies (for example "
+            f"{get_lib_file_name('tvm')}, which is provided by the `mlc-ai` / TVM "
+            "package) could not be found or is missing from the installation. "
+            "Please make sure a matching `mlc-ai` package is installed, and when "
+            "installing pip wheels ensure its CUDA variant matches "
+            "(e.g. install `mlc-ai-nightly-cuXYZ` "
+            "alongside `mlc-llm-nightly-cuXYZ`). See "
+            "https://llm.mlc.ai/docs/install/mlc_llm.html for details."
+        ) from error
