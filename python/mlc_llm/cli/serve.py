@@ -143,13 +143,15 @@ def main(argv):
         "--embedding-model",
         type=str,
         default=None,
-        help="Path to the embedding model weight directory (enables /v1/embeddings endpoint)",
+        help="[DEPRECATED] Path to the embedding model weight directory (enables /v1/embeddings "
+        "endpoint). Prefer serving the embedding model directly: mlc_llm serve <embedding-model>",
     )
     parser.add_argument(
         "--embedding-model-lib",
         type=str,
         default=None,
-        help="Path to the compiled embedding model library (.so/.dylib file)",
+        help="[DEPRECATED] Path to the compiled embedding model library (.so/.dylib file). "
+        "Prefer serving the embedding model directly with --model-lib",
     )
     parser.add_argument(
         "--speculative-mode",
