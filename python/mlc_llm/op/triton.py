@@ -306,14 +306,14 @@ def get_tir_w8a8_block_fp8_matmul(
     class BlockFP8Matmul:
         @Ts.prim_func(private=True)
         def tir_w8a8_block_fp8_matmul(
-            A: T.Buffer((M, K), in_dtype),
-            B: T.Buffer((N, K), in_dtype),
-            As: T.Buffer((M, (K + block_k - 1) // block_k), "float32"),
-            Bs: T.Buffer(
+            A: T.Tensor((M, K), in_dtype),
+            B: T.Tensor((N, K), in_dtype),
+            As: T.Tensor((M, (K + block_k - 1) // block_k), "float32"),
+            Bs: T.Tensor(
                 ((N + block_n - 1) // block_n, (K + block_k - 1) // block_k),
                 "float32",
             ),
-            C: T.Buffer((M, N), out_dtype),
+            C: T.Tensor((M, N), out_dtype),
         ):
             T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
             with Ts.sblock("root"):
@@ -403,10 +403,10 @@ def get_tir_w8a8_block_fp8_group_matmul(
     class BlockFP8GroupMatmul:
         @Ts.prim_func(private=True)
         def tir_w8a8_block_fp8_group_gemm(
-            A: T.Buffer((EM, K), in_dtype),
-            B: T.Buffer((num_experts, N, K), in_dtype),
-            As: T.Buffer((EM, (K + block_k - 1) // block_k), "float32"),
-            Bs: T.Buffer(
+            A: T.Tensor((EM, K), in_dtype),
+            B: T.Tensor((num_experts, N, K), in_dtype),
+            As: T.Tensor((EM, (K + block_k - 1) // block_k), "float32"),
+            Bs: T.Tensor(
                 (
                     num_experts,
                     (N + block_n - 1) // block_n,
@@ -414,12 +414,12 @@ def get_tir_w8a8_block_fp8_group_matmul(
                 ),
                 "float32",
             ),
-            expert_ids: T.Buffer(
+            expert_ids: T.Tensor(
                 ((EM + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,),
                 "int32",
             ),
-            indptr: T.Buffer((num_experts + 1,), "int32"),
-            C: T.Buffer((EM, N), out_dtype),
+            indptr: T.Tensor((num_experts + 1,), "int32"),
+            C: T.Tensor((EM, N), out_dtype),
         ):
             T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
 
@@ -513,9 +513,9 @@ def _compute_expert_id_per_block(
 
     @Ts.prim_func
     def tir_compute_expert_id_per_block(
-        indptr: T.Buffer((num_experts + 1,), "int32"),
+        indptr: T.Tensor((num_experts + 1,), "int32"),
         M: T.int64,
-        expert_ids: T.Buffer(
+        expert_ids: T.Tensor(
             ((M + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,),
             "int32",
         ),

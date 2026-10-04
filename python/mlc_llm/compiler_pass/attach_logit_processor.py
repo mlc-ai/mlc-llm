@@ -46,11 +46,11 @@ def _get_apply_logit_bias_inplace_cpu():
 
     @Ts.prim_func
     def _apply_logit_bias_inplace(
-        logits: T.Buffer((batch_size, vocab_size), "float32"),
+        logits: T.Tensor((batch_size, vocab_size), "float32"),
         # seq_ids
-        pos2seq_id: T.Buffer((num_token,), "int32"),
-        token_ids: T.Buffer((num_token,), "int32"),
-        logit_bias: T.Buffer((num_token,), "float32"),
+        pos2seq_id: T.Tensor((num_token,), "int32"),
+        token_ids: T.Tensor((num_token,), "int32"),
+        logit_bias: T.Tensor((num_token,), "float32"),
     ) -> None:
         """Function that applies logit bias in place."""
         T.func_attr(
@@ -78,11 +78,11 @@ def _get_apply_logit_bias_inplace(target: tvm.target.Target):
 
     @Ts.prim_func
     def _apply_logit_bias_inplace(
-        logits: T.Buffer((batch_size, vocab_size), "float32"),
+        logits: T.Tensor((batch_size, vocab_size), "float32"),
         # seq_ids
-        pos2seq_id: T.Buffer((num_token,), "int32"),
-        token_ids: T.Buffer((num_token,), "int32"),
-        logit_bias: T.Buffer((num_token,), "float32"),
+        pos2seq_id: T.Tensor((num_token,), "int32"),
+        token_ids: T.Tensor((num_token,), "int32"),
+        logit_bias: T.Tensor((num_token,), "float32"),
     ) -> None:
         """Function that applies logit bias in place."""
         T.func_attr(
@@ -110,12 +110,12 @@ def _get_apply_penalty_inplace_cpu():
 
     @Ts.prim_func
     def _apply_penalty_inplace(
-        logits: T.Buffer((batch_size, vocab_size), "float32"),
-        seq_ids: T.Buffer((num_seq,), "int32"),
-        pos2seq_id: T.Buffer((num_token,), "int32"),
-        token_ids: T.Buffer((num_token,), "int32"),
-        token_cnt: T.Buffer((num_token,), "int32"),
-        penalties: T.Buffer((num_seq, 3), "float32"),
+        logits: T.Tensor((batch_size, vocab_size), "float32"),
+        seq_ids: T.Tensor((num_seq,), "int32"),
+        pos2seq_id: T.Tensor((num_token,), "int32"),
+        token_ids: T.Tensor((num_token,), "int32"),
+        token_cnt: T.Tensor((num_token,), "int32"),
+        penalties: T.Tensor((num_seq, 3), "float32"),
     ) -> None:
         """Function that applies penalties in place."""
         T.func_attr(
@@ -153,12 +153,12 @@ def _get_apply_penalty_inplace(target: tvm.target.Target):
 
     @Ts.prim_func
     def _apply_penalty_inplace(
-        logits: T.Buffer((batch_size, vocab_size), "float32"),
-        seq_ids: T.Buffer((num_seq,), "int32"),
-        pos2seq_id: T.Buffer((num_token,), "int32"),
-        token_ids: T.Buffer((num_token,), "int32"),
-        token_cnt: T.Buffer((num_token,), "int32"),
-        penalties: T.Buffer((num_seq, 3), "float32"),
+        logits: T.Tensor((batch_size, vocab_size), "float32"),
+        seq_ids: T.Tensor((num_seq,), "int32"),
+        pos2seq_id: T.Tensor((num_token,), "int32"),
+        token_ids: T.Tensor((num_token,), "int32"),
+        token_cnt: T.Tensor((num_token,), "int32"),
+        penalties: T.Tensor((num_seq, 3), "float32"),
     ) -> None:
         """Function that applies penalties in place."""
         T.func_attr(
@@ -195,9 +195,9 @@ def _get_apply_bitmask_inplace_cpu():
 
     @Ts.prim_func
     def _apply_bitmask_inplace(
-        logits: T.Buffer((batch_size, vocab_size), "float32"),
-        seq_ids: T.Buffer((num_seq,), "int32"),
-        bitmask: T.Buffer((batch_size, (vocab_size + 31) // 32), "int32"),
+        logits: T.Tensor((batch_size, vocab_size), "float32"),
+        seq_ids: T.Tensor((num_seq,), "int32"),
+        bitmask: T.Tensor((batch_size, (vocab_size + 31) // 32), "int32"),
     ) -> None:
         """Function that applies vocabulary masking in place."""
         T.func_attr(
@@ -233,9 +233,9 @@ def _get_apply_bitmask_inplace(target: tvm.target.Target):
 
     @Ts.prim_func
     def _apply_bitmask_inplace(
-        logits: T.Buffer((batch_size, vocab_size), "float32"),
-        seq_ids: T.Buffer((num_seq,), "int32"),
-        bitmask: T.Buffer((batch_size, (vocab_size + 31) // 32), "int32"),
+        logits: T.Tensor((batch_size, vocab_size), "float32"),
+        seq_ids: T.Tensor((num_seq,), "int32"),
+        bitmask: T.Tensor((batch_size, (vocab_size + 31) // 32), "int32"),
     ) -> None:
         """Function that applies vocabulary masking in place."""
         T.func_attr(

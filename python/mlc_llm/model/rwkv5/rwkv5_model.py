@@ -75,15 +75,15 @@ def create_wkv5_func(
     @Ts.prim_func
     def wkv_func(
         # Inputs
-        r_buf: T.Buffer((batch_size, seq_len, num_heads, head_size), dtype),
-        k_buf: T.Buffer((batch_size, seq_len, num_heads, head_size), dtype),
-        v_buf: T.Buffer((batch_size, seq_len, num_heads, head_size), dtype),
-        time_decay_buf: T.Buffer((num_heads, head_size), "float32"),
-        time_faaaa_buf: T.Buffer((num_heads, head_size), "float32"),
-        state_buf: T.Buffer((batch_size, num_heads, head_size, head_size), state_dtype),
+        r_buf: T.Tensor((batch_size, seq_len, num_heads, head_size), dtype),
+        k_buf: T.Tensor((batch_size, seq_len, num_heads, head_size), dtype),
+        v_buf: T.Tensor((batch_size, seq_len, num_heads, head_size), dtype),
+        time_decay_buf: T.Tensor((num_heads, head_size), "float32"),
+        time_faaaa_buf: T.Tensor((num_heads, head_size), "float32"),
+        state_buf: T.Tensor((batch_size, num_heads, head_size, head_size), state_dtype),
         # Outputs
-        out_buf: T.Buffer((batch_size, seq_len, num_heads, head_size), out_dtype),
-        out_state_buf: T.Buffer((batch_size, num_heads, head_size, head_size), state_dtype),
+        out_buf: T.Tensor((batch_size, seq_len, num_heads, head_size), out_dtype),
+        out_state_buf: T.Tensor((batch_size, num_heads, head_size, head_size), state_dtype),
     ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
         for b in T.thread_binding(batch_size, thread="blockIdx.y"):

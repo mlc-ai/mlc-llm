@@ -797,16 +797,16 @@ def dequantize_float8_groupwise_scaled_gemv(
 
     @Ts.prim_func(private=True)
     def _func(
-        x: T.Buffer((1, k), model_dtype),
-        w: T.Buffer((n, k), quantize_dtype),
-        w_scale: T.Buffer(
+        x: T.Tensor((1, k), model_dtype),
+        w: T.Tensor((n, k), quantize_dtype),
+        w_scale: T.Tensor(
             (
                 (n + block_size[0] - 1) // block_size[0],
                 (k + block_size[1] - 1) // block_size[1],
             ),
             "float32",
         ),
-        o: T.Buffer((n,), out_dtype),
+        o: T.Tensor((n,), out_dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
         y = Ts.sblock_alloc_buffer((n, k), model_dtype)

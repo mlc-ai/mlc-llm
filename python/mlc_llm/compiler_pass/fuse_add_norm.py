@@ -23,11 +23,11 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
 
     @Ts.prim_func(private=True)
     def decode_add_rms(
-        A: T.Buffer((batch_size, 1, hidden_size), in_dtype),
-        B: T.Buffer((batch_size, 1, hidden_size), in_dtype),
-        C: T.Buffer((hidden_size,), in_dtype),
-        out: T.Buffer((batch_size, 1, hidden_size), in_dtype),
-        add: T.Buffer((batch_size, 1, hidden_size), in_dtype),
+        A: T.Tensor((batch_size, 1, hidden_size), in_dtype),
+        B: T.Tensor((batch_size, 1, hidden_size), in_dtype),
+        C: T.Tensor((hidden_size,), in_dtype),
+        out: T.Tensor((batch_size, 1, hidden_size), in_dtype),
+        add: T.Tensor((batch_size, 1, hidden_size), in_dtype),
     ):
         T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
         add_local = Ts.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
@@ -94,11 +94,11 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
 
     @Ts.prim_func(private=True)
     def prefill_add_rms(
-        A: T.Buffer((1, seq_len, hidden_size), in_dtype),
-        B: T.Buffer((1, seq_len, hidden_size), in_dtype),
-        C: T.Buffer((hidden_size,), in_dtype),
-        out: T.Buffer((1, seq_len, hidden_size), in_dtype),
-        add: T.Buffer((1, seq_len, hidden_size), in_dtype),
+        A: T.Tensor((1, seq_len, hidden_size), in_dtype),
+        B: T.Tensor((1, seq_len, hidden_size), in_dtype),
+        C: T.Tensor((hidden_size,), in_dtype),
+        out: T.Tensor((1, seq_len, hidden_size), in_dtype),
+        add: T.Tensor((1, seq_len, hidden_size), in_dtype),
     ):
         T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
         add_local = Ts.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")

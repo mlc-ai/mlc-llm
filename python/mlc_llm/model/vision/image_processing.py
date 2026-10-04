@@ -106,12 +106,12 @@ class ImageProcessor(Module):
 
             @Ts.prim_func
             def crop_func(
-                image_buf: T.Buffer((n, c, h, w), dtype),
+                image_buf: T.Tensor((n, c, h, w), dtype),
                 top: T.int64(),
                 bottom: T.int64(),
                 left: T.int64(),
                 right: T.int64(),
-                out_buf: T.Buffer((n, c, bottom - top, right - left), dtype),
+                out_buf: T.Tensor((n, c, bottom - top, right - left), dtype),
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 out_h = bottom - top
@@ -161,8 +161,8 @@ class ImageProcessor(Module):
 
             @Ts.prim_func
             def rescale_func(
-                image_buf: T.Buffer((n, c, h, w), dtype),
-                out_buf: T.Buffer((n, c, h, w), o_dtype),
+                image_buf: T.Tensor((n, c, h, w), dtype),
+                out_buf: T.Tensor((n, c, h, w), o_dtype),
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
 
@@ -205,8 +205,8 @@ class ImageProcessor(Module):
 
             @Ts.prim_func
             def normalize_func(
-                image_buf: T.Buffer((n, c, h, w), dtype),
-                out_buf: T.Buffer((n, c, h, w), o_dtype),
+                image_buf: T.Tensor((n, c, h, w), dtype),
+                out_buf: T.Tensor((n, c, h, w), o_dtype),
             ):
                 mean = _var(o_dtype, 3)
                 stddev = _var(o_dtype, 3)
@@ -282,10 +282,10 @@ class ImageProcessor(Module):
 
             @Ts.prim_func
             def pad_func(
-                image_buf: T.Buffer((n, c, h, w), dtype),
+                image_buf: T.Tensor((n, c, h, w), dtype),
                 t: T.int64(),
                 b: T.int64(),
-                out_buf: T.Buffer((n, c, h + t + b, w + left + right), dtype),
+                out_buf: T.Tensor((n, c, h + t + b, w + left + right), dtype),
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 out_h = h + t + b

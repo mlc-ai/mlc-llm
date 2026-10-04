@@ -25,8 +25,8 @@ def test_pipeline_shapes_share_fresh_symbols():
 def test_lifted_buffer_shape_uses_caller_symbols():
     n = tirx.Var("n", "int64")
     m = tirx.Var("m", "int64")
-    source = tirx.decl_buffer((n,), "float32", name="source")
-    output = tirx.decl_buffer((n,), "float32", name="output")
+    source = tirx.decl_tensor((n,), "float32", name="source")
+    output = tirx.decl_tensor((n,), "float32", name="output")
     func = tirx.PrimFunc([source, output], tirx.Evaluate(0))
     x = relax.Var("x", relax.TensorType((m,), "float32"))
     call = relax.call_tir(tvm.ir.GlobalVar("copy"), [x], out_ty=relax.TensorType((m,), "float32"))

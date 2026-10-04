@@ -21,7 +21,7 @@ def test_computed_scalar_argument_lowers(target_kind):
     n = T.dynamic("n", "int64")
 
     @Ts.prim_func(private=True)
-    def take(x: T.Buffer((n,), "float32"), off: T.int64, y: T.Buffer((n,), "float32")):
+    def take(x: T.Tensor((n,), "float32"), off: T.int64, y: T.Tensor((n,), "float32")):
         for i in T.serial(n):
             with Ts.sblock("copy"):
                 vi = Ts.axis.spatial(n, i)
