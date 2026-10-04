@@ -43,6 +43,7 @@ dependencies = [
   "openai",
   "pandas",
   "prompt_toolkit",
+  "psutil",
   "requests",
   "safetensors",
   "sentencepiece",
