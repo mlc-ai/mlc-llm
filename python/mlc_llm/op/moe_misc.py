@@ -90,9 +90,9 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:  # noqa: UP006
 
         @Ts.prim_func(private=True)
         def topk_func(
-            x: T.Buffer((batch_size, num_local_experts), dtype),
-            out: T.Buffer((batch_size, k_val), dtype),
-            out_index: T.Buffer((batch_size, k_val), index_dtype),
+            x: T.Tensor((batch_size, num_local_experts), dtype),
+            out: T.Tensor((batch_size, k_val), dtype),
+            out_index: T.Tensor((batch_size, k_val), index_dtype),
         ) -> None:
             T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": True})
             local_top_k = Ts.sblock_alloc_buffer((k_val,), dtype=dtype, scope="local")
@@ -175,9 +175,9 @@ def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor,
 
         @Ts.prim_func(private=True)
         def topk_softmax_norm_func(
-            x: T.Buffer((batch_size, num_local_experts), dtype),
-            out: T.Buffer((batch_size, k_val), dtype),
-            out_index: T.Buffer((batch_size, k_val), index_dtype),
+            x: T.Tensor((batch_size, num_local_experts), dtype),
+            out: T.Tensor((batch_size, k_val), dtype),
+            out_index: T.Tensor((batch_size, k_val), index_dtype),
         ) -> None:
             T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": True})
             local_top_k = Ts.sblock_alloc_buffer((k_val,), dtype=dtype, scope="local")
@@ -301,9 +301,9 @@ def group_limited_greedy_topk(
 
     @Ts.prim_func(private=True)
     def group_limited_mask_scores(
-        scores: T.Buffer((num_tokens, num_routed_experts), scores_for_choice.dtype),
-        group_idx_tir: T.Buffer((num_tokens, topk_group), group_idx.dtype),
-        output: T.Buffer((num_tokens, num_routed_experts), scores_for_choice.dtype),
+        scores: T.Tensor((num_tokens, num_routed_experts), scores_for_choice.dtype),
+        group_idx_tir: T.Tensor((num_tokens, topk_group), group_idx.dtype),
+        output: T.Tensor((num_tokens, num_routed_experts), scores_for_choice.dtype),
     ):
         T.func_attr({"tirx.noalias": True})
         for i, j, k in T.grid(num_tokens, topk_group, group_size):
@@ -334,9 +334,9 @@ def group_limited_greedy_topk(
 
         @Ts.prim_func(private=True)
         def gather_scores(
-            scores: T.Buffer((num_tokens, num_routed_experts), scores_for_choice.dtype),
-            expert_indices_tir: T.Buffer((num_tokens, top_k), expert_indices.dtype),
-            output: T.Buffer((num_tokens, top_k), scores_for_choice.dtype),
+            scores: T.Tensor((num_tokens, num_routed_experts), scores_for_choice.dtype),
+            expert_indices_tir: T.Tensor((num_tokens, top_k), expert_indices.dtype),
+            output: T.Tensor((num_tokens, top_k), scores_for_choice.dtype),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(num_tokens, top_k):
@@ -479,10 +479,10 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]
 
     @Ts.prim_func(private=True)
     def _func(
-        cumsum: T.Buffer([cumsum_len], "int32"),
-        expert_indices: T.Buffer([batch_size, experts_per_tok], "int32"),
-        reverse_indices: T.Buffer([batch_size * experts_per_tok], "int32"),
-        token_indices: T.Buffer([batch_size * experts_per_tok], "int32"),
+        cumsum: T.Tensor([cumsum_len], "int32"),
+        expert_indices: T.Tensor([batch_size, experts_per_tok], "int32"),
+        reverse_indices: T.Tensor([batch_size * experts_per_tok], "int32"),
+        token_indices: T.Tensor([batch_size * experts_per_tok], "int32"),
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
         for bj_o in T.thread_binding(0, T.ceildiv(batch_size * experts_per_tok, TX), "blockIdx.x"):
@@ -562,9 +562,9 @@ def get_indptr(
 
     @Ts.prim_func(private=True)
     def _func_exclusive(
-        cumsum: T.Buffer([dyn_batch_size * num_local_experts], "int32"),
+        cumsum: T.Tensor([dyn_batch_size * num_local_experts], "int32"),
         batch_size: dyn_batch_size,
-        indptr: T.Buffer(out_shape, out_dtype),
+        indptr: T.Tensor(out_shape, out_dtype),
     ):
         T.func_attr({"tirx.noalias": True})
         for vi in T.serial(0, out_shape[0]):
@@ -574,9 +574,9 @@ def get_indptr(
 
     @Ts.prim_func(private=True)
     def _func_inclusive(
-        cumsum: T.Buffer([dyn_batch_size * num_local_experts], "int32"),
+        cumsum: T.Tensor([dyn_batch_size * num_local_experts], "int32"),
         batch_size: dyn_batch_size,
-        indptr: T.Buffer(out_shape, out_dtype),
+        indptr: T.Tensor(out_shape, out_dtype),
     ):
         T.func_attr({"tirx.noalias": True})
         for vi in T.serial(0, out_shape[0]):
@@ -616,9 +616,9 @@ def scatter_output(x: Tensor, indices: Tensor) -> Tensor:
 
     @Ts.prim_func(private=True)
     def _func(
-        x: T.Buffer([indices_len, hidden_size], dtype),
-        indices: T.Buffer([indices_len], "int32"),
-        out: T.Buffer([indices_len, hidden_size], dtype),
+        x: T.Tensor([indices_len, hidden_size], dtype),
+        indices: T.Tensor([indices_len], "int32"),
+        out: T.Tensor([indices_len, hidden_size], dtype),
     ):
         T.func_attr({"tirx.noalias": True})
         for i in T.serial(0, indices_len):

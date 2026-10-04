@@ -123,10 +123,10 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
 
     @Ts.prim_func
     def chunk_lse(
-        A: T.Buffer((batch_size, vocab_size), "float32"),
-        temperature: T.Buffer((batch_size,), "float32"),
-        chunked_sum: T.Buffer((batch_size, num_chunks), "float32"),
-        chunked_max: T.Buffer((batch_size, num_chunks), "float32"),
+        A: T.Tensor((batch_size, vocab_size), "float32"),
+        temperature: T.Tensor((batch_size,), "float32"),
+        chunked_sum: T.Tensor((batch_size, num_chunks), "float32"),
+        chunked_max: T.Tensor((batch_size, num_chunks), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
         A_pad = Ts.sblock_alloc_buffer(
@@ -181,11 +181,11 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
 
     @Ts.prim_func
     def softmax_with_chunked_sum(
-        A: T.Buffer((batch_size, vocab_size), "float32"),
-        temperature: T.Buffer((batch_size,), "float32"),
-        chunked_sum: T.Buffer((batch_size, num_chunks), "float32"),
-        chunked_max: T.Buffer((batch_size, num_chunks), "float32"),
-        softmax: T.Buffer((batch_size, vocab_size), "float32"),
+        A: T.Tensor((batch_size, vocab_size), "float32"),
+        temperature: T.Tensor((batch_size,), "float32"),
+        chunked_sum: T.Tensor((batch_size, num_chunks), "float32"),
+        chunked_max: T.Tensor((batch_size, num_chunks), "float32"),
+        softmax: T.Tensor((batch_size, vocab_size), "float32"),
     ):
         T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
         temp_max = Ts.sblock_alloc_buffer((batch_size,), dtype="float32")

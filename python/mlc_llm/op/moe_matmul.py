@@ -49,10 +49,10 @@ def gemv(x: Tensor, w: Tensor, indptr: Tensor) -> Tensor:
 
     @Ts.prim_func(private=True)
     def _func(
-        x: T.Buffer((x_leading_dim, in_features), dtype),
-        w: T.Buffer((local_experts, out_features, in_features), dtype),
-        indptr: T.Buffer((1, experts_per_tok), "int32"),
-        o: T.Buffer((experts_per_tok, out_features), dtype),
+        x: T.Tensor((x_leading_dim, in_features), dtype),
+        w: T.Tensor((local_experts, out_features, in_features), dtype),
+        indptr: T.Tensor((1, experts_per_tok), "int32"),
+        o: T.Tensor((experts_per_tok, out_features), dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
         for e in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
@@ -147,11 +147,11 @@ def dequantize_gemv(
 
     @Ts.prim_func(private=True)
     def _func(
-        x: T.Buffer((x_leading_dim, in_features), model_dtype),
-        w: T.Buffer((local_experts, out_features, num_storage), storage_dtype),
-        scale: T.Buffer((local_experts, out_features, num_group), model_dtype),
-        indptr: T.Buffer((1, experts_per_tok), "int32"),
-        o: T.Buffer((experts_per_tok, out_features), model_dtype),
+        x: T.Tensor((x_leading_dim, in_features), model_dtype),
+        w: T.Tensor((local_experts, out_features, num_storage), storage_dtype),
+        scale: T.Tensor((local_experts, out_features, num_group), model_dtype),
+        indptr: T.Tensor((1, experts_per_tok), "int32"),
+        o: T.Tensor((experts_per_tok, out_features), model_dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
@@ -236,11 +236,11 @@ def dequantize_float8_gemv(
 
     @Ts.prim_func(private=True)
     def _func_with_scale(
-        x: T.Buffer((x_leading_dim, in_features), model_dtype),
-        w: T.Buffer((local_experts, out_features, num_storage), storage_dtype),
-        scale: T.Buffer((1,), "float32"),
-        indptr: T.Buffer((1, experts_per_tok), "int32"),
-        o: T.Buffer((experts_per_tok, out_features), model_dtype),
+        x: T.Tensor((x_leading_dim, in_features), model_dtype),
+        w: T.Tensor((local_experts, out_features, num_storage), storage_dtype),
+        scale: T.Tensor((1,), "float32"),
+        indptr: T.Tensor((1, experts_per_tok), "int32"),
+        o: T.Tensor((experts_per_tok, out_features), model_dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
@@ -260,10 +260,10 @@ def dequantize_float8_gemv(
 
     @Ts.prim_func(private=True)
     def _func_without_scale(
-        x: T.Buffer((x_leading_dim, in_features), model_dtype),
-        w: T.Buffer((local_experts, out_features, num_storage), storage_dtype),
-        indptr: T.Buffer((1, experts_per_tok), "int32"),
-        o: T.Buffer((experts_per_tok, out_features), model_dtype),
+        x: T.Tensor((x_leading_dim, in_features), model_dtype),
+        w: T.Tensor((local_experts, out_features, num_storage), storage_dtype),
+        indptr: T.Tensor((1, experts_per_tok), "int32"),
+        o: T.Tensor((experts_per_tok, out_features), model_dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
@@ -350,14 +350,14 @@ def dequantize_block_scale_float8_gemv(
 
     @Ts.prim_func(private=True)
     def _func(
-        x: T.Buffer((x_leading_dim, in_features), model_dtype),
-        w: T.Buffer((local_experts, out_features, k), quantize_dtype),
-        w_scale: T.Buffer(
+        x: T.Tensor((x_leading_dim, in_features), model_dtype),
+        w: T.Tensor((local_experts, out_features, k), quantize_dtype),
+        w_scale: T.Tensor(
             (local_experts, out_features // block_size[0], k // block_size[1]),
             "float32",
         ),
-        expert_indices: T.Buffer((1, experts_per_tok), "int32"),
-        o: T.Buffer((experts_per_tok, out_features), out_dtype),
+        expert_indices: T.Tensor((1, experts_per_tok), "int32"),
+        o: T.Tensor((experts_per_tok, out_features), out_dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
@@ -424,10 +424,10 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):
 
     @Ts.prim_func(private=True)
     def _func(
-        X: T.Buffer((B, K), dtype),
-        W: T.Buffer((Ne, N, K), dtype),
-        indptr: T.Buffer((Ne + 1,), "int32"),
-        out: T.Buffer((B, N), dtype),
+        X: T.Tensor((B, K), dtype),
+        W: T.Tensor((Ne, N, K), dtype),
+        indptr: T.Tensor((Ne + 1,), "int32"),
+        out: T.Tensor((B, N), dtype),
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
 
@@ -631,11 +631,11 @@ def dequantize_group_gemm(
 
     @Ts.prim_func(private=True)
     def _func(
-        X: T.Buffer((B, K), model_dtype),
-        w: T.Buffer((Ne, N, num_storage), storage_dtype),
-        scale: T.Buffer((Ne, N, num_group), model_dtype),
-        indptr: T.Buffer((Ne + 1,), indptr_dtype),
-        out: T.Buffer((B, N), model_dtype),
+        X: T.Tensor((B, K), model_dtype),
+        w: T.Tensor((Ne, N, num_storage), storage_dtype),
+        scale: T.Tensor((Ne, N, num_group), model_dtype),
+        indptr: T.Tensor((Ne + 1,), indptr_dtype),
+        out: T.Tensor((B, N), model_dtype),
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
         for _bx in T.thread_binding(CTA_COUNT, thread="blockIdx.x"):

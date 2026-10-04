@@ -142,7 +142,7 @@ batch_size = T.dynamic("batch_size", "int32")
 
 
 @Ts.prim_func
-def full(value: T.int64, result: T.Buffer((batch_size, 1), "int32")):
+def full(value: T.int64, result: T.Tensor((batch_size, 1), "int32")):
     """The filling function for top k."""
     for i in T.serial(batch_size):
         with Ts.sblock("block"):
@@ -265,14 +265,14 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
 
     @Ts.prim_func
     def sampler_take_probs_tir(
-        unsorted_probs: T.Buffer((batch_size, vocab_size), "float32"),
-        sorted_indices: T.Buffer((batch_size, vocab_size), "int32"),
-        sample_indices: T.Buffer((num_samples,), "int32"),
-        sampling_results: T.Buffer((num_samples,), "int32"),
-        top_prob_offsets: T.Buffer((num_positions,), "int32"),
-        sampled_values: T.Buffer((num_samples,), "float32"),
-        top_prob_probs: T.Buffer((num_positions,), "float32"),
-        top_prob_indices: T.Buffer((num_positions,), "int32"),
+        unsorted_probs: T.Tensor((batch_size, vocab_size), "float32"),
+        sorted_indices: T.Tensor((batch_size, vocab_size), "int32"),
+        sample_indices: T.Tensor((num_samples,), "int32"),
+        sampling_results: T.Tensor((num_samples,), "int32"),
+        top_prob_offsets: T.Tensor((num_positions,), "int32"),
+        sampled_values: T.Tensor((num_samples,), "float32"),
+        top_prob_probs: T.Tensor((num_positions,), "float32"),
+        top_prob_indices: T.Tensor((num_positions,), "int32"),
     ):
         for i in T.serial(num_positions):
             with Ts.sblock("top_prob"):

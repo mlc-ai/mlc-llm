@@ -43,9 +43,9 @@ def _get_scatter_2d_inplace(dtype: str, global_symbol: str):
 
     @Ts.prim_func
     def _scatter_2d(
-        src: T.Buffer((batch_size, n), dtype),
-        indices: T.Buffer((batch_size,), "int32"),
-        dst: T.Buffer((m, n), dtype),
+        src: T.Tensor((batch_size, n), dtype),
+        indices: T.Tensor((batch_size,), "int32"),
+        dst: T.Tensor((m, n), dtype),
     ):
         T.func_attr({"global_symbol": global_symbol, "tirx.noalias": True})
         for b, j in T.grid(batch_size, n):
@@ -63,9 +63,9 @@ def _get_gather_2d_inplace(dtype: str, global_symbol: str):
 
     @Ts.prim_func
     def _gather_2d(
-        src: T.Buffer((m, n), dtype),
-        indices: T.Buffer((batch_size,), "int32"),
-        dst: T.Buffer((batch_size, n), dtype),
+        src: T.Tensor((m, n), dtype),
+        indices: T.Tensor((batch_size,), "int32"),
+        dst: T.Tensor((batch_size, n), dtype),
     ):
         T.func_attr({"global_symbol": global_symbol, "tirx.noalias": True})
         for b, j in T.grid(batch_size, n):

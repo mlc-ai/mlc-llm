@@ -55,11 +55,11 @@ def top_p_pivot(pN, target: tvm.target.Target):
     # fmt: off
     @Ts.prim_func(private=True)
     def _func(
-        prob: T.Buffer((B, N,), "float32"),
-        top_p_arr: T.Buffer((B,), "float32"),
-        init_pivots: T.Buffer((B, pN), "float32"),
-        final_pivot: T.Buffer((B,), "float32"),
-        final_lsum: T.Buffer((B,), "float32"),
+        prob: T.Tensor((B, N,), "float32"),
+        top_p_arr: T.Tensor((B,), "float32"),
+        init_pivots: T.Tensor((B, pN), "float32"),
+        final_pivot: T.Tensor((B,), "float32"),
+        final_lsum: T.Tensor((B,), "float32"),
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
 
@@ -159,7 +159,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                             "reduce_scope",
                                             T.int32(0),
                                         )
-                                        T.tvm_thread_allreduce(T.uint32(1), total_sum[0], True, total_sum_reduce[0], tx, dtype="void")  # noqa: E501
+                                        T.tvm_thread_allreduce(T.uint32(1), total_sum[0], True, total_sum_reduce[0], tx)  # noqa: E501
                                     # T.tvm_storage_sync("shared")
 
                                     if tx == 0:
@@ -181,7 +181,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                         "reduce_scope",
                                         T.int32(0),
                                     )
-                                    T.tvm_thread_allreduce(T.uint32(1), lsum[pidx], True, lsum_reduce[0], tx, dtype="void")  # noqa: E501
+                                    T.tvm_thread_allreduce(T.uint32(1), lsum[pidx], True, lsum_reduce[0], tx)  # noqa: E501
 
                                 # reduce lmin over tx for pivot[j]
                                 with Ts.sblock("block_cross_thread"):
@@ -192,7 +192,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                         "reduce_scope",
                                         T.int32(0),
                                     )
-                                    T.tvm_thread_allreduce(T.uint32(1), lmin[pidx], True, lmin_reduce[0], tx, dtype="void")  # noqa: E501
+                                    T.tvm_thread_allreduce(T.uint32(1), lmin[pidx], True, lmin_reduce[0], tx)  # noqa: E501
 
                                 if tx == 0:
                                     # broadcast lmin to all threads
@@ -215,7 +215,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                         "reduce_scope",
                                         T.int32(0),
                                     )
-                                    T.tvm_thread_allreduce(T.uint32(1), cmin[pidx], True, cmin_reduce[0], tx, dtype="void")  # noqa: E501
+                                    T.tvm_thread_allreduce(T.uint32(1), cmin[pidx], True, cmin_reduce[0], tx)  # noqa: E501
 
                                 if tx == 0:
                                     # only the leader thread updates cmin
@@ -299,10 +299,10 @@ def top_p_renorm(target: tvm.target.Target = None):
     # fmt: off
     @Ts.prim_func(private=True)
     def _func(
-        prob: T.Buffer((B, N,), "float32"),
-        final_pivot: T.Buffer((B,), "float32"),
-        final_lsum: T.Buffer((B,), "float32"),
-        renorm_prob: T.Buffer((B, N,), "float32"),
+        prob: T.Tensor((B, N,), "float32"),
+        final_pivot: T.Tensor((B,), "float32"),
+        final_lsum: T.Tensor((B,), "float32"),
+        renorm_prob: T.Tensor((B, N,), "float32"),
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
 

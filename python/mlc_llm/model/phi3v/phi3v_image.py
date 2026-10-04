@@ -90,12 +90,12 @@ class Phi3ImageEmbedding(Module):
 
             @Ts.prim_func
             def dyn_repeat_4d_tensor_func(  # pylint disable=too-many-locals
-                input_tensor_buf: T.Buffer((n, c, h, w), dtype),
+                input_tensor_buf: T.Tensor((n, c, h, w), dtype),
                 ch0: T.int64(),
                 ch1: T.int64(),
                 ch2: T.int64(),
                 ch3: T.int64(),
-                out_buf: T.Buffer((n * ch0, c * ch1, h * ch2, w * ch3), dtype),
+                out_buf: T.Tensor((n * ch0, c * ch1, h * ch2, w * ch3), dtype),
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
 
@@ -130,9 +130,9 @@ class Phi3ImageEmbedding(Module):
 
             @Ts.prim_func
             def dyn_concate_dim_2_func(
-                input_1_buf: T.Buffer((n, c, h1, w), dtype),
-                input_2_buf: T.Buffer((n, c, h2, w), dtype),
-                out_buf: T.Buffer((n, c, h1 + h2, w), dtype),
+                input_1_buf: T.Tensor((n, c, h1, w), dtype),
+                input_2_buf: T.Tensor((n, c, h2, w), dtype),
+                out_buf: T.Tensor((n, c, h1 + h2, w), dtype),
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
 
@@ -174,9 +174,9 @@ class Phi3ImageEmbedding(Module):
 
             @Ts.prim_func
             def dyn_concate_dim_1_func(
-                input_1_buf: T.Buffer((c, h1, w), dtype),
-                input_2_buf: T.Buffer((c, h2, w), dtype),
-                out_buf: T.Buffer((c, h1 + h2, w), dtype),
+                input_1_buf: T.Tensor((c, h1, w), dtype),
+                input_2_buf: T.Tensor((c, h2, w), dtype),
+                out_buf: T.Tensor((c, h1 + h2, w), dtype),
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
 

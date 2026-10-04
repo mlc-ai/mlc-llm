@@ -248,20 +248,20 @@ def create_gated_delta_net_func(
     @Ts.prim_func
     def gdn_func(
         # q, k: (batch, seq_len, key_heads, K)
-        q_buf: T.Buffer((batch_size, seq_len, num_key_heads, K), dtype),
-        k_buf: T.Buffer((batch_size, seq_len, num_key_heads, K), dtype),
+        q_buf: T.Tensor((batch_size, seq_len, num_key_heads, K), dtype),
+        k_buf: T.Tensor((batch_size, seq_len, num_key_heads, K), dtype),
         # v: (batch, seq_len, value_heads, V)
-        v_buf: T.Buffer((batch_size, seq_len, num_value_heads, V), dtype),
+        v_buf: T.Tensor((batch_size, seq_len, num_value_heads, V), dtype),
         # gate and beta: (batch, seq_len, value_heads)
         # exp(g), already exponentiated
-        gate_buf: T.Buffer((batch_size, seq_len, num_value_heads), "float32"),
+        gate_buf: T.Tensor((batch_size, seq_len, num_value_heads), "float32"),
         # sigmoid(beta_raw)
-        beta_buf: T.Buffer((batch_size, seq_len, num_value_heads), "float32"),
+        beta_buf: T.Tensor((batch_size, seq_len, num_value_heads), "float32"),
         # State: per value_head, K x V matrix in fp32
-        state_in_buf: T.Buffer((batch_size, num_value_heads, K, V), "float32"),
+        state_in_buf: T.Tensor((batch_size, num_value_heads, K, V), "float32"),
         # Outputs: out in fp32 for numerical stability (cast to model dtype by caller)
-        out_buf: T.Buffer((batch_size, seq_len, num_value_heads, V), "float32"),
-        state_out_buf: T.Buffer((batch_size, num_value_heads, K, V), "float32"),
+        out_buf: T.Tensor((batch_size, seq_len, num_value_heads, V), "float32"),
+        state_out_buf: T.Tensor((batch_size, num_value_heads, K, V), "float32"),
     ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
 

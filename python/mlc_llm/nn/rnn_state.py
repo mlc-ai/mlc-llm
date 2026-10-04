@@ -179,10 +179,10 @@ class RNNState(Object):
 
             @Ts.prim_func
             def f(
-                storage: T.Buffer((max_batch_size, max_history, shape[0]), dtype),
-                seq_slot_ids: T.Buffer((batch_size,), "int32"),
-                history_slot_ids: T.Buffer((batch_size,), "int32"),
-                output: T.Buffer((batch_size, shape[0]), dtype),
+                storage: T.Tensor((max_batch_size, max_history, shape[0]), dtype),
+                seq_slot_ids: T.Tensor((batch_size,), "int32"),
+                history_slot_ids: T.Tensor((batch_size,), "int32"),
+                output: T.Tensor((batch_size, shape[0]), dtype),
             ):
                 T.func_attr({"global_symbol": f"rnn_state_get_{state_id}"})
 
@@ -202,10 +202,10 @@ class RNNState(Object):
 
             @Ts.prim_func
             def f(
-                storage: T.Buffer((max_batch_size, max_history, *shape), dtype),
-                seq_slot_ids: T.Buffer((batch_size,), "int32"),
-                history_slot_ids: T.Buffer((batch_size,), "int32"),
-                output: T.Buffer((batch_size, *shape), dtype),
+                storage: T.Tensor((max_batch_size, max_history, *shape), dtype),
+                seq_slot_ids: T.Tensor((batch_size,), "int32"),
+                history_slot_ids: T.Tensor((batch_size,), "int32"),
+                output: T.Tensor((batch_size, *shape), dtype),
             ):
                 T.func_attr({"global_symbol": f"rnn_state_get_{state_id}"})
 
@@ -266,10 +266,10 @@ class RNNState(Object):
 
             @Ts.prim_func
             def f(
-                storage: T.Buffer((max_batch_size, max_history, shape[0]), dtype),
-                seq_slot_ids: T.Buffer((batch_size,), "int32"),
-                history_slot_ids: T.Buffer((batch_size,), "int32"),
-                data: T.Buffer((batch_size, shape[0]), dtype),
+                storage: T.Tensor((max_batch_size, max_history, shape[0]), dtype),
+                seq_slot_ids: T.Tensor((batch_size,), "int32"),
+                history_slot_ids: T.Tensor((batch_size,), "int32"),
+                data: T.Tensor((batch_size, shape[0]), dtype),
             ):
                 T.func_attr({"global_symbol": f"rnn_state_set_{state_id}"})
 
@@ -290,10 +290,10 @@ class RNNState(Object):
 
             @Ts.prim_func
             def f(
-                storage: T.Buffer((max_batch_size, max_history, *shape), dtype),
-                seq_slot_ids: T.Buffer((batch_size,), "int32"),
-                history_slot_ids: T.Buffer((batch_size,), "int32"),
-                data: T.Buffer((batch_size, *shape), dtype),
+                storage: T.Tensor((max_batch_size, max_history, *shape), dtype),
+                seq_slot_ids: T.Tensor((batch_size,), "int32"),
+                history_slot_ids: T.Tensor((batch_size,), "int32"),
+                data: T.Tensor((batch_size, *shape), dtype),
             ):
                 T.func_attr({"global_symbol": f"rnn_state_set_{state_id}"})
 

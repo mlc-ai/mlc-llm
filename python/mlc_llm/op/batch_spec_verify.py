@@ -61,13 +61,13 @@ def batch_spec_verify(vocab_size):
     # fmt: off
     @Ts.prim_func(private=True)
     def _func(
-        draft_probs: T.Buffer((num_nodes, vocab_size), "float32"),
-        draft_tokens: T.Buffer((num_nodes,), "int32"),
-        model_probs: T.Buffer((num_nodes, vocab_size), "float32"),
-        token_tree_first_child: T.Buffer((num_nodes,), "int32"),
-        token_tree_next_sibling: T.Buffer((num_nodes,), "int32"),
-        uniform_samples: T.Buffer((num_nodes,), "float32"),
-        token_tree_parent_ptr: T.Buffer((nbatch,), "int32"),
+        draft_probs: T.Tensor((num_nodes, vocab_size), "float32"),
+        draft_tokens: T.Tensor((num_nodes,), "int32"),
+        model_probs: T.Tensor((num_nodes, vocab_size), "float32"),
+        token_tree_first_child: T.Tensor((num_nodes,), "int32"),
+        token_tree_next_sibling: T.Tensor((num_nodes,), "int32"),
+        uniform_samples: T.Tensor((num_nodes,), "float32"),
+        token_tree_parent_ptr: T.Tensor((nbatch,), "int32"),
     ):
         """
         [
@@ -144,7 +144,7 @@ def batch_spec_verify(vocab_size):
                                             "reduce_scope",
                                             T.int32(0),
                                         )
-                                        T.tvm_thread_allreduce(T.uint32(1), psum[0], True, t0[0], tx, dtype="void")  # noqa: E501
+                                        T.tvm_thread_allreduce(T.uint32(1), psum[0], True, t0[0], tx)  # noqa: E501
 
                                     if t0[0] < 1e-7:
                                         # accept the proposal, we move to child
