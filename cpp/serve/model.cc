@@ -243,7 +243,8 @@ class ModelImpl : public ModelObj {
   }
 
   Tensor BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
-                      const std::vector<int>& lengths) final {
+                      const std::vector<int>& lengths, const std::vector<int32_t>& token_ids,
+                      const std::vector<int32_t>& modality_ids) final {
     TVM_FFI_ICHECK(!seq_ids.empty());
     TVM_FFI_ICHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
@@ -254,6 +255,7 @@ class ModelImpl : public ModelObj {
       total_length += lengths[i];
       p_logit_pos[i] = total_length - 1;
     }
+    int num_tokens = total_length;
     bool padded = total_length % seqlen_padding_factor_ != 0;
     if (padded) {
       total_length = (total_length + seqlen_padding_factor_ - 1) / seqlen_padding_factor_ *
@@ -263,7 +265,8 @@ class ModelImpl : public ModelObj {
                                " total_len=" + std::to_string(total_length));
     Tensor logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DLDataType{kDLInt, 32, 1});
 
-    TVM_FFI_ICHECK(ft_.prefill_func_.defined())
+    bool token_aware = ft_.token_prefill_func_.defined();
+    TVM_FFI_ICHECK(token_aware || ft_.prefill_func_.defined())
         << "`prefill_with_embed` function is not found in the model. Please make sure the model is "
            "compiled with flag `--sep-embed` and `--enable-batching`";
     TVM_FFI_ICHECK(ft_.kv_cache_begin_forward_func_.defined());
@@ -323,7 +326,18 @@ class ModelImpl : public ModelObj {
 
     // args: embeddings, logit_pos, kv_cache, [rnn_state,] params
     ObjectRef ret;
-    if (kind == KVStateKind::kHybrid) {
+    if (token_aware) {
+      CheckTokenIds(token_ids, num_tokens);
+      TVM_FFI_ICHECK(modality_ids.empty() || modality_ids.size() == token_ids.size());
+      Shape ids_shape{1, total_length};
+      ObjectRef token_ids_dref_or_nd = CopyIdsToWorker0(token_ids, ids_shape, "prefill_token_ids");
+      ObjectRef modality_ids_dref_or_nd =
+          CopyIdsToWorker0(modality_ids, ids_shape, "prefill_modality_ids");
+      ret =
+          ft_.token_prefill_func_(embeddings_dref_or_nd, token_ids_dref_or_nd,
+                                  modality_ids_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, params_)
+              .cast<ObjectRef>();
+    } else if (kind == KVStateKind::kHybrid) {
       // Hybrid always uses batch_prefill (single_batch prefill has tensor-based GDN args).
       ret =
           prefill_func(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, rnn_state_, params_)
@@ -452,11 +466,13 @@ class ModelImpl : public ModelObj {
     }
   }
 
-  Tensor BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) final {
+  Tensor BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
+                     const std::vector<int32_t>& token_ids) final {
     NVTXScopedRange nvtx_scope("BatchDecode num_seqs=" + std::to_string(seq_ids.size()));
     int num_sequence = seq_ids.size();
 
-    TVM_FFI_ICHECK(ft_.decode_func_.defined())
+    bool token_aware = ft_.token_decode_func_.defined();
+    TVM_FFI_ICHECK(token_aware || ft_.decode_func_.defined())
         << "`decode_with_embed` function is not found in the model. Please make sure the model is "
            "compiled with flag `--sep-embed` and `--enable-batching`";
     TVM_FFI_ICHECK(ft_.kv_cache_begin_forward_func_.defined());
@@ -491,7 +507,13 @@ class ModelImpl : public ModelObj {
 
     // args: embeddings, kv_cache, [rnn_state,] params
     ObjectRef ret;
-    if (kind == KVStateKind::kHybrid) {
+    if (token_aware) {
+      CheckTokenIds(token_ids, num_sequence);
+      ObjectRef token_ids_dref_or_nd =
+          CopyIdsToWorker0(token_ids, {num_sequence, 1}, "decode_token_ids");
+      ret = ft_.token_decode_func_(embeddings_dref_or_nd, token_ids_dref_or_nd, kv_cache_, params_)
+                .cast<ObjectRef>();
+    } else if (kind == KVStateKind::kHybrid) {
       // Hybrid always uses batch_decode (single_batch decode has tensor-based GDN args).
       ret =
           ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, rnn_state_, params_).cast<ObjectRef>();
@@ -681,7 +703,8 @@ class ModelImpl : public ModelObj {
 
   Tensor BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                      const std::vector<int>& lengths,
-                     const std::vector<int64_t>& token_tree_parent_ptr) final {
+                     const std::vector<int64_t>& token_tree_parent_ptr,
+                     const std::vector<int32_t>& token_ids) final {
     TVM_FFI_ICHECK(!seq_ids.empty());
     TVM_FFI_ICHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
@@ -693,7 +716,8 @@ class ModelImpl : public ModelObj {
 
     NVTXScopedRange nvtx_scope("BatchVerify num_tokens=" + std::to_string(total_length));
 
-    TVM_FFI_ICHECK(ft_.verify_func_.defined())
+    bool token_aware = ft_.token_verify_func_.defined();
+    TVM_FFI_ICHECK(token_aware || ft_.verify_func_.defined())
         << "`verify_with_embed` function is not found in the model. Please make sure the model is "
            "compiled with flag `--sep-embed` and `--enable-batching`";
     TVM_FFI_ICHECK(ft_.kv_cache_begin_forward_func_.defined());
@@ -729,7 +753,13 @@ class ModelImpl : public ModelObj {
     }
     // args: embeddings, kv_cache, [rnn_state,] params
     ObjectRef ret;
-    if (kind == KVStateKind::kHybrid) {
+    if (token_aware) {
+      CheckTokenIds(token_ids, total_length);
+      ObjectRef token_ids_dref_or_nd =
+          CopyIdsToWorker0(token_ids, {1, total_length}, "verify_token_ids");
+      ret = ft_.token_verify_func_(embeddings_dref_or_nd, token_ids_dref_or_nd, kv_cache_, params_)
+                .cast<ObjectRef>();
+    } else if (kind == KVStateKind::kHybrid) {
       ret =
           ft_.verify_func_(embeddings_dref_or_nd, kv_cache_, rnn_state_, params_).cast<ObjectRef>();
     } else {
@@ -1218,6 +1248,28 @@ class ModelImpl : public ModelObj {
     this->attention_sink_size_ = std::max(this->attention_sink_size_, 0);
     this->vocab_size_ = json::Lookup<int64_t>(config, "vocab_size");
     this->model_type_ = json::Lookup<std::string>(config, "model_type");
+  }
+
+  /*! \brief Check the token ids that a token-aware function takes for its embeddings. */
+  void CheckTokenIds(const std::vector<int32_t>& token_ids, int num_tokens) {
+    TVM_FFI_ICHECK(kind == KVStateKind::kKVCache);
+    TVM_FFI_ICHECK_EQ(token_ids.size(), num_tokens)
+        << "The model functions take token ids next to the embeddings, which the engine action "
+           "does not provide. Such model is not supported as draft model, in eagle/medusa "
+           "speculative decoding or in disaggregated prefill.";
+  }
+
+  /*!
+   * \brief Copy the ids to the device as an int32 tensor of the given shape.
+   * Positions beyond the input ids, which are for padding, are filled with 0.
+   */
+  ObjectRef CopyIdsToWorker0(const std::vector<int32_t>& ids, Shape shape, String name) {
+    TVM_FFI_ICHECK_NE(prefill_chunk_size_, -1);
+    Tensor ids_nd =
+        Tensor::Empty(shape, DLDataType{kDLInt, 32, 1}, Device{DLDeviceType::kDLCPU, 0});
+    int32_t* p_ids = static_cast<int32_t*>(ids_nd->data);
+    std::fill(std::copy(ids.begin(), ids.end(), p_ids), p_ids + shape.Product(), 0);
+    return ft_.CopyToWorker0(ids_nd, name, {prefill_chunk_size_});
   }
 
   //----------------------------

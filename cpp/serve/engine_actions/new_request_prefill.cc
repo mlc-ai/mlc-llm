@@ -71,6 +71,8 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       bool single_input =
           num_rsentries == 1 && prefill_inputs[0].rsentry->mstates[model_id]->inputs.size() == 1;
       std::vector<int64_t> cached_token_data;
+      std::vector<int32_t> token_ids;
+      std::vector<int32_t> modality_ids;
       for (int i = 0; i < num_rsentries; ++i) {
         const RequestStateEntry& rsentry = prefill_inputs[i].rsentry;
         RequestModelState mstate = rsentry->mstates[model_id];
@@ -108,6 +110,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           if (!model_id && !prefill_inputs[i].is_decode) {
             mstate->prefilled_inputs.push_back(input_data[j]);
           }
+          AppendTokenAndModalityIds(input_data[j], &token_ids, &modality_ids);
           if (const auto* token_data = input_data[j].as<TokenDataNode>()) {
             cached_token_data.insert(cached_token_data.end(), token_data->token_ids.begin(),
                                      token_data->token_ids.end());
@@ -138,8 +141,8 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       }
 
       RECORD_EVENT(trace_recorder_, request_ids, "start prefill");
-      Tensor logits =
-          models_[model_id]->BatchPrefill(embeddings, request_internal_ids, prefill_lengths);
+      Tensor logits = models_[model_id]->BatchPrefill(embeddings, request_internal_ids,
+                                                      prefill_lengths, token_ids, modality_ids);
       RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
       TVM_FFI_ICHECK_EQ(logits->ndim, 3);
       TVM_FFI_ICHECK_EQ(logits->shape[0], 1);

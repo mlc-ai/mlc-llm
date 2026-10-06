@@ -150,10 +150,16 @@ class ModelObj : public Object {
    * \param embeddings The embedding of the input to be prefilled.
    * \param seq_id The id of the sequence in the KV cache.
    * \param lengths The length of each sequence to prefill.
+   * \param token_ids The token id of each embedding position. It is required by models
+   * with token-aware functions, which look up per-token state by id, and ignored otherwise.
+   * \param modality_ids The modality of each embedding position. 0 means a text token.
+   * Other positions hold a placeholder token id. Empty means all positions are text tokens.
    * \return The logits for the next token.
    */
   virtual Tensor BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
-                              const std::vector<int>& lengths) = 0;
+                              const std::vector<int>& lengths,
+                              const std::vector<int32_t>& token_ids = {},
+                              const std::vector<int32_t>& modality_ids = {}) = 0;
 
   /*!
    * \brief Batch prefill function. Input hidden_states are computed from
@@ -173,9 +179,11 @@ class ModelObj : public Object {
    * the order of `seq_ids`.
    * \param embeddings The embedding of last generated token in the entire batch.
    * \param seq_id The id of the sequence in the KV cache.
+   * \param token_ids The token id of each embedding. \sa BatchPrefill
    * \return The logits for the next token for each sequence in the batch.
    */
-  virtual Tensor BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) = 0;
+  virtual Tensor BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
+                             const std::vector<int32_t>& token_ids = {}) = 0;
 
   virtual Tensor BatchTreeDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                                  const std::vector<int>& lengths,
@@ -199,6 +207,7 @@ class ModelObj : public Object {
    * \param token_tree_parent_ptr The parent pointers of the token tree.
    * It's size is the sum of "lengths". It contains a batch of independent trees,
    * one for each sequence. Parent being "-1" means the node is a root.
+   * \param token_ids The token id of each embedding position. \sa BatchPrefill
    * \return The logits for the draft token for each sequence in the batch.
    * \note The function runs for **every** sequence in the batch.
    * That is to say, it does not accept "running a verify step for a subset
@@ -206,7 +215,8 @@ class ModelObj : public Object {
    */
   virtual Tensor BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                              const std::vector<int>& lengths,
-                             const std::vector<int64_t>& token_tree_parent_ptr) = 0;
+                             const std::vector<int64_t>& token_tree_parent_ptr,
+                             const std::vector<int32_t>& token_ids = {}) = 0;
 
   /*!
    * \brief Batch verify function. Input hidden_states are computed from

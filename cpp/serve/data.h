@@ -69,6 +69,14 @@ class Data : public ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Data, ObjectRef, DataNode);
 };
 
+/*!
+ * \brief Append the token id and modality id of every embedding position of the data.
+ * Token data has its token ids and modality 0. Other data has placeholder token id 0
+ * and modality 1.
+ */
+void AppendTokenAndModalityIds(const Data& data, std::vector<int32_t>* token_ids,
+                               std::vector<int32_t>* modality_ids);
+
 /*! \brief Split the given data array into two arrays at the "split_pos" position. */
 std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, int total_length,
                                               int split_pos);

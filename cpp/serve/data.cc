@@ -23,6 +23,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /****************** Data ******************/
 
+void AppendTokenAndModalityIds(const Data& data, std::vector<int32_t>* token_ids,
+                               std::vector<int32_t>* modality_ids) {
+  int length = data->GetLength();
+  if (const auto* token_data = data.as<TokenDataNode>()) {
+    token_ids->insert(token_ids->end(), token_data->token_ids.begin(), token_data->token_ids.end());
+    modality_ids->insert(modality_ids->end(), length, 0);
+  } else {
+    token_ids->insert(token_ids->end(), length, 0);
+    modality_ids->insert(modality_ids->end(), length, 1);
+  }
+}
+
 std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, int total_length,
                                               int split_pos) {
   TVM_FFI_ICHECK_GE(split_pos, 0);
