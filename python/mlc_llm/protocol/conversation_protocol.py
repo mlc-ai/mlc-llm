@@ -169,6 +169,13 @@ class Conversation(BaseModel):
                 if (not self.add_role_after_system_message and system_msg != "" and i == 0)
                 else self.roles[role] + self.role_content_sep
             )
+            if (
+                isinstance(content, list)
+                and content
+                and all(item.get("type") == "text" for item in content)
+            ):
+                # The role template belongs to the message, not to each text part.
+                content = "".join(item["text"] for item in content)
             if isinstance(content, str):
                 message_list.append(
                     role_prefix
