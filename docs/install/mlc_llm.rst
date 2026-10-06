@@ -208,7 +208,9 @@ This step is useful when you want to make modification or obtain a specific vers
     # generate build configuration
     python ../cmake/gen_cmake_config.py
     # build mlc_llm libraries
-    cmake .. && make -j $(nproc) && cd ..
+    cmake ..
+    cmake --build . --parallel
+    cd ..
 
 **Step 3. Install via Python.** We recommend that you install ``mlc_llm`` as a Python package, giving you
 access to ``mlc_llm.compile``, ``mlc_llm.MLCEngine``, and the CLI.
@@ -219,6 +221,7 @@ There are two ways to do so:
        .. code-tab :: bash Install via environment variable
 
           export MLC_LLM_SOURCE_DIR=/path-to-mlc-llm
+          python -m pip install -r "$MLC_LLM_SOURCE_DIR/python/requirements.txt"
           export PYTHONPATH=$MLC_LLM_SOURCE_DIR/python:$PYTHONPATH
           alias mlc_llm="python -m mlc_llm"
 
@@ -227,20 +230,22 @@ There are two ways to do so:
           conda activate your-own-env
           which python # make sure python is installed, expected output: path_to_conda/envs/your-own-env/bin/python
           cd /path-to-mlc-llm/python
-          pip install -e .
+          python -m pip install -e .
 
-**Step 4. Validate installation.** You may validate if MLC libarires and mlc_llm CLI is compiled successfully using the following command:
+Both methods install the Python dependencies declared in ``python/requirements.txt``, including ``apache-tvm-ffi``. The editable install resolves them automatically.
+
+You do not need to configure ``LD_LIBRARY_PATH`` or ``DYLD_LIBRARY_PATH`` for either installation method above. The MLC LLM Python package searches the source tree's ``build`` directory for the compiled libraries. If you keep the libraries somewhere else, set ``MLC_LIBRARY_PATH`` to that directory.
+
+**Step 4. Validate installation.** Validate the Python dependencies, compiled libraries, and MLC LLM CLI separately so that a missing component is easier to identify:
 
 .. code-block:: bash
     :caption: Validate installation
 
-    # expected to see `libmlc_llm.so` and `libtvm_runtime.so`
-    ls -l ./build/
+    # expected to print the location of the tvm_ffi package
+    python -c "import tvm_ffi; print(tvm_ffi.__file__)"
+    # expected to see libmlc_llm and libtvm_runtime with the platform's library extension
+    ls -l ./build/libmlc_llm.* ./build/libtvm_runtime.*
+    # expected to print the MLC LLM source package location
+    python -c "import mlc_llm; print(mlc_llm.__file__)"
     # expected to see help message
     mlc_llm chat -h
-
-Finally, you can verify installation in command line. You should see the path you used to build from source with:
-
-.. code:: bash
-
-   python -c "import mlc_llm; print(mlc_llm)"
