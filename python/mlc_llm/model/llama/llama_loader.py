@@ -18,6 +18,10 @@ awq_quant = make_awq_quant(LlamaForCausalLM)
 
 huggingface = make_standard_hf_loader(
     model_cls=LlamaForCausalLM,
+    add_qkv_bias=True,
+    qkv_bias_optional=True,
+    add_gate_up_bias=True,
+    gate_up_bias_optional=True,
     add_unused=["rotary_emb.inv_freq"],
 )
 
