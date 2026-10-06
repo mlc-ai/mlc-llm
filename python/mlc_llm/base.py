@@ -1,6 +1,5 @@
 """Load MLC LLM library and _ffi_api functions."""
 
-import ctypes
 import os
 import sys
 
@@ -19,7 +18,7 @@ def _load_mlc_llm_lib():
             os.add_dll_directory(path)
     lib_name = "mlc_llm" if tvm.base._RUNTIME_ONLY else "mlc_llm_module"
     lib_path = libinfo.find_lib_path(lib_name, optional=False)
-    return ctypes.CDLL(lib_path[0]), lib_path[0]
+    return libinfo.load_lib(lib_path[0]), lib_path[0]
 
 
 @tvm.register_global_func("mlc.debug_cuda_profiler_start")
