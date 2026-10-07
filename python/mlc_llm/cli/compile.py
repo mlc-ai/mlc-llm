@@ -91,6 +91,12 @@ def main(argv):
         help=HELP["enable_subgroups"],
     )
     parser.add_argument(
+        "--matmul-accumulation-dtype",
+        choices=["float32"],
+        default=None,
+        help="Accumulate FP16 matrix products in FP32 and cast outputs back to FP16.",
+    )
+    parser.add_argument(
         "--opt",
         type=OptimizationFlags.from_str,
         default="O2",
@@ -149,4 +155,5 @@ def main(argv):
         output=parsed.output,
         overrides=parsed.overrides,
         debug_dump=parsed.debug_dump,
+        matmul_accumulation_dtype=parsed.matmul_accumulation_dtype,
     )

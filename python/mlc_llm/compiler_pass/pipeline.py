@@ -40,6 +40,7 @@ from .fuse_transpose_matmul import FuseTransposeMatmul
 from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 from .low_batch_specialization import LowBatchGemvSpecialize
 from .pipeline_parallel_rewrite import PipelineParallelRewrite
+from .promote_matmul_accumulation import PromoteMatmulAccumulation
 from .scatter_tuple_get_item import ScatterTupleGetItem
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,7 @@ def _mlc_llm_pipeline(
     cuda_graph_symbolic_capture_hints: Optional[Dict[str, List[str]]] = None,  # noqa: UP006
     additional_tirs: Optional[Dict[str, tvm.tirx.PrimFunc]] = None,  # noqa: UP006
     metadata: Optional[Dict[str, Any]] = None,  # noqa: UP006
+    matmul_accumulation_dtype: Optional[str] = None,
     ext_mods: Optional[List[nn.ExternModule]] = None,  # noqa: UP006
     debug_dump: Optional[Path] = None,
 ):
@@ -99,6 +101,8 @@ def _mlc_llm_pipeline(
     ext_mods = ext_mods or []
     tensor_parallel_shards = metadata.get("tensor_parallel_shards", 1)
     index_bits = 64 if target.kind.name == "cuda" else 32
+    if matmul_accumulation_dtype not in (None, "float32"):
+        raise ValueError("matmul_accumulation_dtype must be None or float32")
 
     @tvm.transform.module_pass(opt_level=0)
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
@@ -122,6 +126,11 @@ def _mlc_llm_pipeline(
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
                 DispatchTritonKernel(target),
+                (
+                    PromoteMatmulAccumulation()
+                    if matmul_accumulation_dtype == "float32"
+                    else tvm.transform.Sequential([])
+                ),
                 FuseFTDequantizeEpilogue(),
                 FuseDequantizeTranspose(),
                 BLASDispatch(target) if cublas_gemm else tvm.transform.Sequential([]),
