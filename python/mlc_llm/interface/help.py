@@ -24,6 +24,9 @@ The quantization mode we use to compile. If unprovided, will infer from `model`.
     "model": """
 A path to ``mlc-chat-config.json``, or an MLC model directory that contains `mlc-chat-config.json`.
 It can also be a link to a HF repository pointing to an MLC compiled model.
+When the model's ``model_task`` field is ``"embedding"``, the server starts in embedding-only
+mode, exposing ``GET /v1/models`` and ``POST /v1/embeddings``; chat-engine options are ignored
+in this mode and ``--model-lib`` is required.
 """.strip(),
     "model_lib": """
 The full path to the model library file to use (e.g. a ``.so`` file). If unspecified, we will use

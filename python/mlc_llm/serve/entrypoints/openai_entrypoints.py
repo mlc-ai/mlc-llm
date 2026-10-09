@@ -338,3 +338,13 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
         use_function_calling=use_function_calling,
         usage=request_final_usage,
     )
+
+
+################ Embedding-only router ################
+
+# Router for embedding-only serving (`mlc_llm serve` with a primary model whose
+# `model_task` is "embedding"). It reuses the handlers above but exposes only the
+# endpoints an embedding server can answer.
+embedding_app = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_api_key)])
+embedding_app.get("/v1/models")(request_models)
+embedding_app.post("/v1/embeddings")(request_embedding)
