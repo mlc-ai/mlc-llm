@@ -19,10 +19,15 @@ TVM_ROOT=$(TVM_SOURCE_DIR)
 MLC_LLM_ROOT=$(shell cd ..; pwd)
 
 INCLUDE_FLAGS = -I$(TVM_ROOT) -I$(TVM_ROOT)/include\
-	-I$(TVM_ROOT)/3rdparty/dlpack/include\
+	-I$(TVM_ROOT)/3rdparty/tvm-ffi/include\
+	-I$(TVM_ROOT)/3rdparty/tvm-ffi/3rdparty/dlpack/include\
 	-I$(TVM_ROOT)/3rdparty/compiler-rt\
 	-I$(MLC_LLM_ROOT)/3rdparty/tokenizers-cpp\
-	-I$(MLC_LLM_ROOT)/3rdparty/tokenizers-cpp/include -I$(MLC_LLM_ROOT)/cpp
+	-I$(MLC_LLM_ROOT)/3rdparty/tokenizers-cpp/include\
+	-I$(MLC_LLM_ROOT)/3rdparty/xgrammar/include\
+	-I$(MLC_LLM_ROOT)/3rdparty/xgrammar/3rdparty/picojson\
+	-I$(MLC_LLM_ROOT)/3rdparty/stb\
+	-I$(MLC_LLM_ROOT)/cpp
 
 .PHONY: clean all rmtypedep preparetest
 
