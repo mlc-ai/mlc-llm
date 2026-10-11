@@ -215,14 +215,7 @@ class RNNState(Object):
                             vi, *vs = Ts.axis.remap("S" * (len(shape) + 1), [i, *s])
                             seq_id = T.meta_var(seq_slot_ids[vi])
                             history_id = T.meta_var(history_slot_ids[vi])
-                            # The following line is equivalent to:
-                            # `output[vi, *vs] = storage[seq_id, history_id, *vs]`
-                            # However, unpacking operator in subscript requires Python 3.11 or newer
-                            T.buffer_store(
-                                output,
-                                T.BufferLoad(storage, [seq_id, history_id, *vs]),
-                                [vi, *vs],
-                            )
+                            output[(vi, *vs)] = storage[(seq_id, history_id, *vs)]
 
             return f
 
@@ -305,14 +298,7 @@ class RNNState(Object):
                             history_id = T.meta_var(
                                 (history_slot_ids[vi] + 1) % T.cast(max_history, "int32")
                             )
-                            # The following line is equivalent to:
-                            # `storage[seq_id, history_id, *vs] = data[vi, *vs]`
-                            # However, unpacking operator in subscript requires Python 3.11 or newer
-                            T.buffer_store(
-                                storage,
-                                T.BufferLoad(data, [vi, *vs]),
-                                [seq_id, history_id, *vs],
-                            )
+                            storage[(seq_id, history_id, *vs)] = data[(vi, *vs)]
 
             return f
 
