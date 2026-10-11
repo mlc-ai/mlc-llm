@@ -601,7 +601,6 @@ def gemma4_artifact_programs(_config: Gemma4Config):
 GEMMA4_ARTIFACT = ArtifactDefinition(
     tasks=gemma4_artifact_tasks,
     programs=gemma4_artifact_programs,
-    required_features=("shader-f16",),
 )
 
 

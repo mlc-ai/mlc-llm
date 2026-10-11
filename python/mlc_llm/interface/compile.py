@@ -203,11 +203,17 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             metadata["embedding_metadata"] = dataclasses.asdict(args.model.embedding_metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
         if args.model.artifact is not None:
+            required_features = set(args.model.artifact.required_features)
+            if args.target.kind.name == "webgpu":
+                if args.quantization.model_dtype == "float16":
+                    required_features.add("shader-f16")
+                if args.target.attrs.get("supports_subgroups", False):
+                    required_features.add("subgroups")
             metadata["artifact"] = build_compiled_program_artifact(
                 tasks=args.model.artifact.tasks(model_config),
                 programs=args.model.artifact.programs(model_config),
                 named_parameters=named_params,
-                required_features=args.model.artifact.required_features,
+                required_features=required_features,
                 symbolic_sizes={
                     dim.name: getattr(model_config, dim.name)
                     for _, param in named_params

@@ -94,8 +94,8 @@ def _add_scatter_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dt
                         "_scatter_hidden_states",
                     ),
                     [src, indices, dst],
-                    2,
-                    dst.ty,
+                    inplace_indices=2,
+                    ty_args=[dst.ty],
                 )
             )
         gv = bb.emit_func_output(output)
@@ -120,8 +120,8 @@ def _add_gather_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dty
                         "_gather_hidden_states",
                     ),
                     [src, indices, dst],
-                    2,
-                    dst.ty,
+                    inplace_indices=2,
+                    ty_args=[dst.ty],
                 )
             )
         gv = bb.emit_func_output(output)
