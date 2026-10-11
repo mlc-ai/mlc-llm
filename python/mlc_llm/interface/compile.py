@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple  # noqa: UP035
 
 from tvm import IRModule, relax, tirx
-from tvm.ir.transform import Pass, PassContext
 from tvm.relax.frontend import nn
 from tvm.target import Target
+from tvm.transform import Pass, PassContext
 
 from mlc_llm import compiler_pass as _  # noqa: F401
 from mlc_llm import op as op_ext
@@ -63,8 +63,8 @@ class CompileArgs:
 def _apply_preproc_to_params_and_check_pipeline(
     named_params: List[Tuple[str, nn.Parameter]],  # noqa: UP006
     model_config,
-) -> Dict[str, tirx.PrimFunc]:  # noqa: UP006
-    extra_tirs: Dict[str, tirx.PrimFunc] = {}  # noqa: UP006
+) -> Dict[str, tirx.Function]:  # noqa: UP006
+    extra_tirs: Dict[str, tirx.Function] = {}  # noqa: UP006
     for name, param in named_params:
         preprocs = param.attrs.get("preprocs", [])
         shard_strategy = param.attrs.get("shard_strategy", None)

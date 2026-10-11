@@ -27,9 +27,11 @@ def test_lifted_buffer_shape_uses_caller_symbols():
     m = tirx.Var("m", "int64")
     source = tirx.decl_tensor((n,), "float32", name="source")
     output = tirx.decl_tensor((n,), "float32", name="output")
-    func = tirx.PrimFunc([source, output], tirx.Evaluate(0))
+    func = tirx.Function([source, output], tvm.ir.Evaluate(0))
     x = relax.Var("x", relax.TensorType((m,), "float32"))
-    call = relax.call_tir(tvm.ir.GlobalVar("copy"), [x], out_ty=relax.TensorType((m,), "float32"))
+    call = relax.call_tir(
+        tvm.ir.GlobalVar("copy"), [x], ty_args=[relax.TensorType((m,), "float32")]
+    )
 
     shapes, resolved = _resolve_tir_var_mapping(
         func, call, [relax.TensorType((n * 2 + 1,), "float32")]

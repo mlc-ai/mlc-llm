@@ -172,7 +172,11 @@ def test_quantize_model(quant_name: str, shape: List[int], dtype: str):  # noqa:
         "model.linear.q_weight",
         "model.linear.q_scale",
     ]
-    assert quant_map.map_func["model.linear.weight"] == config.quantize_weight
+    weight = tvm.runtime.tensor(np.random.random([shape[1], shape[0]]).astype(dtype))
+    mapped = quant_map.map_func["model.linear.weight"](weight)
+    expected = config.quantize_weight(weight, output_transpose=False)
+    for actual, reference in zip(mapped, expected):
+        np.testing.assert_array_equal(actual.numpy(), reference.numpy())
     assert isinstance(mod.linear, GroupQuantizeLinear)
     assert quant_map.param_map["model.embedding.weight"] == [
         "model.embedding.q_weight",

@@ -21,7 +21,7 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
 
     batch_size = T.dynamic("batch_size", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def decode_add_rms(
         A: T.Tensor((batch_size, 1, hidden_size), in_dtype),
         B: T.Tensor((batch_size, 1, hidden_size), in_dtype),
@@ -92,7 +92,7 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
 
     seq_len = T.dynamic("seq_len", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def prefill_add_rms(
         A: T.Tensor((1, seq_len, hidden_size), in_dtype),
         B: T.Tensor((1, seq_len, hidden_size), in_dtype),
@@ -234,7 +234,7 @@ class _FuseAddRMSNormRewriter(PyExprMutator):
             relax.call_tir(
                 func_gv,
                 [x1, x2, weight],
-                out_ty=[x1.ty, x2.ty],
+                ty_args=[relax.TupleType([x1.ty, x2.ty])],
             )
         )
         new_o = relax.TupleGetItem(tuple_output, 0)

@@ -87,7 +87,7 @@ def fuse_bias(func: relax.Function) -> relax.Function:
                     args_list[7],  # group_size
                     bias_stride,  # bias_stride
                 ],
-                out_ty=match[decode_matmul].ty,
+                ty_args=[match[decode_matmul].ty],
             )
         return expr
 
@@ -150,7 +150,7 @@ def fuse_activation(func: relax.Function) -> relax.Function:
                     args_list[6],  # k
                     args_list[7],  # group_size
                 ],
-                out_ty=match[decode_matmul].ty,
+                ty_args=[match[decode_matmul].ty],
             )
         if match[decode_matmul].args[0].global_symbol == "fastertransformer.gemm_fp16_int_bias":
             matched_activation = match[pattern]
@@ -176,7 +176,7 @@ def fuse_activation(func: relax.Function) -> relax.Function:
                     args_list[8],  # group_size
                     args_list[9],  # bias_stride
                 ],
-                out_ty=match[decode_matmul].ty,
+                ty_args=[match[decode_matmul].ty],
             )
         return expr
 
@@ -254,7 +254,7 @@ def fuse_residual_binary(func: relax.Function) -> relax.Function:
                     args_list[7],  # k
                     args_list[8],  # group_size
                 ],
-                out_ty=match[decode_matmul].ty,
+                ty_args=[match[decode_matmul].ty],
             )
         return expr
 
@@ -324,7 +324,7 @@ def fuse_residual_unary(func: relax.Function) -> relax.Function:
                     args_list[10],  # k
                     args_list[11],  # group_size
                 ],
-                out_ty=match[decode_matmul].ty,
+                ty_args=[match[decode_matmul].ty],
             )
         return expr
 

@@ -131,7 +131,7 @@ def _attach_argsort_func(bb: relax.BlockBuilder):
                 ),
                 probs,
                 sorted_indices,
-                primfunc_name_hint="take_sorted_probs",
+                function_name_hint="take_sorted_probs",
             )
             output = bb.emit_output((sorted_values, sorted_indices))
         gv = bb.emit_func_output(output)
@@ -141,7 +141,7 @@ def _attach_argsort_func(bb: relax.BlockBuilder):
 batch_size = T.dynamic("batch_size", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def full(value: T.int64, result: T.Tensor((batch_size, 1), "int32")):
     """The filling function for top k."""
     for i in T.serial(batch_size):
@@ -241,7 +241,7 @@ def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Targ
                 relax.call_tir(
                     bb.add_func(top_p_pivot(num_pivots, target), "top_p_pivot_cutoff"),
                     args=[probs, top_p, init_pivots],
-                    out_ty=[top_p.ty, top_p.ty],
+                    ty_args=[relax.TupleType([top_p.ty, top_p.ty])],
                 )
             )
             final_pivot = cutoff_output[0]
@@ -250,7 +250,7 @@ def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Targ
                 relax.call_tir(
                     bb.add_func(top_p_renorm(target), "top_p_renorm_after_cutoff"),
                     args=[probs, final_pivot, renorm_sum],
-                    out_ty=probs.ty,
+                    ty_args=[probs.ty],
                 )
             )
         gv = bb.emit_func_output(renormalized_probs)
@@ -263,7 +263,7 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
     num_positions = T.dynamic("num_positions", "int32")
     vocab_size = T.dynamic("vocab_size", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def sampler_take_probs_tir(
         unsorted_probs: T.Tensor((batch_size, vocab_size), "float32"),
         sorted_indices: T.Tensor((batch_size, vocab_size), "int32"),
@@ -327,10 +327,14 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
                 relax.call_tir(
                     bb.add_func(sampler_take_probs_tir, "sampler_take_probs_tir"),
                     args,
-                    out_ty=[
-                        relax.TensorType((num_samples,), "float32"),
-                        relax.TensorType((num_positions,), "float32"),
-                        relax.TensorType((num_positions,), "int32"),
+                    ty_args=[
+                        relax.TupleType(
+                            [
+                                relax.TensorType((num_samples,), "float32"),
+                                relax.TensorType((num_positions,), "float32"),
+                                relax.TensorType((num_positions,), "int32"),
+                            ]
+                        )
                     ],
                 )
             )
@@ -375,9 +379,13 @@ def _attach_batch_verifier(bb: relax.BlockBuilder):
                         args.index(model_probs),
                         args.index(token_tree_parent_ptr),
                     ],
-                    out_ty=[
-                        model_probs.ty,
-                        token_tree_parent_ptr.ty,
+                    ty_args=[
+                        relax.TupleType(
+                            [
+                                model_probs.ty,
+                                token_tree_parent_ptr.ty,
+                            ]
+                        )
                     ],
                 )
             )

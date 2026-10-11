@@ -76,7 +76,7 @@ def test_nn_module_paged_kv_cache():
                 lv = R.call_dps_packed(
                     "vm.builtin.attention_kv_cache_attention_with_fused_qkv",
                     (cache, 0, T.float64(0.088388347648318447), reshape),
-                    out_ty=R.Tensor((100, 32, 128), dtype="float16"),
+                    ty_args=[R.Tensor((100, 32, 128), dtype="float16")],
                 )
                 reshape1: R.Tensor((1, 100, 32, 128), dtype="float16") = R.reshape(
                     lv, R.shape([1, 100, 32, 128])

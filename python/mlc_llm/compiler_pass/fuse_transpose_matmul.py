@@ -139,7 +139,7 @@ class _TransposeMatmulFuser(PyExprMutator):
                     te_transposed_matmul,
                     call.args[1],
                     call.args[0],
-                    primfunc_name_hint="NT_matmul",
+                    function_name_hint="NT_matmul",
                 )
 
         return super().visit_call_(call)

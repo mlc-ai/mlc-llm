@@ -30,13 +30,13 @@ class _TIRGlobalAllocRewriter(PyExprMutator):
         self.mod = mod
         self.gv2new_tensor_sinfo: Dict[  # noqa: UP006
             tvm.ir.GlobalVar,
-            Tuple[tvm.ir.GlobalVar, List[relax.TensorType], tirx.PrimFunc],  # noqa: UP006
+            Tuple[tvm.ir.GlobalVar, List[relax.TensorType], tirx.Function],  # noqa: UP006
         ] = {}
 
     def transform(self) -> IRModule:
         """Entry point of the transformation"""
         for g_var, func in self.mod.functions_items():
-            if isinstance(func, tirx.PrimFunc):
+            if isinstance(func, tirx.Function):
                 updated_func, tensor_sinfo_list = remove_global_buf_alloc(func)
                 if len(tensor_sinfo_list) > 0:
                     new_gv = self.builder_.add_func(updated_func, g_var.name_hint)
@@ -92,21 +92,21 @@ class _TIRGlobalAllocRewriter(PyExprMutator):
 
 
 def remove_global_buf_alloc(
-    func: tirx.PrimFunc,
-) -> Tuple[tirx.PrimFunc, List[relax.TensorType]]:  # noqa: UP006
+    func: tirx.Function,
+) -> Tuple[tirx.Function, List[relax.TensorType]]:  # noqa: UP006
     """Remove the global buffer allocation for a given TIR PrimFunc."""
-    assert isinstance(func.body, s_tir.SBlockRealize)
+    assert len(func.body) == 1 and isinstance(func.body[0], s_tir.SBlockRealize)
     params = list(func.params)
     tensor_sinfo = []
     alloc_buffers = []
 
     insertion_point = len(params)
-    while not tirx.is_buffer_var(params[insertion_point - 1]):
+    while not tirx.is_tensor_var(params[insertion_point - 1]):
         insertion_point -= 1
         assert insertion_point >= 1
 
-    prev_root_block = func.body.block
-    for buf_alloc in func.body.block.alloc_buffers:
+    prev_root_block = func.body[0].block
+    for buf_alloc in prev_root_block.alloc_buffers:
         if buf_alloc.scope() == "global":
             params.insert(insertion_point, buf_alloc)
             insertion_point += 1
@@ -133,7 +133,7 @@ def remove_global_buf_alloc(
         annotations=prev_root_block.annotations,
     )
 
-    updated_func = tirx.PrimFunc(
+    updated_func = tirx.Function(
         params=params,
         body=s_tir.SBlockRealize(iter_values=[], predicate=True, block=root_block),
         ret_type=func.ret_type,
@@ -151,7 +151,7 @@ def _has_symbolic_var(tensor_sinfo: relax.TensorType) -> bool:
 
 
 def _resolve_tir_var_mapping(
-    func: tirx.PrimFunc,
+    func: tirx.Function,
     call: relax.Call,
     tensor_sinfo: List[relax.TensorType],  # noqa: UP006
 ) -> Tuple[List[relax.TensorType], bool]:  # noqa: UP006

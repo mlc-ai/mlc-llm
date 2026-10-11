@@ -32,7 +32,7 @@ class AttachVariableBounds:
 class AttachAdditionalPrimFuncs:
     """Attach extra TIR PrimFuncs to the IRModule"""
 
-    def __init__(self, functions: Dict[str, tirx.PrimFunc]):  # noqa: UP006
+    def __init__(self, functions: Dict[str, tirx.Function]):  # noqa: UP006
         self.functions = functions
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:

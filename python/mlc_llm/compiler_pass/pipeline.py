@@ -87,7 +87,7 @@ def _mlc_llm_pipeline(
     allreduce_strategy: IPCAllReduceStrategyType = IPCAllReduceStrategyType.NONE,
     variable_bounds: Optional[Dict[str, int]] = None,  # noqa: UP006
     cuda_graph_symbolic_capture_hints: Optional[Dict[str, List[str]]] = None,  # noqa: UP006
-    additional_tirs: Optional[Dict[str, tvm.tirx.PrimFunc]] = None,  # noqa: UP006
+    additional_tirs: Optional[Dict[str, tvm.tirx.Function]] = None,  # noqa: UP006
     metadata: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ext_mods: Optional[List[nn.ExternModule]] = None,  # noqa: UP006
     debug_dump: Optional[Path] = None,

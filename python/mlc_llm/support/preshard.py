@@ -38,7 +38,7 @@ def _create_shard_func(bb: relax.BlockBuilder, param: nn.Parameter, tensor_paral
                 relax.call_tir(
                     tir_gvar,
                     weight_var,
-                    out_ty=relax.TensorType(sharded_weight_shape, param.dtype),
+                    ty_args=[relax.TensorType(sharded_weight_shape, param.dtype)],
                 )
             )
             lv1 = bb.emit(relax.op.split(lv0, indices_or_sections=tensor_parallel_shards, axis=0))

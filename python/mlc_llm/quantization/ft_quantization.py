@@ -295,7 +295,7 @@ class FTQuantize:
         r = te.reduce_axis((0, self.num_elem_per_storage), name="r")
         quantized_weight = te.compute(
             shape=quantized_weight_shape,
-            fcompute=lambda j, i: tirx.sum(
+            fcompute=lambda j, i: te.sum(
                 tirx.if_then_else(
                     i * self.num_elem_per_storage + r < n,
                     scaled_weight[i * self.num_elem_per_storage + r, j]

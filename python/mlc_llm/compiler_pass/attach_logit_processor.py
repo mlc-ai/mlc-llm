@@ -44,7 +44,7 @@ def _get_apply_logit_bias_inplace_cpu():
     vocab_size = T.dynamic("vocab_size", "int32")
     num_token = T.dynamic("num_token", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_logit_bias_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         # seq_ids
@@ -76,7 +76,7 @@ def _get_apply_logit_bias_inplace(target: tvm.target.Target):
     vocab_size = T.dynamic("vocab_size", "int32")
     num_token = T.dynamic("num_token", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_logit_bias_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         # seq_ids
@@ -108,7 +108,7 @@ def _get_apply_penalty_inplace_cpu():
     num_token = T.dynamic("num_token", "int32")
     num_seq = T.dynamic("num_seq", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_penalty_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         seq_ids: T.Tensor((num_seq,), "int32"),
@@ -151,7 +151,7 @@ def _get_apply_penalty_inplace(target: tvm.target.Target):
     num_token = T.dynamic("num_token", "int32")
     num_seq = T.dynamic("num_seq", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_penalty_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         seq_ids: T.Tensor((num_seq,), "int32"),
@@ -193,7 +193,7 @@ def _get_apply_bitmask_inplace_cpu():
     vocab_size = T.dynamic("vocab_size", "int32")
     num_seq = T.dynamic("num_seq", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_bitmask_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         seq_ids: T.Tensor((num_seq,), "int32"),
@@ -231,7 +231,7 @@ def _get_apply_bitmask_inplace(target: tvm.target.Target):
     vocab_size = T.dynamic("vocab_size", "int32")
     num_seq = T.dynamic("num_seq", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_bitmask_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         seq_ids: T.Tensor((num_seq,), "int32"),

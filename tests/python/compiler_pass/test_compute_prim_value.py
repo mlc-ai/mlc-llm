@@ -20,7 +20,7 @@ def test_computed_scalar_argument_lowers(target_kind):
     """
     n = T.dynamic("n", "int64")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def take(x: T.Tensor((n,), "float32"), off: T.int64, y: T.Tensor((n,), "float32")):
         for i in T.serial(n):
             with Ts.sblock("copy"):
@@ -45,7 +45,7 @@ def test_computed_scalar_argument_lowers(target_kind):
     with bb.function("main", [x, xm]):
         with bb.dataflow():
             gv = bb.add_func(take, "take")
-            call = relax.call_tir(gv, [x, top], out_ty=relax.TensorType((h,), "float32"))
+            call = relax.call_tir(gv, [x, top], ty_args=[relax.TensorType((h,), "float32")])
             out = bb.emit_output(call)
         bb.emit_func_output(out)
     mod = bb.get()

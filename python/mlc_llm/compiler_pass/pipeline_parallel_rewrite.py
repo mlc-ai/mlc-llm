@@ -133,7 +133,7 @@ class _PipelineParallelRewriter(PyExprMutator):
                         relax.call_dps_packed(
                             "runtime.disco.recv_from_prev_group",
                             args=[],
-                            out_ty=self._update_struct_info(receive_var.ty),
+                            ty_args=[self._update_struct_info(receive_var.ty)],
                         ),
                         name_hint=receive_var.name_hint,
                     )

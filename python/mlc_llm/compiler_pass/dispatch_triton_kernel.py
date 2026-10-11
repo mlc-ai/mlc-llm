@@ -101,7 +101,7 @@ class _Rewriter(PyExprMutator):
             # Add the TIR function to the IRModule
             gv = self.builder_.add_func(prim_func, func_name)
 
-        return relax.call_tir(gv, [x, weight, x_scale, weight_scale], out_ty=out_ty)
+        return relax.call_tir(gv, [x, weight, x_scale, weight_scale], ty_args=[out_ty])
 
     def w8a8_block_fp8_group_matmul(
         self,
@@ -152,7 +152,7 @@ class _Rewriter(PyExprMutator):
         return relax.call_tir(
             gv,
             [x, weight, x_scale, weight_scale, expert_ids, indptr],
-            out_ty=out_ty,
+            ty_args=[out_ty],
         )
 
 

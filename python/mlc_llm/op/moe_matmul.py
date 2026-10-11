@@ -47,7 +47,7 @@ def gemv(x: Tensor, w: Tensor, indptr: Tensor) -> Tensor:
     assert indptr.shape == [1, experts_per_tok] and indptr.dtype == "int32"
     assert x_leading_dim in [1, experts_per_tok]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         x: T.Tensor((x_leading_dim, in_features), dtype),
         w: T.Tensor((local_experts, out_features, in_features), dtype),
@@ -145,7 +145,7 @@ def dequantize_gemv(
     assert indptr.shape == [1, experts_per_tok] and indptr.dtype == "int32"
     assert x_leading_dim in [1, experts_per_tok]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         x: T.Tensor((x_leading_dim, in_features), model_dtype),
         w: T.Tensor((local_experts, out_features, num_storage), storage_dtype),
@@ -234,7 +234,7 @@ def dequantize_float8_gemv(
     def access_x(x, e, j):
         return x[0, j] if x_leading_dim == 1 else x[e, j]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func_with_scale(
         x: T.Tensor((x_leading_dim, in_features), model_dtype),
         w: T.Tensor((local_experts, out_features, num_storage), storage_dtype),
@@ -258,7 +258,7 @@ def dequantize_float8_gemv(
                             o[e, i] = T.cast(T.float16(0), model_dtype)
                         o[e, i] += access_x(x, e, j) * y[i, j]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func_without_scale(
         x: T.Tensor((x_leading_dim, in_features), model_dtype),
         w: T.Tensor((local_experts, out_features, num_storage), storage_dtype),
@@ -348,7 +348,7 @@ def dequantize_block_scale_float8_gemv(
     def load_x(x, e, j):
         return x[0, j] if x_leading_dim == 1 else x[e, j]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         x: T.Tensor((x_leading_dim, in_features), model_dtype),
         w: T.Tensor((local_experts, out_features, k), quantize_dtype),
@@ -422,7 +422,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):
 
     B = T.dynamic("B", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         X: T.Tensor((B, K), dtype),
         W: T.Tensor((Ne, N, K), dtype),
@@ -446,7 +446,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):
                 row[1] = indptr[1] - indptr[0]
                 cur_e[0] = 0
                 tile_id[0] = bx
-                while T.tvm_thread_invariant(cur_e[0] < Ne):
+                while T.gpu_thread_invariant(cur_e[0] < Ne):
                     # move to the current group
                     while sum[1] <= tile_id[0] and cur_e[0] < Ne:
                         cur_e[0] += 1
@@ -458,8 +458,8 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):
                             row[0] = row[1]
                             row[1] += delta
                     # sync threads to make sure all threads have the same tile position
-                    T.tvm_storage_sync("shared")
-                    if T.tvm_thread_invariant(cur_e[0] < Ne):
+                    T.gpu_storage_sync("shared")
+                    if T.gpu_thread_invariant(cur_e[0] < Ne):
                         # fetch current tile position
                         e: T.int32 = cur_e[0]
                         num_tiles: T.int32 = tile_id[0] - sum[0]
@@ -629,7 +629,7 @@ def dequantize_group_gemm(
 
     B = T.dynamic("B", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         X: T.Tensor((B, K), model_dtype),
         w: T.Tensor((Ne, N, num_storage), storage_dtype),
@@ -653,7 +653,7 @@ def dequantize_group_gemm(
                 row[1] = indptr[1] - indptr[0]
                 cur_e[0] = 0
                 tile_id[0] = bx
-                while T.tvm_thread_invariant(cur_e[0] < Ne):
+                while T.gpu_thread_invariant(cur_e[0] < Ne):
                     # move to the current group
                     while sum[1] <= tile_id[0] and cur_e[0] < Ne:
                         cur_e[0] += 1
@@ -665,8 +665,8 @@ def dequantize_group_gemm(
                             row[0] = row[1]
                             row[1] += delta
                     # sync threads to make sure all threads have the same tile position
-                    T.tvm_storage_sync("shared")
-                    if T.tvm_thread_invariant(cur_e[0] < Ne):
+                    T.gpu_storage_sync("shared")
+                    if T.gpu_thread_invariant(cur_e[0] < Ne):
                         # fetch current tile position
                         e = cur_e[0]
                         num_tiles = tile_id[0] - sum[0]

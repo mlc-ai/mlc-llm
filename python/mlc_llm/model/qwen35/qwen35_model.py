@@ -245,7 +245,7 @@ def create_gated_delta_net_func(
     batch_size = T.dynamic("batch_size", "int64")
     seq_len = T.dynamic("seq_len", "int64")
 
-    @Ts.prim_func
+    @Ts.function
     def gdn_func(
         # q, k: (batch, seq_len, key_heads, K)
         q_buf: T.Tensor((batch_size, seq_len, num_key_heads, K), dtype),

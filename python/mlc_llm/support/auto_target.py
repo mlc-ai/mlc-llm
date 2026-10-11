@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple  # noqa: UP035
 
 from tvm import IRModule, relax
-from tvm.ir.transform import Pass
 from tvm.support import ndk, tar, xcode
 from tvm.target import Target
+from tvm.transform import Pass
 from tvm_ffi import get_global_func, register_global_func
 
 from . import logging

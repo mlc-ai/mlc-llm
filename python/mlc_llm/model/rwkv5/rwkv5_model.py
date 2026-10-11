@@ -72,7 +72,7 @@ def create_wkv5_func(
     batch_size = T.dynamic("batch_size", "int64")
     seq_len = T.dynamic("seq_len", "int64")
 
-    @Ts.prim_func
+    @Ts.function
     def wkv_func(
         # Inputs
         r_buf: T.Tensor((batch_size, seq_len, num_heads, head_size), dtype),

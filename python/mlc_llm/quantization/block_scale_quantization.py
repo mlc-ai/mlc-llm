@@ -795,7 +795,7 @@ def dequantize_float8_groupwise_scaled_gemv(
             model_dtype
         )
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         x: T.Tensor((1, k), model_dtype),
         w: T.Tensor((n, k), quantize_dtype),

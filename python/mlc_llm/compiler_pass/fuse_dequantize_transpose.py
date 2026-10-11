@@ -68,20 +68,21 @@ class _DequantizeTransposeFuser(PyExprMutator):
             return call
 
         dequantize_tir_func = self.mod[transpose_input.args[0]]
-        assert isinstance(dequantize_tir_func, tirx.PrimFunc)
+        assert isinstance(dequantize_tir_func, tirx.Function)
+        root = dequantize_tir_func.body[0].block
         if (
-            len(dequantize_tir_func.body.block.alloc_buffers) != 1
-            or not isinstance(dequantize_tir_func.body.block.body, tirx.SeqStmt)
-            or len(dequantize_tir_func.body.block.body) != 2
-            or not isinstance(dequantize_tir_func.body.block.body[1], tirx.For)
-            or not isinstance(dequantize_tir_func.body.block.body[1].body.body, s_tir.SBlockRealize)
-            or dequantize_tir_func.body.block.body[1].body.body.block.name_hint != "T_transpose"
+            len(root.alloc_buffers) != 1
+            or len(root.body) != 2
+            or not isinstance(root.body[1], tvm.ir.For)
+            or not isinstance(root.body[1].body[0], tvm.ir.For)
+            or not isinstance(root.body[1].body[0].body[0], s_tir.SBlockRealize)
+            or root.body[1].body[0].body[0].block.name_hint != "T_transpose"
         ):
             return call
 
         new_func_params = list(dequantize_tir_func.params)
-        new_func_params[-1] = dequantize_tir_func.body.block.alloc_buffers[0]
-        new_func = tirx.PrimFunc(
+        new_func_params[-1] = root.alloc_buffers[0]
+        new_func = tirx.Function(
             params=new_func_params,
             body=s_tir.SBlockRealize(
                 iter_values=[],
@@ -91,15 +92,15 @@ class _DequantizeTransposeFuser(PyExprMutator):
                     reads=[],
                     writes=[],
                     name_hint="root",
-                    body=dequantize_tir_func.body.block.body[0],
+                    body=root.body[0],
                 ),
             ),
         )
         # Call `renew_defs` for deep-copy to avoid IR node duplication in
         # different PrimFuncs of an IRModule.
-        new_func = s_tir.renew_defs(new_func)
+        new_func = tirx.renew_def(new_func)
         g_var = self.builder_.add_func(new_func, func_name="dequantize")
         dequantize_matmul_rhs = self.builder_.emit(
-            relax.call_tir(g_var, transpose_input.args[1], out_ty=matmul_rhs.ty)
+            relax.call_tir(g_var, transpose_input.args[1], ty_args=[matmul_rhs.ty])
         )
         return relax.op.matmul(call.args[0], dequantize_matmul_rhs, out_dtype=call.attrs.out_dtype)

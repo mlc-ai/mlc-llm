@@ -18,7 +18,7 @@ class LowBatchGemvSpecialize:
     ) -> IRModule:
         """IRModule-level transformation"""
         for g_var, func in mod.functions_items():
-            if isinstance(func, tirx.PrimFunc):
+            if isinstance(func, tirx.Function):
                 low_batch_range = [2, 8]
                 buckets = [2, 4]
                 low_batch_funcs = []
@@ -34,7 +34,7 @@ class LowBatchGemvSpecialize:
                     for low_batch_func in low_batch_funcs
                 ):
                     continue
-                buffers = [param for param in func.params if tirx.is_buffer_var(param)]
+                buffers = [param for param in func.params if tirx.is_tensor_var(param)]
                 shapes = [buffer.shape for buffer in buffers]
                 symbolic_vars = set(
                     expr for shape in shapes for expr in shape if isinstance(expr, tirx.Var)
@@ -50,8 +50,8 @@ class LowBatchGemvSpecialize:
                 sym_var = next(iter(symbolic_vars))
                 body = gemm_func.body
                 for i, range_limit in reversed(list(enumerate(low_batch_range))):
-                    body = tirx.IfThenElse(
-                        tirx.op.tvm_thread_invariant(sym_var <= range_limit),
+                    body = tvm.ir.If(
+                        tirx.op.gpu_thread_invariant(sym_var <= range_limit),
                         low_batch_funcs[i].body,
                         body,
                     )

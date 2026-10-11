@@ -72,9 +72,13 @@ class _Rewriter(PyExprMutator):
                     relax.call_tir(
                         self.builder_.add_func(f_chunk_lse, "chunk_lse"),
                         args=[logits, temperature],
-                        out_ty=[
-                            chunked_result_struct_info,
-                            chunked_result_struct_info,
+                        ty_args=[
+                            relax.TupleType(
+                                [
+                                    chunked_result_struct_info,
+                                    chunked_result_struct_info,
+                                ]
+                            )
                         ],
                     )
                 )
@@ -84,7 +88,7 @@ class _Rewriter(PyExprMutator):
                     relax.call_tir(
                         self.builder_.add_func(f_softmax_with_lse, "softmax_with_chunked_sum"),
                         args=[logits, temperature, chunked_sum, chunked_max],
-                        out_ty=logits.ty,
+                        ty_args=[logits.ty],
                     )
                 )
                 softmax = self.builder_.emit_output(
@@ -121,7 +125,7 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
     vocab_size = T.dynamic("vocab_size", "int64")
     num_chunks = T.dynamic("num_chunks", "int64")
 
-    @Ts.prim_func
+    @Ts.function
     def chunk_lse(
         A: T.Tensor((batch_size, vocab_size), "float32"),
         temperature: T.Tensor((batch_size,), "float32"),
@@ -179,7 +183,7 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
                 )
                 chunked_max[v0, v1] = temp_max[v0, v1]
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_with_chunked_sum(
         A: T.Tensor((batch_size, vocab_size), "float32"),
         temperature: T.Tensor((batch_size,), "float32"),

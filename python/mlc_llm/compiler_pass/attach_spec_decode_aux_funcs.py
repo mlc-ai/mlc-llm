@@ -41,7 +41,7 @@ def _get_scatter_2d_inplace(dtype: str, global_symbol: str):
     m = T.dynamic("m", "int32")
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _scatter_2d(
         src: T.Tensor((batch_size, n), dtype),
         indices: T.Tensor((batch_size,), "int32"),
@@ -61,7 +61,7 @@ def _get_gather_2d_inplace(dtype: str, global_symbol: str):
     m = T.dynamic("m", "int32")
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _gather_2d(
         src: T.Tensor((m, n), dtype),
         indices: T.Tensor((batch_size,), "int32"),

@@ -3,11 +3,17 @@
 MLC Chat is the app runtime of MLC LLM.
 """
 
+import os
+
 from tvm import register_global_func
 
-from . import protocol, serve
+from . import protocol
 from .libinfo import __version__
-from .serve import AsyncMLCEngine, MLCEngine
+
+# Compilation and weight conversion do not require the native serving library.
+if os.environ.get("SKIP_LOADING_MLCLLM_SO", "0") == "0":
+    from . import serve
+    from .serve import AsyncMLCEngine, MLCEngine
 
 
 @register_global_func("runtime.disco.create_socket_session_local_workers", override=True)

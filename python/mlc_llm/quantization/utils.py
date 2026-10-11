@@ -174,7 +174,7 @@ def pack_weight(
     r = te.reduce_axis((0, num_elem_per_storage), name="r")
     packed_weight = te.compute(
         shape=out_shape,
-        fcompute=lambda *idx: tirx.sum(
+        fcompute=lambda *idx: te.sum(
             tirx.if_then_else(
                 idx[axis] * num_elem_per_storage + r < k,
                 weight(*idx[:axis], idx[axis] * num_elem_per_storage + r, *idx[axis + 1 :])

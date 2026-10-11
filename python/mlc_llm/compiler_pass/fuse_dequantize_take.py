@@ -38,7 +38,7 @@ class FuseDequantizeTake:
         mod = tvm.transform.Sequential(seq)(mod)
         for g_var, func in mod.functions_items():
             name = g_var.name_hint
-            if isinstance(func, tirx.PrimFunc) and (
+            if isinstance(func, tirx.Function) and (
                 ("fused_dequantize" in name) and ("take" in name)
             ):
                 sch_mod = tvm.IRModule({"main": func})

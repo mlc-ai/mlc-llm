@@ -104,7 +104,7 @@ class ImageProcessor(Module):
             left = T.dynamic("left", "int64")
             right = T.dynamic("right", "int64")
 
-            @Ts.prim_func
+            @Ts.function
             def crop_func(
                 image_buf: T.Tensor((n, c, h, w), dtype),
                 top: T.int64(),
@@ -159,7 +159,7 @@ class ImageProcessor(Module):
             h = T.dynamic("h", "int64")
             w = T.dynamic("w", "int64")
 
-            @Ts.prim_func
+            @Ts.function
             def rescale_func(
                 image_buf: T.Tensor((n, c, h, w), dtype),
                 out_buf: T.Tensor((n, c, h, w), o_dtype),
@@ -203,7 +203,7 @@ class ImageProcessor(Module):
             h = T.dynamic("h", "int64")
             w = T.dynamic("w", "int64")
 
-            @Ts.prim_func
+            @Ts.function
             def normalize_func(
                 image_buf: T.Tensor((n, c, h, w), dtype),
                 out_buf: T.Tensor((n, c, h, w), o_dtype),
@@ -280,7 +280,7 @@ class ImageProcessor(Module):
             t = T.dynamic("t", "int64")
             b = T.dynamic("b", "int64")
 
-            @Ts.prim_func
+            @Ts.function
             def pad_func(
                 image_buf: T.Tensor((n, c, h, w), dtype),
                 t: T.int64(),

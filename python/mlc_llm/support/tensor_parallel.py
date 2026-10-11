@@ -33,7 +33,7 @@ class ShardSingleDim:
     dim: int
     segs: Optional[List[int]] = None  # noqa: UP006
 
-    def gen_tir(self, shards: int, weight: nn.Tensor) -> tirx.PrimFunc:
+    def gen_tir(self, shards: int, weight: nn.Tensor) -> tirx.Function:
         """Generate a TIR function that shards the weight tensor by its rows."""
         shape = weight.shape
         segs = self.segs or [shape[self.dim]]
@@ -79,7 +79,7 @@ class ShardSingleDim:
             )
             offset += sub_seg * shards
         o = topi.concatenate(ws, axis=1 + self.dim)
-        func = te.create_prim_func([w, o])
+        func = te.create_function([w, o])
         return func
 
     def gen_shard_info(self, shards: int, weight: nn.Tensor) -> Dict[str, Any]:  # noqa: UP006

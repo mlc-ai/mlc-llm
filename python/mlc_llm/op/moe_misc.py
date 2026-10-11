@@ -88,7 +88,7 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:  # noqa: UP006
     def _get_topk_func(k_val: int):
         batch_size = T.dynamic("batch_size", "int64")
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def topk_func(
             x: T.Tensor((batch_size, num_local_experts), dtype),
             out: T.Tensor((batch_size, k_val), dtype),
@@ -173,7 +173,7 @@ def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor,
 
         batch_size = T.dynamic("batch_size", "int64")
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def topk_softmax_norm_func(
             x: T.Tensor((batch_size, num_local_experts), dtype),
             out: T.Tensor((batch_size, k_val), dtype),
@@ -299,7 +299,7 @@ def group_limited_greedy_topk(
         ).reshape(num_tokens, n_group)
     group_idx = gating_topk(group_scores, topk_group)[1]  # (num_tokens, top_k_group)
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def group_limited_mask_scores(
         scores: T.Tensor((num_tokens, num_routed_experts), scores_for_choice.dtype),
         group_idx_tir: T.Tensor((num_tokens, topk_group), group_idx.dtype),
@@ -332,7 +332,7 @@ def group_limited_greedy_topk(
     expert_weights, expert_indices = gating_topk(tmp_scores, top_k)
     if topk_method == "noaux_tc":
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def gather_scores(
             scores: T.Tensor((num_tokens, num_routed_experts), scores_for_choice.dtype),
             expert_indices_tir: T.Tensor((num_tokens, top_k), expert_indices.dtype),
@@ -477,7 +477,7 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]
     batch_size = T.dynamic("batch_size", "int32")
     cumsum_len = T.dynamic("cumsum_len", "int32")  # [experts_per_tok * batch_size]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         cumsum: T.Tensor([cumsum_len], "int32"),
         expert_indices: T.Tensor([batch_size, experts_per_tok], "int32"),
@@ -560,7 +560,7 @@ def get_indptr(
     # `batch_size` scalar parameter in the signature below.
     dyn_batch_size = T.dynamic("batch_size", "int64")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func_exclusive(
         cumsum: T.Tensor([dyn_batch_size * num_local_experts], "int32"),
         batch_size: dyn_batch_size,
@@ -572,7 +572,7 @@ def get_indptr(
                 i = Ts.axis.spatial(out_shape[0], vi)
                 indptr[i] = T.Select(i > 0, cumsum[i * batch_size - 1], T.int32(0))
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func_inclusive(
         cumsum: T.Tensor([dyn_batch_size * num_local_experts], "int32"),
         batch_size: dyn_batch_size,
@@ -614,7 +614,7 @@ def scatter_output(x: Tensor, indices: Tensor) -> Tensor:
 
     indices_len = T.dynamic("indices_len", "int64")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         x: T.Tensor([indices_len, hidden_size], dtype),
         indices: T.Tensor([indices_len], "int32"),

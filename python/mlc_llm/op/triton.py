@@ -285,7 +285,7 @@ def get_tir_w8a8_block_fp8_matmul(
     extern_mods: List[tvm.runtime.Module],  # noqa: UP006
 ):
     """Get the TIR function for the w8a8_block_fp8_matmul kernel."""
-    # NOTE: adding the type annotation of " -> Tuple[Optional[tvm.tirx.PrimFunc], str]"
+    # NOTE: adding the type annotation of " -> Tuple[Optional[tvm.tirx.Function], str]"
     # will cause the failure of the type resolution in mypy.
     if triton is None:
         raise RuntimeError("Triton is not installed. Please install it with `pip install triton`.")
@@ -304,7 +304,7 @@ def get_tir_w8a8_block_fp8_matmul(
 
     @I.ir_module
     class BlockFP8Matmul:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_w8a8_block_fp8_matmul(
             A: T.Tensor((M, K), in_dtype),
             B: T.Tensor((N, K), in_dtype),
@@ -401,7 +401,7 @@ def get_tir_w8a8_block_fp8_group_matmul(
 
     @I.ir_module
     class BlockFP8GroupMatmul:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_w8a8_block_fp8_group_gemm(
             A: T.Tensor((EM, K), in_dtype),
             B: T.Tensor((num_experts, N, K), in_dtype),
@@ -511,7 +511,7 @@ def _compute_expert_id_per_block(
         [(M + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,].
     """
 
-    @Ts.prim_func
+    @Ts.function
     def tir_compute_expert_id_per_block(
         indptr: T.Tensor((num_experts + 1,), "int32"),
         M: T.int64,

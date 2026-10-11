@@ -88,7 +88,7 @@ class Phi3ImageEmbedding(Module):
             ch2 = T.dynamic("ch2", "int64")
             ch3 = T.dynamic("ch3", "int64")
 
-            @Ts.prim_func
+            @Ts.function
             def dyn_repeat_4d_tensor_func(  # pylint disable=too-many-locals
                 input_tensor_buf: T.Tensor((n, c, h, w), dtype),
                 ch0: T.int64(),
@@ -128,7 +128,7 @@ class Phi3ImageEmbedding(Module):
             h2 = T.dynamic("h2", "int64")
             w = T.dynamic("w", "int64")
 
-            @Ts.prim_func
+            @Ts.function
             def dyn_concate_dim_2_func(
                 input_1_buf: T.Tensor((n, c, h1, w), dtype),
                 input_2_buf: T.Tensor((n, c, h2, w), dtype),
@@ -172,7 +172,7 @@ class Phi3ImageEmbedding(Module):
             h2 = T.dynamic("h2", "int64")
             w = T.dynamic("w", "int64")
 
-            @Ts.prim_func
+            @Ts.function
             def dyn_concate_dim_1_func(
                 input_1_buf: T.Tensor((c, h1, w), dtype),
                 input_2_buf: T.Tensor((c, h2, w), dtype),
