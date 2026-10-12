@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import (  # noqa: UP035
     Any,
     Callable,
-    ClassVar,
     Dict,
     List,
     Literal,
@@ -406,18 +405,15 @@ class EngineState:
     provide Chrome tracing when enabled.
     """
 
-    trace_recorder = None
-    # States used for AsyncMLCEngine
-    async_event_loop: Optional[asyncio.AbstractEventLoop] = None
-    async_streamers: ClassVar[Dict[str, Tuple[AsyncRequestStream, List[TextStreamer]]]] = {}  # noqa: UP006
-    # States used for MLCEngine
-    sync_output_queue: queue.Queue = queue.Queue()
-    sync_text_streamers: ClassVar[List[TextStreamer]] = []  # noqa: UP006
-
     def __init__(self, enable_tracing: bool) -> None:
         """Constructor."""
-        if enable_tracing:
-            self.trace_recorder = EventTraceRecorder()
+        self.trace_recorder = EventTraceRecorder() if enable_tracing else None
+        # States used for AsyncMLCEngine
+        self.async_event_loop: Optional[asyncio.AbstractEventLoop] = None
+        self.async_streamers: Dict[str, Tuple[AsyncRequestStream, List[TextStreamer]]] = {}  # noqa: UP006
+        # States used for MLCEngine
+        self.sync_output_queue: queue.Queue = queue.Queue()
+        self.sync_text_streamers: List[TextStreamer] = []  # noqa: UP006
 
     def record_event(self, request_id: str, event: str) -> None:
         """Record a event for the input request in the trace
