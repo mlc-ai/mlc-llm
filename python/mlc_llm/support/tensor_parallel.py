@@ -102,6 +102,10 @@ def shard_bias(linear: nn.Linear, tensor_parallel_shards: int):
     """
     A context manager to shard the bias of a linear into `tensor_parallel_shards` shards.
 
+    Divides the bias by the shard count so that the subsequent ``ccl_allreduce(sum)``
+    over the row-parallel output restores it to its original value. No-op when the
+    linear has no bias or when running on a single device.
+
 
     Parameters
     ----------
@@ -112,7 +116,7 @@ def shard_bias(linear: nn.Linear, tensor_parallel_shards: int):
         The number of shards.
     """
     original_bias = linear.bias
-    if tensor_parallel_shards > 1:
+    if tensor_parallel_shards > 1 and linear.bias is not None:
         linear.bias = linear.bias / tensor_parallel_shards
     yield
     linear.bias = original_bias
