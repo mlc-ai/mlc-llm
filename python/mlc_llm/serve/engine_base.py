@@ -5,6 +5,7 @@ import asyncio
 import json
 import numbers
 import queue
+import re
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -260,14 +261,19 @@ class EngineMetrics:
                 # first prioritize metrics in current scope
                 for key, value in curr_value.items():
                     if isinstance(value, numbers.Number):
-                        output_lines.append(f"{key_prefix}{key}\t{value}")
+                        # Native metrics encode integer labels in JSON keys.
+                        # Quote them only for text exposition, keeping JSON unchanged.
+                        metric_name = re.sub(
+                            r"(?<=[{,])(\w+)=(\d+)(?=[,}])", r'\1="\2"', f"{key_prefix}{key}"
+                        )
+                        output_lines.append(f"{metric_name}\t{value}")
                 # then look into nested scopes if any
                 for key, value in curr_value.items():
                     if isinstance(value, dict) and len(value) != 0:
                         traverse(f"{comment_scope}/{key}", f"{key_prefix}{key}_", value)
 
         traverse("", "", self.metrics)
-        return "\n".join(output_lines)
+        return "\n".join(output_lines) + "\n"
 
 
 def _query_engine_metrics(engine):
