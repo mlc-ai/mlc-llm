@@ -14,6 +14,7 @@ from . import (
     gorilla,
     gpt,
     hermes,
+    lfm2,
     llama,
     llava,
     llm_jp,
