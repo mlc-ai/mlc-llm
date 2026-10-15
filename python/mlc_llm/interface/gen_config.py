@@ -376,4 +376,5 @@ CONV_TEMPLATES = {
     "minicpm5_nothink",
     "smollm3",
     "smollm3_nothink",
+    "lfm2",
 }
