@@ -374,4 +374,6 @@ CONV_TEMPLATES = {
     "qwen3_5_nothink",
     "minicpm5",
     "minicpm5_nothink",
+    "smollm3",
+    "smollm3_nothink",
 }
