@@ -27,6 +27,7 @@ from .gpt_j import gpt_j_loader, gpt_j_model
 from .gpt_neox import gpt_neox_loader, gpt_neox_model
 from .internlm import internlm_loader, internlm_model
 from .internlm2 import internlm2_loader, internlm2_model
+from .lfm2 import lfm2_loader, lfm2_model
 from .llama import llama_loader, llama_model
 from .llama4 import llama4_loader, llama4_model
 from .llava import llava_loader, llava_model
@@ -799,6 +800,18 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
             model_type="encoder",
             pooling_strategy="cls",
             normalize=True,
+        ),
+    ),
+    "lfm2": Model(
+        name="lfm2",
+        model=lfm2_model.Lfm2ForCausalLM,
+        config=lfm2_model.Lfm2Config,
+        source={
+            "huggingface-torch": lfm2_loader.huggingface,
+            "huggingface-safetensor": lfm2_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            lfm2_model.Lfm2ForCausalLM,
         ),
     ),
 }
