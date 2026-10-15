@@ -17,6 +17,7 @@ from . import (
     llama,
     llava,
     llm_jp,
+    minicpm5,
     ministral3,
     ministral3_reasoning,
     mistral,
