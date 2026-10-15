@@ -6,6 +6,7 @@ ml_dtypes>=0.5.1
 openai
 pandas
 prompt_toolkit
+psutil
 requests
 safetensors
 sentencepiece
