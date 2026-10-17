@@ -251,8 +251,11 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
             sch.set_scope(block, buffer_index=0, storage_scope="shared")
             sch.compute_at(block, bx)
             r_loop = sch.get_loops(block)[-1]
-            r_loop, tx = sch.split(r_loop, [None, TX])
-            sch.reorder(tx, r_loop)
+            # Reduce over all TY x TX threads: binding threadIdx.x alone leaves the TY rows
+            # running the same reduction on one shared buffer, a data race without subgroups.
+            r_loop, ty, tx = sch.split(r_loop, [None, TY, TX])
+            sch.reorder(ty, tx, r_loop)
+            sch.bind(ty, "threadIdx.y")
             sch.bind(tx, "threadIdx.x")
             sch.annotate(r_loop, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
             sch.annotate(r_loop, ann_key="pragma_unroll_explicit", ann_val=1)
