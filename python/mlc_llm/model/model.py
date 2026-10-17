@@ -50,6 +50,7 @@ from .qwen3_moe import qwen3_moe_loader, qwen3_moe_model
 from .qwen35 import qwen35_loader, qwen35_model, qwen35v_loader, qwen35v_model
 from .rwkv5 import rwkv5_loader, rwkv5_model
 from .rwkv6 import rwkv6_loader, rwkv6_model
+from .smollm3 import smollm3_loader, smollm3_model
 from .stable_lm import stablelm_loader, stablelm_model
 from .starcoder2 import starcoder2_loader, starcoder2_model
 
@@ -799,6 +800,19 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
             model_type="encoder",
             pooling_strategy="cls",
             normalize=True,
+        ),
+    ),
+    "smollm3": Model(
+        name="smollm3",
+        model=smollm3_model.SmolLM3ForCausalLM,
+        config=smollm3_model.SmolLM3Config,
+        source={
+            "huggingface-torch": smollm3_loader.huggingface,
+            "huggingface-safetensor": smollm3_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            smollm3_model.SmolLM3ForCausalLM,
+            supports_per_tensor=True,
         ),
     ),
 }
