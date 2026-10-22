@@ -3,6 +3,14 @@
 MLC Chat is the app runtime of MLC LLM.
 """
 
+from . import libinfo
+
+# The imports below map the native libraries of MLC LLM into the process. On
+# macOS, a library with a broken code signature is not mapped at all, the
+# kernel kills the process instead. Checking the signatures first turns that
+# silent crash into an error that can be acted upon.
+libinfo.check_native_libraries()
+
 from tvm import register_global_func
 
 from . import protocol, serve
