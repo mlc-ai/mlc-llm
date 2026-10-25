@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional, Union  # noqa: UP035
 
-from tvm.runtime import Device
+from tvm_tirx.runtime import Device
 
 from mlc_llm.model import MODELS
 from mlc_llm.support import logging

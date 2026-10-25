@@ -1,5 +1,7 @@
 """Tests for the LLaVA artifact contract."""
 
+import tvm_tirx
+
 from mlc_llm.model import MODELS
 from mlc_llm.model.llava.llava_model import LlavaConfig
 from mlc_llm.protocol.artifact_manifest import (
@@ -90,11 +92,9 @@ def test_llava_artifact_points_at_exported_functions():
 
 
 def test_llava_takes_uint32_pixels_on_webgpu():
-    import tvm
-
     config = _config()
     entry = MODELS["llava"]
-    with tvm.target.Target("webgpu"):
+    with tvm_tirx.target.Target("webgpu"):
         model = entry.model(config)
         programs = entry.artifact.programs(config)
     assert model.image_dtype == "uint32"

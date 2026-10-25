@@ -3,13 +3,14 @@
 from math import lcm
 from typing import Any, Dict, List  # noqa: UP035
 
-import tvm
-from tvm import IRModule, relax, tirx
-from tvm.ir import Op
+import tvm_tirx
+from tvm import relax
 from tvm.relax.expr_functor import PyExprVisitor, visitor
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.ir import Op
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachVariableBounds")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachVariableBounds")
 class AttachVariableBounds:
     """Attach variable bounds to each Relax function, which primarily helps with memory planning."""
 
@@ -18,7 +19,7 @@ class AttachVariableBounds:
         self.variable_bounds = {k: v for k, v in variable_bounds.items() if v > 0}
         self.non_negative_var = ["vocab_size"]
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         for g_var, func in mod.functions_items():
             if isinstance(func, relax.Function):
@@ -28,25 +29,25 @@ class AttachVariableBounds:
         return mod
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachAdditionalPrimFuncs")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachAdditionalPrimFuncs")
 class AttachAdditionalPrimFuncs:
     """Attach extra TIR PrimFuncs to the IRModule"""
 
     def __init__(self, functions: Dict[str, tirx.Function]):  # noqa: UP006
         self.functions = functions
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         for func_name, func in self.functions.items():
             mod[func_name] = func.with_attr("global_symbol", func_name)
         return mod
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachMemoryPlanAttr")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachMemoryPlanAttr")
 class AttachMemoryPlanAttr:
     """Attach memory planning attribute for dynamic function output planning to Relax functions."""
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         for g_var, func in mod.functions_items():
             if isinstance(func, relax.Function):
@@ -54,14 +55,14 @@ class AttachMemoryPlanAttr:
         return mod
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachCUDAGraphCaptureHints")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachCUDAGraphCaptureHints")
 class AttachCUDAGraphSymbolicCaptureHints:
     """Attach CUDA graph capture hints to the IRModule"""
 
     def __init__(self, hints: Dict[str, List[str]]):  # noqa: UP006
         self.hints = hints
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         for g_var, func in mod.functions_items():
             func_name = g_var.name_hint
@@ -75,14 +76,14 @@ class AttachCUDAGraphSymbolicCaptureHints:
         return mod
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachPipelineParallelStages")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachPipelineParallelStages")
 class AttachPipelineParallelStages:
     """Attach number of pipeline stages to relax functions."""
 
     def __init__(self, pipeline_parallel_shards: int):
         self.pipeline_parallel_shards = pipeline_parallel_shards
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         for g_var, func in mod.functions_items():
             func_name = g_var.name_hint
@@ -104,20 +105,20 @@ class AttachPipelineParallelStages:
         return mod
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachSequenceLengthPaddingFactor")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachSequenceLengthPaddingFactor")
 class AttachSequenceLengthPaddingFactor:
     """Attach sequence length padding factor to the metadata"""
 
-    def __init__(self, target: tvm.target.Target, metadata: Dict[str, Any]):  # noqa: UP006
+    def __init__(self, target: tvm_tirx.target.Target, metadata: Dict[str, Any]):  # noqa: UP006
         self.target = target
         self.metadata = metadata
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
 
         @visitor
         class _Visitor(PyExprVisitor):
-            def __init__(self, target: tvm.target.Target) -> None:
+            def __init__(self, target: tvm_tirx.target.Target) -> None:
                 self.padding_factor = 1
                 self.target = target
                 self._op_call_dps_packed = Op.get("relax.call_dps_packed")

@@ -6,16 +6,15 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/support/cuda/nvtx.h>
 
+#include "../../support/device.h"
+#include "../../support/nvtx.h"
 #include "../../support/random.h"
 #include "sampler.h"
 
 namespace mlc {
 namespace llm {
 namespace serve {
-
-using tvm::support::NVTXScopedRange;
 
 inline bool FlashInferSamplingAvailable(Device device) {
   // Device must be CUDA, and FlashInfer must be enabled.
@@ -24,16 +23,15 @@ inline bool FlashInferSamplingAvailable(Device device) {
     return false;
   }
   // Compute version must be at least 8.0
-  Any rv;
-  DeviceAPI::Get(device)->GetAttr(device, kComputeVersion, &rv);
+  Any rv = DeviceAPI::Get(device)->GetAttr(device, "compute_version");
   std::string compute_version = rv.cast<std::string>();
   std::string major_version = compute_version.substr(0, compute_version.find('.'));
   return std::stoi(major_version) >= 8;
 }
 
 inline void CopyArray(Tensor src, Tensor dst, TVMStreamHandle copy_stream) {
-  DLTensor dl_dst = *(dst.operator->());
-  Tensor::CopyFromTo(src.operator->(), &dl_dst, copy_stream);
+  DLTensor dl_dst = *(dst.GetDLTensorPtr());
+  tvm::runtime::CopyFromTo(src.GetDLTensorPtr(), &dl_dst, copy_stream);
 }
 
 inline void SyncCopyStream(Device device, TVMStreamHandle compute_stream,
@@ -74,35 +72,40 @@ class GPUSampler : public SamplerObj {
     Device preferred_host_device = GetPreferredHostDevice(device);
     // We support at most 5 top prob results for each sequence.
     // Initialize auxiliary arrays on CPU.
-    uniform_samples_host_ = Tensor::Empty({max_num_sample}, dtype_f32_, preferred_host_device);
-    sample_indices_host_ = Tensor::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
-    top_p_host_ = Tensor::Empty({max_num_sample}, dtype_f32_, preferred_host_device);
-    top_p_init_pivots_host_ = Tensor::Empty({max_num_sample, num_top_p_cutoff_pivots_}, dtype_f32_,
-                                            preferred_host_device);
-    top_prob_offsets_host_ = Tensor::Empty({max_num_sample * 5}, dtype_i32_, preferred_host_device);
-    draft_tokens_host_ = Tensor::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
+    uniform_samples_host_ =
+        tvm::runtime::Empty({max_num_sample}, dtype_f32_, preferred_host_device);
+    sample_indices_host_ = tvm::runtime::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
+    top_p_host_ = tvm::runtime::Empty({max_num_sample}, dtype_f32_, preferred_host_device);
+    top_p_init_pivots_host_ = tvm::runtime::Empty({max_num_sample, num_top_p_cutoff_pivots_},
+                                                  dtype_f32_, preferred_host_device);
+    top_prob_offsets_host_ =
+        tvm::runtime::Empty({max_num_sample * 5}, dtype_i32_, preferred_host_device);
+    draft_tokens_host_ = tvm::runtime::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
     token_tree_first_child_host_ =
-        Tensor::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
+        tvm::runtime::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
     token_tree_next_sibling_host_ =
-        Tensor::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
+        tvm::runtime::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
     token_tree_parent_ptr_host_ =
-        Tensor::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
-    sampled_token_ids_host_ = Tensor::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
-    sampled_probs_host_ = Tensor::Empty({max_num_sample}, dtype_f32_, preferred_host_device);
-    top_prob_probs_host_ = Tensor::Empty({max_num_sample * 5}, dtype_f32_, preferred_host_device);
-    top_prob_indices_host_ = Tensor::Empty({max_num_sample * 5}, dtype_i32_, preferred_host_device);
+        tvm::runtime::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
+    sampled_token_ids_host_ =
+        tvm::runtime::Empty({max_num_sample}, dtype_i32_, preferred_host_device);
+    sampled_probs_host_ = tvm::runtime::Empty({max_num_sample}, dtype_f32_, preferred_host_device);
+    top_prob_probs_host_ =
+        tvm::runtime::Empty({max_num_sample * 5}, dtype_f32_, preferred_host_device);
+    top_prob_indices_host_ =
+        tvm::runtime::Empty({max_num_sample * 5}, dtype_i32_, preferred_host_device);
     // Initialize auxiliary arrays on GPU.
-    uniform_samples_device_ = Tensor::Empty({max_num_sample}, dtype_f32_, device);
-    sample_indices_device_ = Tensor::Empty({max_num_sample}, dtype_i32_, device);
-    top_p_device_ = Tensor::Empty({max_num_sample}, dtype_f32_, device);
+    uniform_samples_device_ = tvm::runtime::Empty({max_num_sample}, dtype_f32_, device);
+    sample_indices_device_ = tvm::runtime::Empty({max_num_sample}, dtype_i32_, device);
+    top_p_device_ = tvm::runtime::Empty({max_num_sample}, dtype_f32_, device);
     top_p_init_pivots_device_ =
-        Tensor::Empty({max_num_sample, num_top_p_cutoff_pivots_}, dtype_f32_, device);
-    top_prob_offsets_device_ = Tensor::Empty({max_num_sample * 5}, dtype_i32_, device);
-    draft_tokens_device_ = Tensor::Empty({max_num_sample}, dtype_i32_, device);
-    token_tree_first_child_device_ = Tensor::Empty({max_num_sample}, dtype_i32_, device);
-    token_tree_next_sibling_device_ = Tensor::Empty({max_num_sample}, dtype_i32_, device);
-    token_tree_parent_ptr_device_ = Tensor::Empty({max_num_sample}, dtype_i32_, device);
-    sampled_token_ids_device_ = Tensor::Empty({max_num_sample}, dtype_i32_, device);
+        tvm::runtime::Empty({max_num_sample, num_top_p_cutoff_pivots_}, dtype_f32_, device);
+    top_prob_offsets_device_ = tvm::runtime::Empty({max_num_sample * 5}, dtype_i32_, device);
+    draft_tokens_device_ = tvm::runtime::Empty({max_num_sample}, dtype_i32_, device);
+    token_tree_first_child_device_ = tvm::runtime::Empty({max_num_sample}, dtype_i32_, device);
+    token_tree_next_sibling_device_ = tvm::runtime::Empty({max_num_sample}, dtype_i32_, device);
+    token_tree_parent_ptr_device_ = tvm::runtime::Empty({max_num_sample}, dtype_i32_, device);
+    sampled_token_ids_device_ = tvm::runtime::Empty({max_num_sample}, dtype_i32_, device);
 
     // If the device is CUDA/ROCm, we create a standalone copy stream, in
     // purpose to hide the latency of auxiliary stream copy.
@@ -128,10 +131,10 @@ class GPUSampler : public SamplerObj {
     NVTXScopedRange nvtx_scope("BatchRenormalizeProbsByTopP");
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start renormalization by top p");
-    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device.ndim(), 2);
     int num_samples = sample_indices.size();
-    int num_probs = probs_on_device->shape[0];
-    int vocab_size = probs_on_device->shape[1];
+    int num_probs = probs_on_device.shape()[0];
+    int vocab_size = probs_on_device.shape()[1];
     TVM_FFI_ICHECK_LE(num_probs, max_num_sample_);
     TVM_FFI_ICHECK_EQ(generation_cfg.size(), num_samples);
 
@@ -142,16 +145,16 @@ class GPUSampler : public SamplerObj {
     }
 
     // - Copy auxiliary array for top-p and initial pivots.
-    Tensor top_p_host = top_p_host_.CreateView({num_probs}, dtype_f32_);
-    Tensor top_p_device = top_p_device_.CreateView({num_probs}, dtype_f32_);
+    Tensor top_p_host = tvm::runtime::CreateView(top_p_host_, {num_probs}, dtype_f32_);
+    Tensor top_p_device = tvm::runtime::CreateView(top_p_device_, {num_probs}, dtype_f32_);
     CopyArray(/*src=*/top_p_host, /*dst=*/top_p_device, copy_stream_);
 
-    Tensor top_p_init_pivots_host =
-        top_p_init_pivots_host_.CreateView({num_probs, num_top_p_cutoff_pivots_}, dtype_f32_);
-    Tensor top_p_init_pivots_device =
-        top_p_init_pivots_device_.CreateView({num_probs, num_top_p_cutoff_pivots_}, dtype_f32_);
-    const float* p_top_p = static_cast<const float*>(top_p_host->data);
-    float* p_top_p_init_pivots = static_cast<float*>(top_p_init_pivots_host->data);
+    Tensor top_p_init_pivots_host = tvm::runtime::CreateView(
+        top_p_init_pivots_host_, {num_probs, num_top_p_cutoff_pivots_}, dtype_f32_);
+    Tensor top_p_init_pivots_device = tvm::runtime::CreateView(
+        top_p_init_pivots_device_, {num_probs, num_top_p_cutoff_pivots_}, dtype_f32_);
+    const float* p_top_p = static_cast<const float*>(top_p_host.data_ptr());
+    float* p_top_p_init_pivots = static_cast<float*>(top_p_init_pivots_host.data_ptr());
     for (int i = 0; i < num_probs; ++i) {
       if (1 - p_top_p[i] >= 0.02) {
         p_top_p_init_pivots[i * num_top_p_cutoff_pivots_] =
@@ -209,7 +212,7 @@ class GPUSampler : public SamplerObj {
     std::vector<std::vector<SampleResult>> sample_results;
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
-    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device.ndim(), 2);
 
     int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
     TVM_FFI_ICHECK_EQ(rngs.size(), num_sequence);
@@ -218,13 +221,15 @@ class GPUSampler : public SamplerObj {
 
     int num_nodes = cum_verify_lengths.back();
     TVM_FFI_ICHECK(num_nodes <= max_num_sample_);
-    TVM_FFI_ICHECK_EQ(draft_probs_on_device->shape[0], num_nodes);
+    TVM_FFI_ICHECK_EQ(draft_probs_on_device.shape()[0], num_nodes);
     Tensor uniform_samples_device = GenerateUniformSamples(rngs, cum_verify_lengths);
-    Tensor draft_tokens_host = draft_tokens_host_.CreateView({num_nodes}, dtype_i32_);
-    Tensor draft_tokens_device = draft_tokens_device_.CreateView({num_nodes}, dtype_i32_);
+    Tensor draft_tokens_host =
+        tvm::runtime::CreateView(draft_tokens_host_, {num_nodes}, dtype_i32_);
+    Tensor draft_tokens_device =
+        tvm::runtime::CreateView(draft_tokens_device_, {num_nodes}, dtype_i32_);
 
     // Copy draft tokens to GPU
-    int* p_draft_tokens_host = static_cast<int*>(draft_tokens_host->data);
+    int* p_draft_tokens_host = static_cast<int*>(draft_tokens_host.data_ptr());
     for (int i = 0; i < num_sequence; i++) {
       const std::vector<SampleResult>& draft_output_tokens_i = draft_output_tokens[i];
       int start = cum_verify_lengths[i];
@@ -240,21 +245,23 @@ class GPUSampler : public SamplerObj {
     CopyArray(draft_tokens_host, draft_tokens_device, copy_stream_);
 
     Tensor token_tree_first_child_host =
-        token_tree_first_child_host_.CreateView({num_nodes}, dtype_i32_);
+        tvm::runtime::CreateView(token_tree_first_child_host_, {num_nodes}, dtype_i32_);
     Tensor token_tree_first_child_device =
-        token_tree_first_child_device_.CreateView({num_nodes}, dtype_i32_);
+        tvm::runtime::CreateView(token_tree_first_child_device_, {num_nodes}, dtype_i32_);
     Tensor token_tree_next_sibling_host =
-        token_tree_next_sibling_host_.CreateView({num_nodes}, dtype_i32_);
+        tvm::runtime::CreateView(token_tree_next_sibling_host_, {num_nodes}, dtype_i32_);
     Tensor token_tree_next_sibling_device =
-        token_tree_next_sibling_device_.CreateView({num_nodes}, dtype_i32_);
+        tvm::runtime::CreateView(token_tree_next_sibling_device_, {num_nodes}, dtype_i32_);
     Tensor token_tree_parent_ptr_host =
-        token_tree_parent_ptr_host_.CreateView({num_sequence}, dtype_i32_);
+        tvm::runtime::CreateView(token_tree_parent_ptr_host_, {num_sequence}, dtype_i32_);
     Tensor token_tree_parent_ptr_device =
-        token_tree_parent_ptr_device_.CreateView({num_sequence}, dtype_i32_);
+        tvm::runtime::CreateView(token_tree_parent_ptr_device_, {num_sequence}, dtype_i32_);
     std::vector<int> token_tree_child_to_parent(/*n=*/num_nodes);
 
-    int* token_tree_first_child_ptr_host = static_cast<int*>(token_tree_first_child_host->data);
-    int* token_tree_next_sibling_ptr_host = static_cast<int*>(token_tree_next_sibling_host->data);
+    int* token_tree_first_child_ptr_host =
+        static_cast<int*>(token_tree_first_child_host.data_ptr());
+    int* token_tree_next_sibling_ptr_host =
+        static_cast<int*>(token_tree_next_sibling_host.data_ptr());
     // Build the tree structure on CPU
     for (int i = 0; i < num_sequence; i++) {
       // Assuming no tree structure for now
@@ -277,7 +284,7 @@ class GPUSampler : public SamplerObj {
           token_tree_next_sibling_ptr_host[cur_node] = -1;
         }
       }
-      static_cast<int*>(token_tree_parent_ptr_host->data)[i] = start;  // point to the root
+      static_cast<int*>(token_tree_parent_ptr_host.data_ptr())[i] = start;  // point to the root
     }
     // Copy token tree structure to GPU
     CopyArray(token_tree_first_child_host, token_tree_first_child_device, copy_stream_);
@@ -314,7 +321,8 @@ class GPUSampler : public SamplerObj {
         DeviceAPI::Get(device_)->StreamSync(device_, copy_stream_);
         std::vector<int> sample_indices;
         sample_indices.reserve(num_sequence);
-        const int* p_token_tree_parent_ptr = static_cast<int*>(token_tree_parent_ptr_host->data);
+        const int* p_token_tree_parent_ptr =
+            static_cast<int*>(token_tree_parent_ptr_host.data_ptr());
         for (int i = 0; i < num_sequence; i++) {
           sample_indices.push_back(p_token_tree_parent_ptr[i]);
         }
@@ -335,7 +343,7 @@ class GPUSampler : public SamplerObj {
     for (int i = 0; i < num_sequence; i++) {
       int start = cum_verify_lengths[i];
       int end = cum_verify_lengths[i + 1];
-      int last_accepted = static_cast<int*>(token_tree_parent_ptr_host->data)[i];
+      int last_accepted = static_cast<int*>(token_tree_parent_ptr_host.data_ptr())[i];
       last_accepted_tree_node.push_back(last_accepted - start);
       int num_accepted = 0;
       for (int cur_node = last_accepted; cur_node != start;
@@ -365,12 +373,12 @@ class GPUSampler : public SamplerObj {
                                                   bool top_p_applied) {
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
-    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
-    TVM_FFI_ICHECK_EQ(probs_on_device->device.device_id, device_.device_id);
-    TVM_FFI_ICHECK_EQ(probs_on_device->device.device_type, device_.device_type);
+    TVM_FFI_ICHECK_EQ(probs_on_device.ndim(), 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device.device().device_id, device_.device_id);
+    TVM_FFI_ICHECK_EQ(probs_on_device.device().device_type, device_.device_type);
     int num_samples = sample_indices.size();
-    int num_probs = probs_on_device->shape[0];
-    int vocab_size = probs_on_device->shape[1];
+    int num_probs = probs_on_device.shape()[0];
+    int vocab_size = probs_on_device.shape()[1];
     if (num_samples == 0) {
       // This synchronization is necessary for making sure that this round
       // of model forward is finished.
@@ -411,14 +419,14 @@ class GPUSampler : public SamplerObj {
   std::vector<SampleResult> CollectSampleResult(const std::vector<Tensor>& host_arrays,
                                                 int num_samples, bool need_prob_values,
                                                 const std::vector<int> top_prob_offset_indptr) {
-    const int* p_sampled_token_ids = static_cast<const int*>(host_arrays[0]->data);
+    const int* p_sampled_token_ids = static_cast<const int*>(host_arrays[0].data_ptr());
     const float* p_sampled_probs = nullptr;
     const float* p_top_prob_probs = nullptr;
     const int* p_top_prob_indices = nullptr;
     if (need_prob_values) {
-      p_sampled_probs = static_cast<const float*>(host_arrays[1]->data);
-      p_top_prob_probs = static_cast<const float*>(host_arrays[2]->data);
-      p_top_prob_indices = static_cast<const int*>(host_arrays[3]->data);
+      p_sampled_probs = static_cast<const float*>(host_arrays[1].data_ptr());
+      p_top_prob_probs = static_cast<const float*>(host_arrays[2].data_ptr());
+      p_top_prob_indices = static_cast<const int*>(host_arrays[3].data_ptr());
     }
     std::vector<SampleResult> sample_results;
     sample_results.reserve(num_samples);
@@ -444,8 +452,8 @@ class GPUSampler : public SamplerObj {
                                                   bool top_p_applied) {
     // probs_on_device: (n, v)
     int num_samples = sample_indices.size();
-    int num_probs = probs_on_device->shape[0];
-    int vocab_size = probs_on_device->shape[1];
+    int num_probs = probs_on_device.shape()[0];
+    int vocab_size = probs_on_device.shape()[1];
 
     // - Generate random numbers.
     //   Copy the random numbers and sample indices.
@@ -478,12 +486,14 @@ class GPUSampler : public SamplerObj {
 
   /*! \brief Generate num_samples uniform random numbers, and copy them to GPU. */
   Tensor GenerateUniformSamples(const std::vector<RandomGenerator*>& rngs, int num_samples) {
-    float* p_uniform_samples = static_cast<float*>(uniform_samples_host_->data);
+    float* p_uniform_samples = static_cast<float*>(uniform_samples_host_.data_ptr());
     for (int i = 0; i < num_samples; ++i) {
       p_uniform_samples[i] = rngs[i]->GetRandomNumber();
     }
-    Tensor uniform_samples_host = uniform_samples_host_.CreateView({num_samples}, dtype_f32_);
-    Tensor uniform_samples_device = uniform_samples_device_.CreateView({num_samples}, dtype_f32_);
+    Tensor uniform_samples_host =
+        tvm::runtime::CreateView(uniform_samples_host_, {num_samples}, dtype_f32_);
+    Tensor uniform_samples_device =
+        tvm::runtime::CreateView(uniform_samples_device_, {num_samples}, dtype_f32_);
     CopyArray(/*src=*/uniform_samples_host, /*dst=*/uniform_samples_device, copy_stream_);
     return uniform_samples_device;
   }
@@ -492,27 +502,31 @@ class GPUSampler : public SamplerObj {
    * number of samples for each random generator is given by `cum_num_samples`. */
   Tensor GenerateUniformSamples(const std::vector<RandomGenerator*>& rngs,
                                 const std::vector<int>& cum_num_samples) {
-    float* p_uniform_samples = static_cast<float*>(uniform_samples_host_->data);
+    float* p_uniform_samples = static_cast<float*>(uniform_samples_host_.data_ptr());
     int total_samples = cum_num_samples.back();
     for (int i = 0; i + 1 < static_cast<int>(cum_num_samples.size()); ++i) {
       for (int j = cum_num_samples[i]; j < cum_num_samples[i + 1]; ++j) {
         p_uniform_samples[j] = rngs[i]->GetRandomNumber();
       }
     }
-    Tensor uniform_samples_host = uniform_samples_host_.CreateView({total_samples}, dtype_f32_);
-    Tensor uniform_samples_device = uniform_samples_device_.CreateView({total_samples}, dtype_f32_);
+    Tensor uniform_samples_host =
+        tvm::runtime::CreateView(uniform_samples_host_, {total_samples}, dtype_f32_);
+    Tensor uniform_samples_device =
+        tvm::runtime::CreateView(uniform_samples_device_, {total_samples}, dtype_f32_);
     CopyArray(/*src=*/uniform_samples_host, /*dst=*/uniform_samples_device, copy_stream_);
     return uniform_samples_device;
   }
 
   /*! \brief Generate uniform random numbers, and copy the numbers and sample indices to GPU. */
   Tensor CopySampleIndicesToGPU(const std::vector<int>& sample_indices) {
-    int* p_sample_indices = static_cast<int*>(sample_indices_host_->data);
+    int* p_sample_indices = static_cast<int*>(sample_indices_host_.data_ptr());
     std::copy(sample_indices.begin(), sample_indices.end(), p_sample_indices);
     // Copy the sample indices to GPU.
     int num_samples = static_cast<int>(sample_indices.size());
-    Tensor sample_indices_host = sample_indices_host_.CreateView({num_samples}, dtype_i32_);
-    Tensor sample_indices_device = sample_indices_device_.CreateView({num_samples}, dtype_i32_);
+    Tensor sample_indices_host =
+        tvm::runtime::CreateView(sample_indices_host_, {num_samples}, dtype_i32_);
+    Tensor sample_indices_device =
+        tvm::runtime::CreateView(sample_indices_device_, {num_samples}, dtype_i32_);
     CopyArray(/*src=*/sample_indices_host, /*dst=*/sample_indices_device, copy_stream_);
     return sample_indices_device;
   }
@@ -522,7 +536,7 @@ class GPUSampler : public SamplerObj {
                  const std::vector<int>& sample_indices, int num_probs, int num_samples,
                  int vocab_size) {
     // Initialize top p values with -1.
-    float* p_top_p = static_cast<float*>(top_p_host_->data);
+    float* p_top_p = static_cast<float*>(top_p_host_.data_ptr());
     for (int i = 0; i < num_probs; ++i) {
       p_top_p[i] = -1.0;
     }
@@ -548,7 +562,7 @@ class GPUSampler : public SamplerObj {
                        int vocab_size, std::vector<int>* top_prob_offset_indptr) {
     top_prob_offset_indptr->reserve(num_samples + 1);
     top_prob_offset_indptr->push_back(0);
-    int* p_top_prob_offsets = static_cast<int*>(top_prob_offsets_host_->data);
+    int* p_top_prob_offsets = static_cast<int*>(top_prob_offsets_host_.data_ptr());
     int num_top_probs = 0;
     bool need_prob_values = false;
     for (int i = 0; i < num_samples; ++i) {
@@ -577,8 +591,8 @@ class GPUSampler : public SamplerObj {
       // - Short path: If top_p and prob values are not needed, we directly sample from multinomial.
       SyncCopyStream(device_, compute_stream_, copy_stream_);
       if (flashinfer_sampling_available_) {
-        sampled_token_ids_device =
-            sampled_token_ids_device_.CreateView({sample_indices_device->shape[0]}, dtype_i32_);
+        sampled_token_ids_device = tvm::runtime::CreateView(
+            sampled_token_ids_device_, {sample_indices_device.shape()[0]}, dtype_i32_);
         flashinfer_multinomial_sample_func_.value()(probs_on_device, uniform_samples_device,
                                                     sample_indices_device,
                                                     sampled_token_ids_device);
@@ -602,14 +616,16 @@ class GPUSampler : public SamplerObj {
     Tensor top_p_device;
     Tensor top_prob_offsets_device;
     if (need_top_p) {
-      Tensor top_p_host = top_p_host_.CreateView({num_probs}, dtype_f32_);
-      top_p_device = top_p_device_.CreateView({num_probs}, dtype_f32_);
+      Tensor top_p_host = tvm::runtime::CreateView(top_p_host_, {num_probs}, dtype_f32_);
+      top_p_device = tvm::runtime::CreateView(top_p_device_, {num_probs}, dtype_f32_);
       CopyArray(/*src=*/top_p_host, /*dst=*/top_p_device, copy_stream_);
     }
     if (need_prob_values) {
       int num_top_probs = top_prob_offset_indptr.back();
-      Tensor top_prob_offsets_host = top_prob_offsets_host_.CreateView({num_top_probs}, dtype_i32_);
-      top_prob_offsets_device = top_prob_offsets_device_.CreateView({num_top_probs}, dtype_i32_);
+      Tensor top_prob_offsets_host =
+          tvm::runtime::CreateView(top_prob_offsets_host_, {num_top_probs}, dtype_i32_);
+      top_prob_offsets_device =
+          tvm::runtime::CreateView(top_prob_offsets_device_, {num_top_probs}, dtype_i32_);
       CopyArray(/*src=*/top_prob_offsets_host, /*dst=*/top_prob_offsets_device, copy_stream_);
     }
     SyncCopyStream(device_, compute_stream_, copy_stream_);
@@ -623,8 +639,8 @@ class GPUSampler : public SamplerObj {
     } else {
       // - Sample without top_p.
       if (flashinfer_sampling_available_) {
-        sampled_token_ids_device =
-            sampled_token_ids_device_.CreateView({sample_indices_device->shape[0]}, dtype_i32_);
+        sampled_token_ids_device = tvm::runtime::CreateView(
+            sampled_token_ids_device_, {sample_indices_device.shape()[0]}, dtype_i32_);
         flashinfer_multinomial_sample_func_
             .value()(probs_on_device, uniform_samples_device, sample_indices_device,
                      sampled_token_ids_device)
@@ -661,9 +677,10 @@ class GPUSampler : public SamplerObj {
     Tensor top_prob_probs_device = device_arrays[2];
     Tensor top_prob_indices_device = device_arrays[3];
     TVM_FFI_ICHECK(sampled_token_ids_device.defined());
-    TVM_FFI_ICHECK_EQ(sampled_token_ids_device->ndim, 1);
-    TVM_FFI_ICHECK_EQ(sampled_token_ids_device->shape[0], num_samples);
-    Tensor sampled_token_ids_host = sampled_token_ids_host_.CreateView({num_samples}, dtype_i32_);
+    TVM_FFI_ICHECK_EQ(sampled_token_ids_device.ndim(), 1);
+    TVM_FFI_ICHECK_EQ(sampled_token_ids_device.shape()[0], num_samples);
+    Tensor sampled_token_ids_host =
+        tvm::runtime::CreateView(sampled_token_ids_host_, {num_samples}, dtype_i32_);
     CopyArray(/*src=*/sampled_token_ids_device, /*dst=*/sampled_token_ids_host, compute_stream_);
 
     Tensor sampled_probs_host{nullptr};
@@ -673,15 +690,17 @@ class GPUSampler : public SamplerObj {
       TVM_FFI_ICHECK(sampled_probs_device.defined());
       TVM_FFI_ICHECK(top_prob_probs_device.defined());
       TVM_FFI_ICHECK(top_prob_indices_device.defined());
-      TVM_FFI_ICHECK_EQ(sampled_probs_device->ndim, 1);
-      TVM_FFI_ICHECK_EQ(top_prob_probs_device->ndim, 1);
-      TVM_FFI_ICHECK_EQ(top_prob_indices_device->ndim, 1);
-      TVM_FFI_ICHECK_EQ(sampled_probs_device->shape[0], num_samples);
-      TVM_FFI_ICHECK_EQ(top_prob_probs_device->shape[0], num_top_probs);
-      TVM_FFI_ICHECK_EQ(top_prob_indices_device->shape[0], num_top_probs);
-      sampled_probs_host = sampled_probs_host_.CreateView({num_samples}, dtype_i32_);
-      top_prob_probs_host = top_prob_probs_host_.CreateView({num_top_probs}, dtype_f32_);
-      top_prob_indices_host = top_prob_indices_host_.CreateView({num_top_probs}, dtype_i32_);
+      TVM_FFI_ICHECK_EQ(sampled_probs_device.ndim(), 1);
+      TVM_FFI_ICHECK_EQ(top_prob_probs_device.ndim(), 1);
+      TVM_FFI_ICHECK_EQ(top_prob_indices_device.ndim(), 1);
+      TVM_FFI_ICHECK_EQ(sampled_probs_device.shape()[0], num_samples);
+      TVM_FFI_ICHECK_EQ(top_prob_probs_device.shape()[0], num_top_probs);
+      TVM_FFI_ICHECK_EQ(top_prob_indices_device.shape()[0], num_top_probs);
+      sampled_probs_host = tvm::runtime::CreateView(sampled_probs_host_, {num_samples}, dtype_i32_);
+      top_prob_probs_host =
+          tvm::runtime::CreateView(top_prob_probs_host_, {num_top_probs}, dtype_f32_);
+      top_prob_indices_host =
+          tvm::runtime::CreateView(top_prob_indices_host_, {num_top_probs}, dtype_i32_);
       CopyArray(/*src=*/sampled_probs_device, /*dst=*/sampled_probs_host, compute_stream_);
       if (num_top_probs > 0) {
         CopyArray(/*src=*/top_prob_probs_device, /*dst=*/top_prob_probs_host, compute_stream_);

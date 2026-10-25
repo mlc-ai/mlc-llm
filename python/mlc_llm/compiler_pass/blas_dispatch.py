@@ -1,8 +1,10 @@
 """A compiler pass that dispatches patterns to CUBLAS."""
 
-import tvm
-from tvm import IRModule, relax
+import tvm_ffi
+import tvm_tirx
+from tvm import relax
 from tvm.relax.backend import get_patterns_with_prefix
+from tvm_tirx import IRModule
 
 try:
     import tvm.relax.backend.cuda.cublas as _cublas  # noqa: F401
@@ -12,32 +14,32 @@ except ImportError:
     pass
 
 
-@tvm.transform.module_pass(opt_level=0, name="BLASDispatch")
+@tvm_tirx.transform.module_pass(opt_level=0, name="BLASDispatch")
 class BLASDispatch:
     """A compiler pass that dispatches patterns to cuBLAS/hipBLAS."""
 
-    def __init__(self, target: tvm.target.Target) -> None:
+    def __init__(self, target: tvm_tirx.target.Target) -> None:
         if target.kind.name == "cuda":
-            self.has_blas = tvm.get_global_func("relax.ext.cublas", True)
+            self.has_blas = tvm_ffi.get_global_func("relax.ext.cublas", True)
             if not self.has_blas:
                 raise Exception("cuBLAS is not enabled.")
             self.patterns = get_patterns_with_prefix("cublas")
         elif target.kind.name == "rocm":
-            self.has_blas = tvm.get_global_func("relax.ext.hipblas", True)
+            self.has_blas = tvm_ffi.get_global_func("relax.ext.hipblas", True)
             if not self.has_blas:
                 raise Exception("hipBLAS is not enabled.")
             self.patterns = get_patterns_with_prefix("hipblas")
         else:
             raise Exception(f"Unsupported target {target.kind.name} for BLAS dispatch.")
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         model_names = [
             gv.name_hint for gv, func in mod.functions.items() if isinstance(func, relax.Function)
         ]
         # exclude single batch decode
         model_names = [name for name in model_names if "batch" in name or "decode" not in name]
-        mod = tvm.transform.Sequential(
+        mod = tvm_tirx.transform.Sequential(
             [
                 relax.transform.FuseOpsByPattern(
                     self.patterns,

@@ -2,10 +2,12 @@
 
 from typing import Literal, Optional, Tuple  # noqa: UP035
 
-from tvm import DataType, DataTypeCode, s_tir, tirx
+from tvm import s_tir
 from tvm.relax.frontend.nn import Tensor, op
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_ffi import dtype as DataType
+from tvm_tirx import DataTypeCode, tirx
+from tvm_tirx.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 
@@ -55,7 +57,7 @@ def gemv(x: Tensor, w: Tensor, indptr: Tensor) -> Tensor:
         o: T.Tensor((experts_per_tok, out_features), dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
-        for e in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
+        for e in T.parallel(experts_per_tok, annotations={"thread_binding": "blockIdx.y"}):
             with Ts.sblock("gemv_o"):
                 e = Ts.axis.spatial(experts_per_tok, e)
                 Ts.reads(x[:, :], w[indptr[0, e], :, :], indptr[0, e])
@@ -154,10 +156,10 @@ def dequantize_gemv(
         o: T.Tensor((experts_per_tok, out_features), model_dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
-        for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
+        for expert_id in T.parallel(experts_per_tok, annotations={"thread_binding": "blockIdx.y"}):
             with Ts.sblock("gemv_o"):
                 e = Ts.axis.spatial(experts_per_tok, expert_id)
-                y = Ts.sblock_alloc_buffer((out_features, in_features), model_dtype)
+                y = Ts.sblock_alloc_tensor((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
                     with Ts.sblock("dequantize"):
                         i, j = Ts.axis.remap("SS", [i1, i2])
@@ -216,15 +218,15 @@ def dequantize_float8_gemv(
 
     def _dequantize(w, s, e, i, j):
         if num_elem_per_storage == 1:
-            w = tirx.reinterpret(quantize_dtype, w[e, i, j])
+            w = tirx.reinterpret(w[e, i, j], ty=quantize_dtype)
         else:
             assert DataType(storage_dtype).type_code == DataTypeCode.UINT
             tir_bin_mask = tirx.const((2**quantize_dtype_bits) - 1, storage_dtype)
             w = w[e, i, j // num_elem_per_storage]
             shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
             w = tirx.reinterpret(
-                quantize_dtype,
                 tirx.bitwise_and(tirx.shift_right(w, shift), tir_bin_mask).astype("uint8"),
+                ty=quantize_dtype,
             )
         w = w.astype(model_dtype)
         if s is not None:
@@ -243,10 +245,10 @@ def dequantize_float8_gemv(
         o: T.Tensor((experts_per_tok, out_features), model_dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
-        for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
+        for expert_id in T.parallel(experts_per_tok, annotations={"thread_binding": "blockIdx.y"}):
             with Ts.sblock("gemv_o"):
                 e = Ts.axis.spatial(experts_per_tok, expert_id)
-                y = Ts.sblock_alloc_buffer((out_features, in_features), model_dtype)
+                y = Ts.sblock_alloc_tensor((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
                     with Ts.sblock("dequantize"):
                         i, j = Ts.axis.remap("SS", [i1, i2])
@@ -266,10 +268,10 @@ def dequantize_float8_gemv(
         o: T.Tensor((experts_per_tok, out_features), model_dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
-        for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
+        for expert_id in T.parallel(experts_per_tok, annotations={"thread_binding": "blockIdx.y"}):
             with Ts.sblock("gemv_o"):
                 e = Ts.axis.spatial(experts_per_tok, expert_id)
-                y = Ts.sblock_alloc_buffer((out_features, in_features), model_dtype)
+                y = Ts.sblock_alloc_tensor((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
                     with Ts.sblock("dequantize"):
                         i, j = Ts.axis.remap("SS", [i1, i2])
@@ -360,10 +362,10 @@ def dequantize_block_scale_float8_gemv(
         o: T.Tensor((experts_per_tok, out_features), out_dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
-        for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
+        for expert_id in T.parallel(experts_per_tok, annotations={"thread_binding": "blockIdx.y"}):
             with Ts.sblock("gemv_o"):
                 e = Ts.axis.spatial(experts_per_tok, expert_id)
-                y = Ts.sblock_alloc_buffer((out_features, in_features), model_dtype)
+                y = Ts.sblock_alloc_tensor((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
                     with Ts.sblock("dequantize"):
                         i, j = Ts.axis.remap("SS", [i1, i2])
@@ -431,15 +433,15 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
 
-        for _bx in T.thread_binding(CTA_COUNT, thread="blockIdx.x"):
+        for _bx in T.parallel(CTA_COUNT, annotations={"thread_binding": "blockIdx.x"}):
             with Ts.sblock("CTA"):
                 bx = Ts.axis.spatial(CTA_COUNT, _bx)
                 Ts.reads(indptr[:], X[:, :], W[:, :, :])
                 Ts.writes(out[:, :])
-                sum = Ts.sblock_alloc_buffer((2,), "int32", scope="local")
-                row = Ts.sblock_alloc_buffer((2,), "int32", scope="local")
-                cur_e = Ts.sblock_alloc_buffer((1,), "int32", scope="local")
-                tile_id = Ts.sblock_alloc_buffer((1,), "int32", scope="local")
+                sum = Ts.sblock_alloc_tensor((2,), "int32", scope="local")
+                row = Ts.sblock_alloc_tensor((2,), "int32", scope="local")
+                cur_e = Ts.sblock_alloc_tensor((1,), "int32", scope="local")
+                tile_id = Ts.sblock_alloc_tensor((1,), "int32", scope="local")
                 sum[0] = 0
                 sum[1] = T.ceildiv(indptr[1] - indptr[0], BLK_M) * tiles_per_row
                 row[0] = 0
@@ -477,9 +479,9 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):
                                     n_offset : n_offset + BLK_N,
                                 ]
                             )
-                            X_tile = Ts.sblock_alloc_buffer((BLK_M, K), dtype, scope="shared")
-                            W_tile = Ts.sblock_alloc_buffer((BLK_N, K), dtype, scope="shared")
-                            O_tile = Ts.sblock_alloc_buffer((BLK_M, BLK_N), dtype, scope="local")
+                            X_tile = Ts.sblock_alloc_tensor((BLK_M, K), dtype, scope="shared")
+                            W_tile = Ts.sblock_alloc_tensor((BLK_N, K), dtype, scope="shared")
+                            O_tile = Ts.sblock_alloc_tensor((BLK_M, BLK_N), dtype, scope="local")
                             for a0, a1 in T.grid(BLK_M, K):
                                 with Ts.sblock("X_shared"):
                                     i, j = Ts.axis.remap("SS", [a0, a1])
@@ -638,15 +640,15 @@ def dequantize_group_gemm(
         out: T.Tensor((B, N), model_dtype),
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
-        for _bx in T.thread_binding(CTA_COUNT, thread="blockIdx.x"):
+        for _bx in T.parallel(CTA_COUNT, annotations={"thread_binding": "blockIdx.x"}):
             with Ts.sblock("CTA"):
                 bx = Ts.axis.spatial(CTA_COUNT, _bx)
                 Ts.reads(X[:, :], w[:, :, :], scale[:, :, :], indptr[:])
                 Ts.writes(out[:, :])
-                sum = Ts.sblock_alloc_buffer((2,), indptr_dtype, scope="local")
-                row = Ts.sblock_alloc_buffer((2,), indptr_dtype, scope="local")
-                cur_e = Ts.sblock_alloc_buffer((1,), indptr_dtype, scope="local")
-                tile_id = Ts.sblock_alloc_buffer((1,), indptr_dtype, scope="local")
+                sum = Ts.sblock_alloc_tensor((2,), indptr_dtype, scope="local")
+                row = Ts.sblock_alloc_tensor((2,), indptr_dtype, scope="local")
+                cur_e = Ts.sblock_alloc_tensor((1,), indptr_dtype, scope="local")
+                tile_id = Ts.sblock_alloc_tensor((1,), indptr_dtype, scope="local")
                 sum[0] = 0
                 sum[1] = T.ceildiv(indptr[1] - indptr[0], BLK_M) * tiles_per_row
                 row[0] = 0
@@ -685,9 +687,9 @@ def dequantize_group_gemm(
                                     n_offset : n_offset + BLK_N,
                                 ]
                             )
-                            X_tile = Ts.sblock_alloc_buffer((BLK_M, K), model_dtype, scope="shared")
-                            W_tile = Ts.sblock_alloc_buffer((BLK_N, K), model_dtype, scope="shared")
-                            O_tile = Ts.sblock_alloc_buffer(
+                            X_tile = Ts.sblock_alloc_tensor((BLK_M, K), model_dtype, scope="shared")
+                            W_tile = Ts.sblock_alloc_tensor((BLK_N, K), model_dtype, scope="shared")
+                            O_tile = Ts.sblock_alloc_tensor(
                                 (BLK_M, BLK_N), "float32", scope="local"
                             )
                             for a0, a1 in T.grid(BLK_M, K):

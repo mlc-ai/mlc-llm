@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-import tvm
+import tvm_tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -65,9 +65,7 @@ def attention(
     group_size = h_q // h_kv
 
     def _fallback():
-        from tvm.relax.frontend.nn.llm.kv_cache import (  # pylint: disable=import-outside-toplevel
-            _attention_sequence_prefill,
-        )
+        from tvm.relax.frontend.nn.llm.kv_cache import _attention_sequence_prefill
 
         nonlocal q, k, v, qk_dtype
         if k.ndim == 3:
@@ -78,7 +76,7 @@ def attention(
             k = k.repeat(h_q // h_kv, axis=2)
             v = v.repeat(h_q // h_kv, axis=2)
 
-        target = _extern.get_store().target or tvm.target.Target("cuda")
+        target = _extern.get_store().target or tvm_tirx.target.Target("cuda")
         attn_output, _ = op.tensor_ir_op(
             _attention_sequence_prefill(
                 h_kv=h_kv,

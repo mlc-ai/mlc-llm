@@ -1,7 +1,7 @@
 """The event trace recorder in MLC LLM serving"""
 
 import tvm_ffi
-from tvm.runtime import Object
+from tvm_ffi import Object
 
 from . import _ffi_api
 

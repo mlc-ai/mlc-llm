@@ -20,8 +20,9 @@ from typing import (  # noqa: UP035
     Union,
 )
 
-import tvm
-from tvm.runtime import Device
+import tvm_ffi
+import tvm_tirx
+from tvm_tirx.runtime import Device
 
 from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.protocol.conversation_protocol import Conversation
@@ -118,7 +119,7 @@ def _parse_models(
 
 def _process_model_args(
     models: List[ModelInfo],  # noqa: UP006
-    device: tvm.runtime.Device,
+    device: tvm_tirx.runtime.Device,
     engine_config: EngineConfig,
 ) -> Tuple[List[Tuple[str, str]], List[str], Conversation]:  # noqa: UP006
     """Process the input ModelInfo to get the engine initialization arguments."""
@@ -574,7 +575,7 @@ class MLCEngineBase:
         self,
         kind: Literal["async", "sync"],
         model: str,
-        device: Union[str, tvm.runtime.Device],
+        device: Union[str, tvm_tirx.runtime.Device],
         model_lib: Optional[str],
         mode: Literal["local", "interactive", "server"],
         engine_config: Optional[EngineConfig],
@@ -609,7 +610,7 @@ class MLCEngineBase:
 
         # - Initialize engine state and engine.
         self.state = EngineState(enable_tracing)
-        module = tvm.get_global_func("mlc.serve.create_threaded_engine", allow_missing=False)()
+        module = tvm_ffi.get_global_func("mlc.serve.create_threaded_engine", allow_missing=False)()
         self._ffi = {
             key: module[key]
             for key in [

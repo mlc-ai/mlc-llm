@@ -2,19 +2,19 @@
 
 from typing import Dict  # noqa: UP035
 
-import tvm
+import tvm_tirx
 from tvm import relax
-from tvm.ir.module import IRModule
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr import Expr, Var
 from tvm.relax.expr_functor import PyExprMutator, mutator
+from tvm_tirx.ir.module import IRModule
 
 
-@tvm.transform.module_pass(opt_level=0, name="ScatterTupleGetItem")
+@tvm_tirx.transform.module_pass(opt_level=0, name="ScatterTupleGetItem")
 class ScatterTupleGetItem:
     """A compiler pass that scatters TupleGetItem for lazy TupleGetItems."""
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         return _Scatter(mod).transform()
 

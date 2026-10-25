@@ -26,7 +26,7 @@ from pydantic import (
     model_serializer,
     model_validator,
 )
-from tvm.runtime import DataType
+from tvm_ffi import dtype as DataType
 
 MODEL_PACKAGE_MANIFEST_FILENAME = "mlc-model-manifest.json"
 MODEL_PACKAGE_SCHEMA = "mlc.model-package"

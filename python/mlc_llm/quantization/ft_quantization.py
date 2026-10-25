@@ -3,12 +3,14 @@
 from dataclasses import dataclass
 from typing import Any, Callable, List, Literal, Optional, Tuple  # noqa: UP035
 
-import tvm
-from tvm import DataType, DataTypeCode, IRModule, relax, te, tirx
+import tvm_ffi
+from tvm import relax, te
 from tvm.relax.frontend import nn
-from tvm.runtime import Tensor
 from tvm.s_tir import dlight as dl
-from tvm.target import Target
+from tvm_ffi import dtype as DataType
+from tvm_tirx import DataTypeCode, IRModule, tirx
+from tvm_tirx.runtime import Tensor
+from tvm_tirx.target import Target
 
 from ..loader import QuantizeMapping
 from ..op import faster_transformer_dequantize_gemm
@@ -181,7 +183,7 @@ class FTQuantize:
         ret: List[Tensor]
             The list of FasterTransformer quantized weights.
         """
-        assert tvm.get_global_func("relax.ext.cutlass", True), (
+        assert tvm_ffi.get_global_func("relax.ext.cutlass", True), (
             "Cutlass should be enabled in TVM runtime to quantize weight, "
             "but not enabled in current TVM runtime environment. "
             "To enable Cutlass in TVM runtime, please `set(USE_CUTLASS ON)` "
@@ -262,7 +264,7 @@ class FTQuantize:
                 tirx.if_then_else(
                     j * cur_group_size + r < k,
                     te.abs(weight[i, j * cur_group_size + r]),
-                    te.min_value(self.model_dtype),
+                    te.min_value(ty=self.model_dtype),
                 ),
                 axis=r,
             ),

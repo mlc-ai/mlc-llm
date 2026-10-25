@@ -3,10 +3,9 @@
  * \file serve/engine_actions/new_request_prefill.cc
  */
 
-#include <tvm/support/cuda/nvtx.h>
-
 #include <optional>
 
+#include "../../support/nvtx.h"
 #include "../../support/utils.h"
 #include "../sampler/sampler.h"
 #include "batch_prefill_base.h"
@@ -14,8 +13,6 @@
 namespace mlc {
 namespace llm {
 namespace serve {
-
-using tvm::support::NVTXScopedRange;
 
 /*!
  * \brief The action that runs prefill preparation in disaggregation system.

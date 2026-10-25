@@ -6,7 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List, Union  # noqa: UP035
 
-from tvm.runtime import DataType
+from tvm_ffi import dtype as DataType
 
 from mlc_llm.support import logging
 from mlc_llm.support.argparse import ArgumentParser
@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_metadata(model_lib: Path) -> Dict[str, Any]:  # noqa: UP006
-    from tvm.runtime import device, load_module
     from tvm.runtime.vm import VirtualMachine
+    from tvm_ffi import device, load_module
 
     return json.loads(VirtualMachine(load_module(model_lib), device("cpu"))["_metadata"]())
 

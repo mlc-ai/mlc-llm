@@ -9,7 +9,6 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/tensor.h>
 
 #include <cstdlib>
@@ -75,26 +74,27 @@ void FunctionTable::Init(String reload_lib_path, Device device, tvm::ffi::json::
     TVM_FFI_ICHECK(session.has_value());
     this->sess = session.value();
     this->use_disco = true;
-    this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
-                                       reload_lib_path, Optional<Device>(std::nullopt));
-    this->mod_get_func = [this, fmodule_get_function = sess->GetGlobalFunc(
+    this->disco_mod =
+        sess.value()->CallPacked(sess.value()->GetGlobalFunc("runtime.disco.load_vm_module"),
+                                 reload_lib_path, Optional<Device>(std::nullopt));
+    this->mod_get_func = [this, fmodule_get_function = sess.value()->GetGlobalFunc(
                                     "ffi.ModuleGetFunction")](const std::string& name) -> Function {
-      DRef func = sess->CallPacked(fmodule_get_function, this->disco_mod, name, true);
+      DRef func = sess.value()->CallPacked(fmodule_get_function, this->disco_mod, name, true);
       bool exists = (func->DebugGetFromRemote(0).as<Function>()) != nullptr;
       if (!exists) {
         return Function(nullptr);
       }
-      return SessionFuncAsPackedFunc(sess, func, name);
+      return SessionFuncAsPackedFunc(sess.value(), func, name);
     };
     if (num_stages == 1) {
       if (Optional<Shape> cpu_ids = GetDiscoWorkerCPUBinding(/*num_workers=*/num_shards)) {
         Shape cpu_ids_value = cpu_ids.value();
-        sess->CallPacked(sess->GetGlobalFunc("runtime.disco.bind_worker_to_cpu_core"),
-                         cpu_ids_value);
+        sess.value()->CallPacked(
+            sess.value()->GetGlobalFunc("runtime.disco.bind_worker_to_cpu_core"), cpu_ids_value);
       }
     }
     this->get_global_func = [this](const std::string& name) -> Function {
-      return SessionFuncAsPackedFunc(sess, sess->GetGlobalFunc(name), name);
+      return SessionFuncAsPackedFunc(sess.value(), sess.value()->GetGlobalFunc(name), name);
     };
     this->model_metadata_ = ModelMetadata::FromModule(
         this->disco_mod.value()->DebugGetFromRemote(0).cast<Module>(), std::move(model_config));
@@ -130,10 +130,8 @@ void FunctionTable::Init(String reload_lib_path, Device device, tvm::ffi::json::
     this->local_vm = fload_exec.value()().cast<Module>();
     this->local_vm.value()
         ->GetFunction("vm_initialization")
-        .value()(static_cast<int>(device.device_type), device.device_id,
-                 static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
-                 static_cast<int>(kDLCPU), 0,
-                 static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
+        .value()(static_cast<int>(device.device_type), device.device_id, static_cast<int>(kDLCPU),
+                 0);
     this->mod_get_func = [this](const std::string& name) -> Function {
       return this->local_vm.value()->GetFunction(name, true).value_or(Function(nullptr));
     };
@@ -301,11 +299,12 @@ void FunctionTable::_InitFunctions() {
 ObjectRef FunctionTable::Empty(Shape shape, DLDataType dtype, Device device,
                                bool worker0_only) const {
   if (this->use_disco) {
-    DRef empty_func = sess->GetGlobalFunc("runtime.disco.empty");
-    return sess->CallPacked(empty_func, shape, dtype, Optional<Device>(std::nullopt), worker0_only,
-                            /*in_group=*/false);
+    DRef empty_func = sess.value()->GetGlobalFunc("runtime.disco.empty");
+    return sess.value()->CallPacked(empty_func, shape, dtype, Optional<Device>(std::nullopt),
+                                    worker0_only,
+                                    /*in_group=*/false);
   } else {
-    return Tensor::Empty(shape, dtype, device);
+    return tvm::runtime::Empty(shape, dtype, device);
   }
 }
 
@@ -319,14 +318,14 @@ ObjectRef FunctionTable::CopyToWorker0(const Tensor& host_array, String buffer_c
     if (it != cached_buffers.end()) {
       buffer = (*it).second.as_or_throw<DRef>();
     } else {
-      buffer = this->Empty(max_reserved_shape, host_array.DataType(), null_device,
+      buffer = this->Empty(max_reserved_shape, host_array.dtype(), null_device,
                            /*worker0_only=*/false)
                    .as_or_throw<DRef>();
       cached_buffers.Set(buffer_cache_key, buffer.value());
     }
-    Shape real_shape = host_array.Shape();
+    Shape real_shape = host_array.shape();
     DRef buffer_view = nd_view_func_(buffer.value(), real_shape).cast<DRef>();
-    sess->CopyToWorker0(host_array, buffer_view);
+    sess.value()->CopyToWorker0(host_array, buffer_view);
     return buffer_view;
   } else {
     auto it = cached_buffers.find(buffer_cache_key);
@@ -334,19 +333,19 @@ ObjectRef FunctionTable::CopyToWorker0(const Tensor& host_array, String buffer_c
     if (it != cached_buffers.end()) {
       buffer = (*it).second.as_or_throw<Tensor>();
       if (buffer_cache_key == "image") {
-        if (tvm::ffi::GetDataSize(*buffer.operator->()) <
-            tvm::ffi::GetDataSize(*host_array.operator->())) {
-          buffer = Tensor::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
+        if (tvm::ffi::GetDataSize(*buffer.GetDLTensorPtr()) <
+            tvm::ffi::GetDataSize(*host_array.GetDLTensorPtr())) {
+          buffer = tvm::runtime::Empty(max_reserved_shape, host_array.dtype(), local_gpu_device);
           cached_buffers.Set(buffer_cache_key, buffer);
         }
       }
     } else {
-      buffer = Tensor::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
+      buffer = tvm::runtime::Empty(max_reserved_shape, host_array.dtype(), local_gpu_device);
       cached_buffers.Set(buffer_cache_key, buffer);
     }
-    buffer = buffer.CreateView(host_array.Shape(), host_array->dtype);
-    DLTensor copy_dst = *(buffer.operator->());
-    Tensor::CopyFromTo(host_array.operator->(), &copy_dst);
+    buffer = tvm::runtime::CreateView(buffer, host_array.shape(), host_array.dtype());
+    DLTensor copy_dst = *(buffer.GetDLTensorPtr());
+    tvm::runtime::CopyFromTo(host_array.GetDLTensorPtr(), &copy_dst);
     return buffer;
   }
 }
@@ -356,14 +355,14 @@ void FunctionTable::DebugCallFuncOnAllAllWorker(const String& func_name,
   if (func_args) {
     std::string args = func_args.value();
     if (this->use_disco) {
-      sess->CallPacked(sess->GetGlobalFunc(func_name), args);
+      sess.value()->CallPacked(sess.value()->GetGlobalFunc(func_name), args);
     } else {
       static Function func = Function::GetGlobalRequired(func_name);
       func(args);
     }
   } else {
     if (this->use_disco) {
-      sess->CallPacked(sess->GetGlobalFunc(func_name));
+      sess.value()->CallPacked(sess.value()->GetGlobalFunc(func_name));
     } else {
       static Function func = Function::GetGlobalRequired(func_name);
       func();

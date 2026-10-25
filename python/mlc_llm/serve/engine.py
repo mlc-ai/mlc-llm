@@ -15,7 +15,7 @@ from typing import (  # noqa: UP035
     overload,
 )
 
-from tvm.runtime import Device
+from tvm_tirx.runtime import Device
 
 from mlc_llm.protocol import debug_protocol, openai_api_protocol
 from mlc_llm.protocol.generation_config import GenerationConfig

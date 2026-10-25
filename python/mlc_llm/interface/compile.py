@@ -5,10 +5,11 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple  # noqa: UP035
 
-from tvm import IRModule, relax, tirx
+from tvm import relax
 from tvm.relax.frontend import nn
-from tvm.target import Target
-from tvm.transform import Pass, PassContext
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.ir.transform import Pass, PassContext
+from tvm_tirx.target import Target
 
 from mlc_llm import compiler_pass as _  # noqa: F401
 from mlc_llm import op as op_ext

@@ -5,9 +5,10 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from tvm import te, tirx
+from tvm import te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm_tirx import tirx
 
 from .gemma4_config import Gemma4AudioConfig, Gemma4TextConfig
 

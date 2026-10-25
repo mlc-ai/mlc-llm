@@ -13,7 +13,7 @@ def test_llama2_creation(model_name: str):
     mod, named_params = model.export_tvm(
         spec=model.get_default_spec(),
     )
-    mod.show(black_format=False)
+    mod.show()
     for name, param in named_params:
         print(name, param.shape, param.dtype)
 

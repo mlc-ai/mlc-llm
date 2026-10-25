@@ -138,4 +138,4 @@ cmake --build . --target install --config release -j
 cd ..
 
 rm -rf $MLC_LLM_SOURCE_DIR/ios/MLCSwift/tvm_home
-ln -s $MLC_LLM_SOURCE_DIR/3rdparty/tvm $MLC_LLM_SOURCE_DIR/ios/MLCSwift/tvm_home
+ln -s "${TVM_SOURCE_DIR:-$MLC_LLM_SOURCE_DIR/3rdparty/tvm}" "$MLC_LLM_SOURCE_DIR/ios/MLCSwift/tvm_home"

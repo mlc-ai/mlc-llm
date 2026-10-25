@@ -58,7 +58,7 @@ def test_siglip_creation():
     assert has_encoder_layers, "Should have encoder layer parameters"
     assert has_post_layernorm, "Should have post_layernorm parameters"
 
-    mod.show(black_format=False)
+    mod.show()
     for name, param in named_params:
         print(name, param.shape, param.dtype)
 

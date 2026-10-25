@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import tvm
 import tvm.testing
+import tvm_tirx
 
 from mlc_llm.op.top_p_pivot import top_p_pivot, top_p_renorm
 
@@ -23,13 +24,13 @@ def test_top_p_renorm(batch_size, vocab):
     final_pivot_np = np.zeros(batch_size).astype(np.float32)
     final_lsum_np = np.zeros(batch_size).astype(np.float32)
 
-    dev = tvm.cuda(0)
-    target = tvm.target.Target("cuda")
-    var_prob = tvm.runtime.tensor(p_np, dev)
-    var_init_pivots = tvm.runtime.tensor(init_pivots_np, dev)
-    top_p_global = tvm.runtime.tensor(top_p_np, dev)
-    var_final_pivot = tvm.runtime.tensor(final_pivot_np, dev)
-    var_final_lsum = tvm.runtime.tensor(final_lsum_np, dev)
+    dev = tvm_tirx.cuda(0)
+    target = tvm_tirx.target.Target("cuda")
+    var_prob = tvm_tirx.runtime.tensor(p_np, dev)
+    var_init_pivots = tvm_tirx.runtime.tensor(init_pivots_np, dev)
+    top_p_global = tvm_tirx.runtime.tensor(top_p_np, dev)
+    var_final_pivot = tvm_tirx.runtime.tensor(final_pivot_np, dev)
+    var_final_lsum = tvm_tirx.runtime.tensor(final_lsum_np, dev)
 
     kernel = top_p_pivot(init_pivots_np.shape[1], target).with_attr("global_symbol", "top_p_pivot")
     mod = tvm.compile(kernel, target=target)
@@ -39,7 +40,7 @@ def test_top_p_renorm(batch_size, vocab):
     final_lsum = var_final_lsum.numpy()
 
     renorm_np = p_np.copy()
-    var_renorm = tvm.runtime.tensor(renorm_np, dev)
+    var_renorm = tvm_tirx.runtime.tensor(renorm_np, dev)
 
     kernel_renorm = top_p_renorm(target).with_attr("global_symbol", "top_p_renorm")
     mod_renorm = tvm.compile(kernel_renorm, target=target)

@@ -3,20 +3,21 @@
 import operator
 from functools import reduce
 
-import tvm
-from tvm import IRModule, relax
+import tvm_tirx
+from tvm import relax
 from tvm.relax.dpl import rewrite_call
 from tvm.relax.dpl.pattern import is_op, wildcard
+from tvm_tirx import IRModule
 
 
-@tvm.transform.module_pass(opt_level=0, name="FuseDequantizeEpilogue")
+@tvm_tirx.transform.module_pass(opt_level=0, name="FuseDequantizeEpilogue")
 class FuseFTDequantizeEpilogue:
     """A compiler pass that fuses FasterTransformer dequantize matmul + epilogue."""
 
     def transform_module(
         self,
         mod: IRModule,
-        _ctx: tvm.transform.PassContext,
+        _ctx: tvm_tirx.transform.PassContext,
     ) -> IRModule:
         """IRModule-level transformation"""
         for gv, func in mod.functions_items():

@@ -1,6 +1,7 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.26)
 
 project(mlc-chat C CXX)
+set(CMAKE_CXX_STANDARD 20)
 
 set(ANDROID_DIR ${CMAKE_CURRENT_LIST_DIR})
 set(ANDROID_BIN_DIR ${CMAKE_CURRENT_BINARY_DIR})
@@ -11,7 +12,11 @@ set(MLC_LLM_COMPILE_DEFS TVM_LOG_CUSTOMIZE=1)
 add_subdirectory(${MLC_LLM_DIR} ${MLC_LLM_BINARY_DIR} EXCLUDE_FROM_ALL)
 
 if(NOT DEFINED TVM_SOURCE_DIR)
-  set(TVM_SOURCE_DIR ${MLC_LLM_DIR}/3rdparty/tvm)
+  if(DEFINED ENV{TVM_SOURCE_DIR})
+    set(TVM_SOURCE_DIR "$ENV{TVM_SOURCE_DIR}")
+  else()
+    set(TVM_SOURCE_DIR ${MLC_LLM_DIR}/3rdparty/tvm)
+  endif()
 endif(NOT DEFINED TVM_SOURCE_DIR)
 message(STATUS "TVM_SOURCE_DIR: ${TVM_SOURCE_DIR}")
 
@@ -57,12 +62,13 @@ target_include_directories(
   PUBLIC ${JNI_INCLUDE_DIRS}
          ${JNI_HEADER}
          ${ANDROID_DIR}/src/cpp
-         ${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/3rdparty/dlpack/include
-         ${TVM_SOURCE_DIR}/3rdparty/OpenCL-Headers
+         ${TVM_SOURCE_DIR}/3rdparty/tvm-tirx/include
+         ${TVM_SOURCE_DIR}/3rdparty/tvm-tirx/3rdparty/tvm-ffi/3rdparty/dlpack/include
+         ${TVM_SOURCE_DIR}/3rdparty/tvm-tirx/3rdparty/OpenCL-Headers
          ${TVM_SOURCE_DIR}/include
          ${TVM_SOURCE_DIR}/src
-         ${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/include
-         ${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/src)
+         ${TVM_SOURCE_DIR}/3rdparty/tvm-tirx/3rdparty/tvm-ffi/include
+         ${TVM_SOURCE_DIR}/3rdparty/tvm-tirx/3rdparty/tvm-ffi/src)
 target_compile_definitions(tvm4j_runtime_packed PUBLIC ${MLC_LLM_COMPILE_DEFS})
 target_compile_definitions(
   tvm4j_runtime_packed

@@ -1,9 +1,9 @@
-import tvm
-from tvm import tirx
+import tvm_tirx
+from tvm.relax import script as R
 from tvm.relax.frontend.nn import core, modules, spec
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tirx as T
+from tvm_tirx import tirx
+from tvm_tirx.script import ir as I
+from tvm_tirx.script import tirx as T
 
 from mlc_llm.nn.kv_cache import PagedKVCache, RopeMode
 
@@ -136,7 +136,7 @@ def test_nn_module_paged_kv_cache():
         },
     )
     tvm_mod = export_results[0]
-    tvm.ir.assert_structural_equal(tvm_mod, Module, True)
+    tvm_tirx.ir.assert_structural_equal(tvm_mod, Module, True)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ using tvm::Device;
 using namespace tvm::runtime;
 using tvm::ffi::Object;
 using tvm::ffi::ObjectRef;
+using tvm::ffi::Tensor;
 
 /*!
  * \brief The base class of runtime sampler.

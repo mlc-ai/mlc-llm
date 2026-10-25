@@ -6,9 +6,11 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Dict, List, Literal, Optional, Tuple, Type, Union  # noqa: UP035
 
 import numpy as np
-from tvm import DataType, DataTypeCode, IRModule, relax, runtime, te, tirx, topi
+from tvm import relax, te, topi
 from tvm.relax.frontend import nn
-from tvm.runtime import Tensor
+from tvm_ffi import dtype as DataType
+from tvm_tirx import DataTypeCode, IRModule, ir, runtime, tirx
+from tvm_tirx.runtime import Tensor
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.nn import MixtralExperts
@@ -56,7 +58,7 @@ class PerTensorQuantize:
         self.num_elem_per_storage = (
             DataType(self.storage_dtype).bits // DataType(self.weight_dtype).bits
         )
-        self.max_int_value = int(tirx.max_value(self.weight_dtype).value)
+        self.max_int_value = int(tirx.max_value(ty=self.weight_dtype).value)
         self._quantize_func_cache = {}
 
     def quantize_model(
@@ -252,13 +254,13 @@ class PerTensorQuantize:
             scaled_tensor = te.compute(
                 shape=weight.shape,
                 fcompute=lambda *idx: tirx.Cast(
-                    self.storage_dtype,
-                    tirx.reinterpret(
-                        elem_storage_dtype,
+                    ty=self.storage_dtype,
+                    value=tirx.reinterpret(
                         tirx.Cast(
-                            quantize_dtype,
-                            weight(*idx) / scale(0) if scale is not None else weight(*idx),
+                            ty=quantize_dtype,
+                            value=weight(*idx) / scale(0) if scale is not None else weight(*idx),
                         ),
+                        ty=elem_storage_dtype,
                     ),
                 ),
             )
@@ -474,11 +476,11 @@ class PerTensorQuantizeLinear(nn.Module):
                     scale,
                     out_shape=[
                         (
-                            tirx.IntImm("int64", self.out_features)
+                            ir.IntImm("int64", self.out_features)
                             if isinstance(self.out_features, int)
                             else weight.shape[0]
                         ),
-                        tirx.IntImm("int64", self.in_features),
+                        ir.IntImm("int64", self.in_features),
                     ],
                 ),
                 "dequantize",
@@ -561,11 +563,11 @@ class PerTensorQuantizeEmbedding(nn.Module):
                 scale,
                 out_shape=[
                     (
-                        tirx.IntImm("int64", self.num)
+                        ir.IntImm("int64", self.num)
                         if isinstance(self.num, int)
                         else weight.shape[0]
                     ),
-                    tirx.IntImm("int64", self.dim),
+                    ir.IntImm("int64", self.dim),
                 ],
             ),
             "dequantize",
@@ -598,11 +600,11 @@ class PerTensorQuantizeEmbedding(nn.Module):
                 scale,
                 out_shape=[
                     (
-                        tirx.IntImm("int64", self.num)
+                        ir.IntImm("int64", self.num)
                         if isinstance(self.num, int)
                         else weight.shape[0]
                     ),
-                    tirx.IntImm("int64", self.dim),
+                    ir.IntImm("int64", self.dim),
                 ],
             ),
             "dequantize",

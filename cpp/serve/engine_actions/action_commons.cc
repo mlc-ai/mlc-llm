@@ -5,13 +5,11 @@
 
 #include "action_commons.h"
 
-#include <tvm/support/cuda/nvtx.h>
+#include "../../support/nvtx.h"
 
 namespace mlc {
 namespace llm {
 namespace serve {
-
-using tvm::support::NVTXScopedRange;
 
 Array<EngineAction> CreateEngineActions(Array<Model> models, EngineConfig engine_config,
                                         std::vector<tvm::ffi::json::Object> model_configs,

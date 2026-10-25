@@ -1,7 +1,7 @@
 import json
 
 import pytest
-import tvm
+import tvm_tirx
 
 from mlc_llm.json_ffi import JSONFFIEngine
 from mlc_llm.testing import require_test_model
@@ -36,7 +36,7 @@ def check_error_handling(engine, expect_str, **params):
 # launch time of mock test is fast so we can put it in unittest
 @require_test_model("Llama-3-8B-Instruct-q4f16_1-MLC")
 def test_chat_completion_misuse(model: str):
-    engine = JSONFFIEngine(model, tvm.cpu(), model_lib="mock://echo")
+    engine = JSONFFIEngine(model, tvm_tirx.cpu(), model_lib="mock://echo")
     # Test malformed requests.
     for response in engine._raw_chat_completion(
         "malformed_string", include_usage=False, request_id="123"
@@ -95,7 +95,7 @@ def check_n_generation(engine):
 
 @require_test_model("Llama-3-8B-Instruct-q4f16_1-MLC")
 def test_chat_completion_api(model: str):
-    engine = JSONFFIEngine(model, tvm.cpu(), model_lib="mock://echo")
+    engine = JSONFFIEngine(model, tvm_tirx.cpu(), model_lib="mock://echo")
     check_normal_param_passing(engine)
     check_n_generation(engine)
 

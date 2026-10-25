@@ -4,13 +4,14 @@ import os
 import numpy as np
 import pytest
 import torch
-import tvm
+import tvm_ffi
+import tvm_tirx
 from safetensors import safe_open
 from transformers import AutoModel, AutoTokenizer
 from tvm import relax
 from tvm.contrib import tvmjs
-from tvm.runtime import ShapeTuple
 from tvm.runtime.vm import VirtualMachine
+from tvm_ffi import Shape as ShapeTuple
 
 MLC_QWEN3_EMB_HF_DIR = os.environ.get("MLC_QWEN3_EMB_HF_DIR")
 MLC_QWEN3_EMB_MODEL_DIR = os.environ.get("MLC_QWEN3_EMB_MODEL_DIR")
@@ -91,12 +92,12 @@ def _mlc_logits(text, tokenizer, mlc_module, params, metadata, dev, embed_weight
         ShapeTuple([int(sliding_window != -1)]),
     )
 
-    nd_view = tvm.get_global_func("vm.builtin.reshape")
-    add_sequence = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
-    begin_forward = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
-    end_forward = tvm.get_global_func("vm.builtin.kv_state_end_forward")
+    nd_view = tvm_ffi.get_global_func("vm.builtin.reshape")
+    add_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")
+    begin_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
+    end_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_end_forward")
 
-    tokens_tvm = tvm.runtime.tensor(input_ids, device=dev)
+    tokens_tvm = tvm_tirx.runtime.tensor(input_ids, device=dev)
     embedding = embed_func(tokens_tvm, params)
     embedding = nd_view(embedding, ShapeTuple([1, seq_len, embedding.shape[-1]]))
 
@@ -117,12 +118,12 @@ def test_mlc_hf_logit_match():
     hf_model = AutoModel.from_pretrained(MLC_QWEN3_EMB_HF_DIR)
     embed_weight = _load_embed_weight(MLC_QWEN3_EMB_HF_DIR)
 
-    dev = tvm.runtime.device(MLC_QWEN3_EMB_DEVICE, 0)
-    ex = tvm.runtime.load_module(MLC_QWEN3_EMB_MODEL_LIB)
+    dev = tvm_ffi.device(MLC_QWEN3_EMB_DEVICE, 0)
+    ex = tvm_ffi.load_module(MLC_QWEN3_EMB_MODEL_LIB)
     vm = relax.VirtualMachine(ex, dev)
     mlc_module = vm.module
 
-    metadata = json.loads(VirtualMachine(ex, tvm.runtime.device("cpu"))["_metadata"]())
+    metadata = json.loads(VirtualMachine(ex, tvm_ffi.device("cpu"))["_metadata"]())
     params_dict, _ = tvmjs.load_tensor_cache(MLC_QWEN3_EMB_MODEL_DIR, dev)
     param_names = [p["name"] for p in metadata["params"]]
     params = [params_dict[name] for name in param_names]

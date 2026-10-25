@@ -25,7 +25,7 @@ def get_dll_directories():
         os.path.join(source_dir, "build", "Release"),
     ]
     if MLC_LIBRARY_PATH:
-        dll_path.append(MLC_LIBRARY_PATH)
+        dll_path.insert(0, MLC_LIBRARY_PATH)
     if "CONDA_PREFIX" in os.environ:
         dll_path.append(os.path.join(os.environ["CONDA_PREFIX"], "lib"))
     if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):

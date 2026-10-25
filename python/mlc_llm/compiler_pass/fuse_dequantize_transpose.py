@@ -1,17 +1,18 @@
 """A compiler pass that fuses transpose + dequantize."""
 
-import tvm
-from tvm import relax, s_tir, tirx
-from tvm.ir.module import IRModule
+import tvm_tirx
+from tvm import relax, s_tir
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
+from tvm_tirx import ir, tirx
+from tvm_tirx.ir.module import IRModule
 
 
-@tvm.transform.module_pass(opt_level=0, name="FuseDequantizeTranspose")
+@tvm_tirx.transform.module_pass(opt_level=0, name="FuseDequantizeTranspose")
 class FuseDequantizeTranspose:
     """A compiler pass that fuses transpose + dequantize."""
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         return _DequantizeTransposeFuser(mod).transform()
 
@@ -39,12 +40,12 @@ class _DequantizeTransposeFuser(PyExprMutator):
         call: relax.Call,
     ) -> relax.Expr:
         call = self.visit_expr_post_order(call)
-        if call.op != tvm.ir.Op.get("relax.matmul"):
+        if call.op != tvm_tirx.ir.Op.get("relax.matmul"):
             return call
         # Do not fuse dequantize-transpose for GeMM
         if (
             call.args[0].ty.ndim < 2
-            or not isinstance(call.args[0].ty.shape[-2], tirx.IntImm)
+            or not isinstance(call.args[0].ty.shape[-2], ir.IntImm)
             or call.args[0].ty.shape[-2].value != 1
         ):
             return call
@@ -52,7 +53,7 @@ class _DequantizeTransposeFuser(PyExprMutator):
         matmul_rhs = self.lookup_binding(call.args[1])
         if (
             not isinstance(matmul_rhs, relax.Call)
-            or matmul_rhs.op != tvm.ir.Op.get("relax.permute_dims")
+            or matmul_rhs.op != tvm_tirx.ir.Op.get("relax.permute_dims")
             or matmul_rhs.args[0].ty.ndim != 2
             or matmul_rhs.attrs.axes is not None
         ):
@@ -61,7 +62,7 @@ class _DequantizeTransposeFuser(PyExprMutator):
         transpose_input = self.lookup_binding(matmul_rhs.args[0])
         if (
             not isinstance(transpose_input, relax.Call)
-            or transpose_input.op != tvm.ir.Op.get("relax.call_tir")
+            or transpose_input.op != tvm_tirx.ir.Op.get("relax.call_tir")
             or not transpose_input.args[0].name_hint.startswith("dequantize")
             or not isinstance(transpose_input.ty, relax.TensorType)
         ):
@@ -71,17 +72,17 @@ class _DequantizeTransposeFuser(PyExprMutator):
         assert isinstance(dequantize_tir_func, tirx.Function)
         root = dequantize_tir_func.body[0].block
         if (
-            len(root.alloc_buffers) != 1
+            len(root.alloc_tensors) != 1
             or len(root.body) != 2
-            or not isinstance(root.body[1], tvm.ir.For)
-            or not isinstance(root.body[1].body[0], tvm.ir.For)
+            or not isinstance(root.body[1], tvm_tirx.ir.For)
+            or not isinstance(root.body[1].body[0], tvm_tirx.ir.For)
             or not isinstance(root.body[1].body[0].body[0], s_tir.SBlockRealize)
             or root.body[1].body[0].body[0].block.name_hint != "T_transpose"
         ):
             return call
 
         new_func_params = list(dequantize_tir_func.params)
-        new_func_params[-1] = root.alloc_buffers[0]
+        new_func_params[-1] = root.alloc_tensors[0]
         new_func = tirx.Function(
             params=new_func_params,
             body=s_tir.SBlockRealize(

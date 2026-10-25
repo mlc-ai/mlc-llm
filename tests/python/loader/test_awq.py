@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Union
 
 import pytest
-import tvm
+import tvm_ffi
 
 from mlc_llm.loader import HuggingFaceLoader
 from mlc_llm.model import MODEL_PRESETS, MODELS
@@ -30,7 +30,7 @@ def test_load_llama(param_path: Union[str, Path]):
         extern_param_map=model.source["awq"](config, quantization),
     )
     with tqdm.redirect():
-        for _name, _param in loader.load(tvm.device("cpu")):
+        for _name, _param in loader.load(tvm_ffi.device("cpu")):
             ...
 
 

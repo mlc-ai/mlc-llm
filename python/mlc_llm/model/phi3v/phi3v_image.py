@@ -2,11 +2,12 @@
 Implementation for Phi architecture.
 """
 
-from tvm import relax, tirx
+from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor, op
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 from mlc_llm.model.vision import CLIPVisionModel
 from mlc_llm.support.config import ConfigBase
@@ -99,8 +100,8 @@ class Phi3ImageEmbedding(Module):
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
 
-                for n_idx in T.thread_binding(n * ch0, thread="blockIdx.x"):
-                    for c_idx in T.thread_binding(c * ch1, thread="blockIdx.y"):
+                for n_idx in T.parallel(n * ch0, annotations={"thread_binding": "blockIdx.x"}):
+                    for c_idx in T.parallel(c * ch1, annotations={"thread_binding": "blockIdx.y"}):
                         for h_idx, w_idx in T.grid(h * ch2, w * ch3):
                             with Ts.sblock("dyn_repeat_4d_tensor"):
                                 Ts.reads(input_tensor_buf[n_idx, c_idx, h_idx, w_idx])
@@ -136,8 +137,8 @@ class Phi3ImageEmbedding(Module):
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
 
-                for n_idx in T.thread_binding(n, thread="blockIdx.x"):
-                    for c_idx in T.thread_binding(c, thread="blockIdx.y"):
+                for n_idx in T.parallel(n, annotations={"thread_binding": "blockIdx.x"}):
+                    for c_idx in T.parallel(c, annotations={"thread_binding": "blockIdx.y"}):
                         for h_idx, w_idx in T.grid(h1 + h2, w):
                             with Ts.sblock("dyn_concate_dim_2"):
                                 Ts.reads(input_1_buf[n_idx, c_idx, h_idx, w_idx])
@@ -180,7 +181,7 @@ class Phi3ImageEmbedding(Module):
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
 
-                for c_idx in T.thread_binding(c, thread="blockIdx.y"):
+                for c_idx in T.parallel(c, annotations={"thread_binding": "blockIdx.y"}):
                     for h_idx, w_idx in T.grid(h1 + h2, w):
                         with Ts.sblock("dyn_concate_dim_1"):
                             Ts.reads(input_1_buf[c_idx, h_idx, w_idx])

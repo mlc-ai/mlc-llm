@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Union
 
 import pytest
-import tvm
+import tvm_ffi
 
 from mlc_llm.loader import HuggingFaceLoader
 from mlc_llm.model import MODELS
@@ -31,7 +31,7 @@ def test_load_torch_llama(base_path: Union[str, Path]):
         extern_param_map=model.source["huggingface-torch"](config, None),
     )
     with tqdm.redirect():
-        for _name, _param in loader.load(device=tvm.device("cpu")):
+        for _name, _param in loader.load(device=tvm_ffi.device("cpu")):
             return  # To reduce the time of the test
 
 
@@ -55,7 +55,7 @@ def test_load_safetensor_llama(base_path: Union[str, Path]):
         extern_param_map=model.source["huggingface-safetensor"](config, None),
     )
     with tqdm.redirect():
-        for _name, _param in loader.load(device=tvm.device("cpu")):
+        for _name, _param in loader.load(device=tvm_ffi.device("cpu")):
             return  # To reduce the time of the test
 
 

@@ -2,18 +2,19 @@
 
 from typing import Any, Dict  # noqa: UP035
 
-import tvm
-from tvm import IRModule, relax
+import tvm_tirx
+from tvm import relax
+from tvm_tirx import IRModule
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachAllocEmbeddingTensorFunc")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachAllocEmbeddingTensorFunc")
 class AttachAllocEmbeddingTensorFunc:
     """Attach embedding tensor allocation Relax function to IRModule."""
 
     def __init__(self, metadata: Dict[str, Any]):  # noqa: UP006
         self.metadata = metadata
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         embed_func = None
         for gv, func in mod.functions_items():
@@ -24,7 +25,7 @@ class AttachAllocEmbeddingTensorFunc:
             return mod
 
         hidden_size = embed_func.ret_ty.shape[-1]
-        dtype = tvm.ir.DataTypeImm(embed_func.ret_ty.dtype.dtype)
+        dtype = tvm_tirx.ir.DataTypeImm(embed_func.ret_ty.dtype.dtype)
         bb = relax.BlockBuilder(mod)
         with bb.function("alloc_embedding_tensor", []):
             bb.emit_func_output(

@@ -7,9 +7,10 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
-from tvm import te, tirx
+from tvm import te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm_tirx import tirx
 
 
 def _rotate_half(x: Tensor) -> Tensor:

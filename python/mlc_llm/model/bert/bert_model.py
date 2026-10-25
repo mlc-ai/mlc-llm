@@ -6,9 +6,10 @@ import dataclasses
 from functools import partial
 from typing import Any, Dict, Optional  # noqa: UP035
 
-from tvm import te, tirx
+from tvm import te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm_tirx import ir, tirx
 
 from mlc_llm import op as op_ext
 from mlc_llm.support import logging
@@ -245,8 +246,8 @@ class BertModel(nn.Module):
                 (batch_size, 1, seq_len, seq_len),
                 lambda b, _, i, j: tirx.if_then_else(
                     tirx.any(mask[b, i] == zero, mask[b, j] == zero),
-                    tirx.min_value(self.dtype),
-                    tirx.max_value(self.dtype),
+                    tirx.min_value(ty=self.dtype),
+                    tirx.max_value(ty=self.dtype),
                 ),
                 name="attention_mask_prefill",
             )
@@ -255,7 +256,7 @@ class BertModel(nn.Module):
         attention_mask_2d = op.tensor_expr_op(
             _attention_mask,
             name_hint="attention_mask_prefill",
-            args=[attention_mask, tirx.IntImm("int32", 0), batch_size, seq_len],
+            args=[attention_mask, ir.IntImm("int32", 0), batch_size, seq_len],
         )
         return self.forward(inputs, attention_mask_2d)
 

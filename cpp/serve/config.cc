@@ -26,8 +26,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 uint64_t TotalDetectGlobalMemory(DLDevice device) {
   // Get single-card GPU size.
-  tvm::ffi::Any rv;
-  DeviceAPI::Get(device)->GetAttr(device, DeviceAttrKind::kTotalGlobalMemory, &rv);
+  tvm::ffi::Any rv = DeviceAPI::Get(device)->GetAttr(device, "total_global_memory");
   int64_t gpu_size_bytes = rv.cast<int64_t>();
   // Since the memory size returned by the OpenCL runtime is smaller than the actual available
   // memory space, we set a best available space so that MLC LLM can run 7B or 8B models on Android

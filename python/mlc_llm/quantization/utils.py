@@ -3,11 +3,13 @@
 from collections.abc import Sequence
 from typing import Callable, List, Optional  # noqa: UP035
 
-from tvm import IRModule, relax, te, tirx
+from tvm import relax, te
 from tvm.relax.frontend import nn
-from tvm.runtime import DataType, DataTypeCode
 from tvm.s_tir import dlight as dl
-from tvm.target import Target
+from tvm_ffi import dtype as DataType
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.runtime import DataTypeCode
+from tvm_tirx.target import Target
 
 from mlc_llm.support import tensor_parallel as tp
 
@@ -121,7 +123,6 @@ def convert_uint_packed_fp8_to_float(
     return te.compute(
         shape=out_shape,
         fcompute=lambda *idx: tirx.reinterpret(
-            quant_dtype,
             tirx.bitwise_and(
                 tirx.shift_right(
                     weight(*idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]),
@@ -129,6 +130,7 @@ def convert_uint_packed_fp8_to_float(
                 ).astype(elem_storage_dtype),
                 tir_bin_mask,
             ),
+            ty=quant_dtype,
         ).astype(model_dtype),
     )
 

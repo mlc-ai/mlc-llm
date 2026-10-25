@@ -3,28 +3,30 @@
 from typing import Any, Dict, Optional  # noqa: UP035
 
 import tvm
-from tvm import relax, tirx
-from tvm.ir.module import IRModule
+import tvm_tirx
+from tvm import relax
 from tvm.relax.expr_functor import PyExprMutator, mutator
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.ir.module import IRModule
+from tvm_tirx.script import tirx as T
 
 from ..support.max_thread_check import get_max_num_threads_per_block
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachSoftmaxWithTemperature")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachSoftmaxWithTemperature")
 class AttachSoftmaxWithTemperature:
     """Rewrites one-shot softmax into two-stage softmax."""
 
     def __init__(
         self,
-        target: tvm.target.Target,
+        target: tvm_tirx.target.Target,
         metadata: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> None:
         self.target = target
         self.metadata = metadata
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         return _Rewriter(mod, self.target, self.metadata).transform()
 
@@ -34,7 +36,7 @@ class _Rewriter(PyExprMutator):
     def __init__(
         self,
         mod: IRModule,
-        target: tvm.target.Target,
+        target: tvm_tirx.target.Target,
         metadata: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ) -> None:
         super().__init__(mod)
@@ -103,7 +105,9 @@ class _Rewriter(PyExprMutator):
         return self.builder_.get()
 
 
-def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active_vocab_size: int):
+def _get_lse_and_softmax_func(
+    target: tvm_tirx.target.Target, chunk_size: int, active_vocab_size: int
+):
     # NOTE: A quick note on the softmax implementation.
     # We once tried to multiply every element by log2e which can be computed
     # potentially more efficiently on hardware.
@@ -133,11 +137,11 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
         chunked_max: T.Tensor((batch_size, num_chunks), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
-        A_pad = Ts.sblock_alloc_buffer(
+        A_pad = Ts.sblock_alloc_tensor(
             (batch_size, num_chunks, T.int64(chunk_size)), dtype="float32"
         )
-        temp_max = Ts.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
-        temp_sum = Ts.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
+        temp_max = Ts.sblock_alloc_tensor((batch_size, num_chunks), dtype="float32")
+        temp_sum = Ts.sblock_alloc_tensor((batch_size, num_chunks), dtype="float32")
 
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(chunk_size)):
             with Ts.sblock("pad"):
@@ -150,13 +154,13 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
                         A[v0, v1 * T.int64(chunk_size) + v2] / temperature[v0],
                         A[v0, v1 * T.int64(chunk_size) + v2],
                     ),
-                    T.min_value("float32"),
+                    T.min_value(ty="float32"),
                 )
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(chunk_size)):
             with Ts.sblock("max"):
                 v0, v1, v2 = Ts.axis.remap("SSR", [l0, l1, l2])
                 with Ts.init():
-                    temp_max[v0, v1] = T.min_value("float32")
+                    temp_max[v0, v1] = T.min_value(ty="float32")
                 temp_max[v0, v1] = T.max(temp_max[v0, v1], A_pad[v0, v1, v2])
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(chunk_size)):
             with Ts.sblock("sum_exp"):
@@ -192,13 +196,13 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
         softmax: T.Tensor((batch_size, vocab_size), "float32"),
     ):
         T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
-        temp_max = Ts.sblock_alloc_buffer((batch_size,), dtype="float32")
-        temp_sum = Ts.sblock_alloc_buffer((batch_size,), dtype="float32")
+        temp_max = Ts.sblock_alloc_tensor((batch_size,), dtype="float32")
+        temp_sum = Ts.sblock_alloc_tensor((batch_size,), dtype="float32")
         for l0, l1 in T.grid(batch_size, num_chunks):
             with Ts.sblock("max"):
                 v0, v1 = Ts.axis.remap("SR", [l0, l1])
                 with Ts.init():
-                    temp_max[v0] = T.min_value("float32")
+                    temp_max[v0] = T.min_value(ty="float32")
                 temp_max[v0] = T.max(temp_max[v0], chunked_max[v0, v1])
         for l0, l1 in T.grid(batch_size, num_chunks):
             with Ts.sblock("sum_exp"):
@@ -252,7 +256,7 @@ def _get_lse_and_softmax_func(target: tvm.target.Target, chunk_size: int, active
 
         for block_name in ["sum_exp", "max"]:
             block = sch.get_sblock(block_name)
-            sch.set_scope(block, buffer_index=0, storage_scope="shared")
+            sch.set_scope(block, tensor_index=0, storage_scope="shared")
             sch.compute_at(block, bx)
             r_loop = sch.get_loops(block)[-1]
             r_loop, tx = sch.split(r_loop, [None, TX])

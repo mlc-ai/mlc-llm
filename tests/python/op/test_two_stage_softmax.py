@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import scipy.special
 import tvm
+import tvm_tirx
 from tvm.s_tir import dlight
 
 # test category "op_correctness"
@@ -14,14 +15,16 @@ def test_two_stage_softmax():
     )
 
     chunk_size = 4096
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     f_chunk_lse, f_softmax_with_lse = _get_lse_and_softmax_func(target, chunk_size, None)
-    mod = tvm.IRModule({"chunk_lse": f_chunk_lse, "softmax_with_chunked_sum": f_softmax_with_lse})
+    mod = tvm_tirx.IRModule(
+        {"chunk_lse": f_chunk_lse, "softmax_with_chunked_sum": f_softmax_with_lse}
+    )
     with target:
         mod = dlight.ApplyDefaultSchedule(dlight.gpu.GeneralReduction())(mod)
 
     runtime_mod = tvm.compile(mod, target=target)
-    device = tvm.cuda()
+    device = tvm_tirx.cuda()
 
     num_runs = 5
     vocab_size = 128256
@@ -32,12 +35,14 @@ def test_two_stage_softmax():
             )
             y_np = scipy.special.softmax(x_np, axis=-1)
 
-            x_nd = tvm.runtime.tensor(x_np, device=device)
-            temperature_nd = tvm.runtime.tensor(np.ones(batch_size, dtype="float32"), device=device)
+            x_nd = tvm_tirx.runtime.tensor(x_np, device=device)
+            temperature_nd = tvm_tirx.runtime.tensor(
+                np.ones(batch_size, dtype="float32"), device=device
+            )
             chunked_shape = (batch_size, (vocab_size + chunk_size - 1) // chunk_size)
-            sum_nd = tvm.runtime.empty(chunked_shape, x_np.dtype, device=device)
-            max_nd = tvm.runtime.empty(chunked_shape, x_np.dtype, device=device)
-            y_nd = tvm.runtime.empty(x_np.shape, x_np.dtype, device=device)
+            sum_nd = tvm_tirx.runtime.empty(chunked_shape, x_np.dtype, device=device)
+            max_nd = tvm_tirx.runtime.empty(chunked_shape, x_np.dtype, device=device)
+            y_nd = tvm_tirx.runtime.empty(x_np.shape, x_np.dtype, device=device)
 
             runtime_mod["chunk_lse"](x_nd, temperature_nd, sum_nd, max_nd)
             runtime_mod["softmax_with_chunked_sum"](x_nd, temperature_nd, sum_nd, max_nd, y_nd)

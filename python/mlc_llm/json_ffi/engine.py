@@ -4,7 +4,8 @@ import threading
 from collections.abc import Iterator
 from typing import Any, Callable, Dict, List, Literal, Optional, Union  # noqa: UP035
 
-import tvm
+import tvm_ffi
+import tvm_tirx
 
 from mlc_llm.protocol import debug_protocol, openai_api_protocol
 from mlc_llm.serve import engine_utils
@@ -212,7 +213,7 @@ class JSONFFIEngine:
     def __init__(
         self,
         model: str,
-        device: Union[str, tvm.runtime.Device] = "auto",
+        device: Union[str, tvm_tirx.runtime.Device] = "auto",
         *,
         model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
@@ -227,7 +228,7 @@ class JSONFFIEngine:
         models = _parse_models(model, model_lib, engine_config.additional_models)
         if isinstance(device, str):
             device = detect_device(device)
-        assert isinstance(device, tvm.runtime.Device)
+        assert isinstance(device, tvm_tirx.runtime.Device)
         model_args = _process_model_args(models, device, engine_config)[0]
 
         # - Load the raw model config into dict
@@ -236,7 +237,7 @@ class JSONFFIEngine:
 
         # - Initialize engine state and engine.
         self._state = EngineState()
-        module = tvm.get_global_func("mlc.json_ffi.CreateJSONFFIEngine", allow_missing=False)()
+        module = tvm_ffi.get_global_func("mlc.json_ffi.CreateJSONFFIEngine", allow_missing=False)()
         self._ffi = {
             key: module[key]
             for key in [

@@ -275,7 +275,7 @@ def load_embedding_params(model_weight_path, device, model_metadata) -> list:
     ----------
     model_weight_path : str
         Path to the model weight directory.
-    device : tvm.runtime.Device
+    device : tvm_tirx.runtime.Device
         The target device.
     model_metadata : dict
         The model metadata dictionary containing param info.
@@ -283,7 +283,7 @@ def load_embedding_params(model_weight_path, device, model_metadata) -> list:
     Returns
     -------
     params : list
-        List of tvm.runtime.Tensor parameters in metadata order.
+        List of tvm_tirx.runtime.Tensor parameters in metadata order.
     """
     from tvm.contrib import tvmjs
 
@@ -316,7 +316,7 @@ def detect_embedding_model_type(mod) -> Literal["encoder", "decoder"]:
 
     Parameters
     ----------
-    mod : tvm.runtime.Module
+    mod : tvm_ffi.Module
         The VM module with model functions.
 
     Returns

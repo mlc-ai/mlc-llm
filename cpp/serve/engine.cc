@@ -10,8 +10,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/support/cuda/nvtx.h>
 #include <xgrammar/xgrammar.h>
 
 #include <cstdlib>
@@ -23,6 +21,7 @@
 
 #include "../support/json_parser.h"
 #include "../support/module_vtable.h"
+#include "../support/nvtx.h"
 #include "../support/result.h"
 #include "../support/threading_backend.h"
 #include "../support/utils.h"
@@ -44,7 +43,6 @@ namespace serve {
 using tvm::Device;
 using namespace tvm::runtime;
 using tvm::ffi::Function;
-using tvm::support::NVTXScopedRange;
 
 class EngineModule;
 
@@ -784,9 +782,7 @@ class EngineImpl : public Engine {
         Module local_vm = fload_exec.value()().cast<Module>();
         local_vm->GetFunction("vm_initialization")
             .value()(static_cast<int>(device.device_type), device.device_id,
-                     static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
-                     static_cast<int>(kDLCPU), 0,
-                     static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
+                     static_cast<int>(kDLCPU), 0);
         ModelMetadata metadata = ModelMetadata::FromModule(local_vm, std::move(model_config));
         return {metadata.tensor_parallel_shards, metadata.pipeline_parallel_stages};
       } else {
@@ -1019,13 +1015,6 @@ Result<EngineCreationOutput> Engine::Create(const std::string& engine_config_jso
                                             Optional<EventTraceRecorder> trace_recorder) {
   return EngineImpl::Create(engine_config_json_str, device, request_stream_callback,
                             std::move(trace_recorder));
-}
-
-/*! \brief Clear global memory manager */
-void ClearGlobalMemoryManager() {
-  static const char* kFunc = "vm.builtin.memory_manager.clear";
-  static Function f = Function::GetGlobalRequired(kFunc);
-  f();
 }
 
 class EngineModule : public ffi::ModuleObj {

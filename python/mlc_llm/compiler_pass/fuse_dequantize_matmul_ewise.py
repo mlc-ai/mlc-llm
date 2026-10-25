@@ -1,18 +1,19 @@
 """A compiler pass that fuses dequantize + matmul + elementwise."""
 
-import tvm
-from tvm import IRModule, relax
+import tvm_tirx
+from tvm import relax
 from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcard
+from tvm_tirx import IRModule
 
 
-@tvm.transform.module_pass(opt_level=0, name="FuseDequantizeMatmulEwise")
+@tvm_tirx.transform.module_pass(opt_level=0, name="FuseDequantizeMatmulEwise")
 class FuseDequantizeMatmulEwise:
     """A compiler pass that fuses dequantize + matmul + elementwise."""
 
     def transform_module(
         self,
         mod: IRModule,
-        _ctx: tvm.transform.PassContext,
+        _ctx: tvm_tirx.transform.PassContext,
     ) -> IRModule:
         """IRModule-level transformation"""
         seq = []
@@ -31,7 +32,7 @@ class FuseDequantizeMatmulEwise:
                     )
                 )
         seq.append(relax.transform.FuseTIR())
-        return tvm.transform.Sequential(seq)(mod)
+        return tvm_tirx.transform.Sequential(seq)(mod)
 
 
 def _pattern(match_ewise: int, n_aux_tensor: int):

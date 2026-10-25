@@ -29,6 +29,7 @@ using namespace tvm::runtime;
 using tvm::ffi::Object;
 using tvm::ffi::ObjectRef;
 using tvm::ffi::Shape;
+using tvm::ffi::Tensor;
 
 // Declare the sampler class for `Model::CreateSampler`.
 class Sampler;

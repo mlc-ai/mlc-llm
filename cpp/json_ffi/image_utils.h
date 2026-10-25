@@ -18,11 +18,10 @@ namespace llm {
 namespace json_ffi {
 
 /*! \brief Load a base64 encoded image string into a CPU Tensor of shape {height, width, 3} */
-Result<tvm::runtime::Tensor> LoadImageFromBase64(const std::string& base64_str);
+Result<tvm::ffi::Tensor> LoadImageFromBase64(const std::string& base64_str);
 
 /*! \brief Preprocess the CPU image for CLIP encoder and return an Tensor on the given device */
-tvm::runtime::Tensor ClipPreprocessor(tvm::runtime::Tensor image_data, int target_size,
-                                      DLDevice device);
+tvm::ffi::Tensor ClipPreprocessor(tvm::ffi::Tensor image_data, int target_size, DLDevice device);
 
 }  // namespace json_ffi
 }  // namespace llm

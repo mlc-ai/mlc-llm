@@ -3,10 +3,12 @@
 import json
 from typing import Any, Dict, List  # noqa: UP035
 
-import tvm
-from tvm import IRModule, relax
+import tvm_ffi
+import tvm_tirx
+from tvm import relax
 from tvm.relax.frontend.nn.llm import kv_cache
 from tvm.relax.frontend.nn.llm.kv_cache import RopeMode
+from tvm_tirx import IRModule
 
 from mlc_llm.support import logging
 
@@ -20,21 +22,21 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:  # noqa: UP00
     assert isinstance(func.body.blocks[0], relax.DataflowBlock)
     assert isinstance(func.body.blocks[0].bindings[0], relax.VarBinding)
     assert isinstance(func.body.blocks[0].bindings[0].value, relax.Call)
-    assert func.body.blocks[0].bindings[0].value.op == tvm.ir.Op.get("relax.call_pure_packed")
+    assert func.body.blocks[0].bindings[0].value.op == tvm_tirx.ir.Op.get("relax.call_pure_packed")
     call_args = func.body.blocks[0].bindings[0].value.args
     assert isinstance(call_args[0], relax.ExternFunc)
     assert call_args[0].global_symbol == "mlc.create_paged_kv_cache_generic"
     args = call_args[1:]
     assert len(args) == 18
-    assert isinstance(args[0], (tvm.ir.StringImm, relax.Tuple))
+    assert isinstance(args[0], (tvm_tirx.ir.StringImm, relax.Tuple))
     # Check if attn_kind is a single value or a list with length of hidden layers
-    if isinstance(args[0], tvm.ir.StringImm):
+    if isinstance(args[0], tvm_tirx.ir.StringImm):
         assert args[0].value in ["mha", "mla"]
         attn_kind = args[0].value
     else:
         assert len(args[0].fields) == args[3].value
         for i, attention_type in enumerate(args[0].fields):
-            assert isinstance(attention_type, tvm.ir.StringImm)
+            assert isinstance(attention_type, tvm_tirx.ir.StringImm)
             assert attention_type.value in ["mha", "mla", "mha_sliding"]
         attn_kind = [args[0].fields[i].value for i in range(len(args[0]))]
     assert isinstance(args[1], relax.ShapeExpr)
@@ -45,12 +47,12 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:  # noqa: UP00
             continue
         # PrimValue wrappers were phased out of Relax: scalar args are now bare
         # tirx PrimExprs (IntImm/FloatImm) directly.
-        assert isinstance(args[i], (tvm.tirx.IntImm, tvm.tirx.FloatImm)), (
+        assert isinstance(args[i], (tvm_tirx.ir.IntImm, tvm_tirx.ir.FloatImm)), (
             f"args[{i}] is {type(args[i])}"
         )
-    assert isinstance(args[13], tvm.ir.StringImm)
-    assert isinstance(args[16], (tvm.ir.DataTypeImm, tvm.tirx.IntImm, tvm.tirx.FloatImm))
-    assert isinstance(args[17], tvm.ir.DataTypeImm)
+    assert isinstance(args[13], tvm_tirx.ir.StringImm)
+    assert isinstance(args[16], (tvm_tirx.ir.DataTypeImm, tvm_tirx.ir.IntImm, tvm_tirx.ir.FloatImm))
+    assert isinstance(args[17], tvm_tirx.ir.DataTypeImm)
 
     return {
         "attn_kind": attn_kind,
@@ -81,13 +83,13 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:  # noqa: UP00
     }
 
 
-@tvm.transform.module_pass(opt_level=0, name="DispatchKVCacheCreation")
+@tvm_tirx.transform.module_pass(opt_level=0, name="DispatchKVCacheCreation")
 class DispatchKVCacheCreation:
     """Rewrite KV cache creation functions to IRModule."""
 
     def __init__(
         self,
-        target: tvm.target.Target,
+        target: tvm_tirx.target.Target,
         flashinfer: bool,
         metadata: Dict[str, Any],  # noqa: UP006
     ) -> None:
@@ -95,7 +97,7 @@ class DispatchKVCacheCreation:
 
         Parameters
         ----------
-        target : tvm.target.Target
+        target : tvm_tirx.target.Target
             The target of the model compilation.
 
         flashinfer : bool
@@ -110,7 +112,7 @@ class DispatchKVCacheCreation:
         self.flashinfer = flashinfer
         self.metadata = metadata
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         func_dict = {}
         creation_func = None
@@ -154,7 +156,7 @@ class DispatchKVCacheCreation:
         self,
         bb: relax.BlockBuilder,
         kwargs: Dict[str, Any],  # noqa: UP006
-    ) -> List[tvm.runtime.Module]:  # noqa: UP006
+    ) -> List[tvm_ffi.Module]:  # noqa: UP006
         """Create the TIR-based PagedKVCache"""
         max_batch_size = relax.Var("max_batch_size_", relax.ShapeType([kwargs["max_batch_size"]]))
         max_total_seq_len = relax.Var(
@@ -192,7 +194,7 @@ class DispatchKVCacheCreation:
         self,
         bb: relax.BlockBuilder,
         kwargs: Dict[str, Any],  # noqa: UP006
-    ) -> List[tvm.runtime.Module]:  # noqa: UP006
+    ) -> List[tvm_ffi.Module]:  # noqa: UP006
         """Create the FlashInfer-based PagedKVCache"""
         # Filter the cases which FlashInfer does not support.
         if (

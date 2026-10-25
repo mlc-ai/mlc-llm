@@ -7,13 +7,13 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/support/cuda/nvtx.h>
 
 #include <fstream>
 #include <unordered_set>
 
+#include "../support/device.h"
 #include "../support/json_parser.h"
+#include "../support/nvtx.h"
 #include "../support/vlm_utils.h"
 #include "config.h"
 #include "logit_processor.h"
@@ -21,8 +21,6 @@
 namespace mlc {
 namespace llm {
 namespace serve {
-
-using tvm::support::NVTXScopedRange;
 
 /*********************** Model Implementation ***********************/
 
@@ -96,8 +94,9 @@ class ModelImpl : public ModelObj {
     Tensor token_ids_nd;
     {
       NVTXScopedRange nvtx_scope("Allocate token_ids at offset");
-      token_ids_nd = token_ids_storage_->AllocTensor(offset * 4, {num_tokens}, dtype);
-      int* p_token_ids = static_cast<int*>(token_ids_nd->data) + (token_ids_nd->byte_offset) / 4;
+      token_ids_nd = tvm::runtime::CreateView(token_ids_storage_, {num_tokens}, dtype, offset * 4);
+      int* p_token_ids =
+          static_cast<int*>(token_ids_nd.data_ptr()) + (token_ids_nd.byte_offset()) / 4;
       for (int i = 0; i < static_cast<int>(token_ids.size()); ++i) {
         p_token_ids[i] = token_ids[i];
       }
@@ -105,8 +104,8 @@ class ModelImpl : public ModelObj {
         p_token_ids[i] = 0;
       }
     }
-    TVM_FFI_ICHECK_EQ(token_ids_nd->ndim, 1);
-    TVM_FFI_ICHECK_EQ(token_ids_nd->shape[0], num_tokens);
+    TVM_FFI_ICHECK_EQ(token_ids_nd.ndim(), 1);
+    TVM_FFI_ICHECK_EQ(token_ids_nd.shape()[0], num_tokens);
     TVM_FFI_ICHECK_NE(prefill_chunk_size_, -1);
     ObjectRef token_ids_dref_or_nd;
     {
@@ -139,7 +138,7 @@ class ModelImpl : public ModelObj {
     Shape crop_h = {tmp_h};
     Shape crop_w = {tmp_w};
 
-    auto image_dref_or_nd = ft_.CopyToWorker0(image, "image", image.Shape());
+    auto image_dref_or_nd = ft_.CopyToWorker0(image, "image", image.shape());
     ObjectRef embeddings =
         ft_.image_embed_func_(image_dref_or_nd, resize_h, resize_w, crop_h, crop_w, params_)
             .cast<ObjectRef>();
@@ -208,11 +207,11 @@ class ModelImpl : public ModelObj {
       // embeddings: (n, h)
       Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
-      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], batch_size * seq_len);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      embeddings_dref_or_nd =
-          embeddings_nd.CreateView({batch_size * seq_len, hidden_size_}, embeddings_nd->dtype);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.ndim(), 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd.shape()[0], batch_size * seq_len);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.shape()[1], hidden_size_);
+      embeddings_dref_or_nd = tvm::runtime::CreateView(
+          embeddings_nd, {batch_size * seq_len, hidden_size_}, embeddings_nd.dtype());
     } else {
       Shape embedding_shape{batch_size * seq_len, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
@@ -236,9 +235,9 @@ class ModelImpl : public ModelObj {
       return ft_.nd_view_func_(fused, out_shape).cast<ObjectRef>();
     } else {
       Tensor fused_nd = fused.as_or_throw<Tensor>();
-      TVM_FFI_ICHECK_EQ(fused_nd->ndim, 2);
-      TVM_FFI_ICHECK_EQ(fused_nd->shape[0], batch_size * seq_len);
-      return fused_nd.CreateView(out_shape, fused_nd->dtype);
+      TVM_FFI_ICHECK_EQ(fused_nd.ndim(), 2);
+      TVM_FFI_ICHECK_EQ(fused_nd.shape()[0], batch_size * seq_len);
+      return tvm::runtime::CreateView(fused_nd, out_shape, fused_nd.dtype());
     }
   }
 
@@ -250,7 +249,7 @@ class ModelImpl : public ModelObj {
     int num_sequences = seq_ids.size();
     int total_length = 0;
 
-    int* p_logit_pos = static_cast<int*>(logit_pos_arr_->data);
+    int* p_logit_pos = static_cast<int*>(logit_pos_arr_.data_ptr());
     for (int i = 0; i < num_sequences; ++i) {
       total_length += lengths[i];
       p_logit_pos[i] = total_length - 1;
@@ -263,7 +262,8 @@ class ModelImpl : public ModelObj {
     }
     NVTXScopedRange nvtx_scope("BatchPrefill num_seq=" + std::to_string(num_sequences) +
                                " total_len=" + std::to_string(total_length));
-    Tensor logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DLDataType{kDLInt, 32, 1});
+    Tensor logit_pos_nd =
+        tvm::runtime::CreateView(logit_pos_arr_, {num_sequences}, DLDataType{kDLInt, 32, 1});
 
     bool token_aware = ft_.token_prefill_func_.defined();
     TVM_FFI_ICHECK(token_aware || ft_.prefill_func_.defined())
@@ -287,13 +287,13 @@ class ModelImpl : public ModelObj {
       // embeddings: (1, n, h)
       Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
-      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
-      embeddings_dref_or_nd =
-          embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.ndim(), 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd.shape()[0], total_length);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.shape()[1], hidden_size_);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.device().device_type, device_.device_type);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.device().device_id, device_.device_id);
+      embeddings_dref_or_nd = tvm::runtime::CreateView(
+          embeddings_nd, {1, total_length, hidden_size_}, embeddings_nd.dtype());
     } else {
       Shape embedding_shape{1, total_length, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
@@ -374,9 +374,9 @@ class ModelImpl : public ModelObj {
     }
 
     // logits: (1, num_sequences, v)
-    TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-    TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
-    TVM_FFI_ICHECK_EQ(logits->shape[1], num_sequences);
+    TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(logits.shape()[0], 1);
+    TVM_FFI_ICHECK_EQ(logits.shape()[1], num_sequences);
     return logits;
   }
 
@@ -397,8 +397,9 @@ class ModelImpl : public ModelObj {
     Shape hidden_states_shape{1, total_length, hidden_size_};
     if (!ft_.use_disco) {
       Tensor embedding_or_hidden_states_nd = embedding_or_hidden_states.as_or_throw<Tensor>();
-      embedding_or_hidden_states_dref_or_nd = embedding_or_hidden_states_nd.CreateView(
-          hidden_states_shape, embedding_or_hidden_states_nd->dtype);
+      embedding_or_hidden_states_dref_or_nd =
+          tvm::runtime::CreateView(embedding_or_hidden_states_nd, hidden_states_shape,
+                                   embedding_or_hidden_states_nd.dtype());
     } else {
       embedding_or_hidden_states_dref_or_nd =
           ft_.nd_view_func_(embedding_or_hidden_states, hidden_states_shape).cast<ObjectRef>();
@@ -458,11 +459,11 @@ class ModelImpl : public ModelObj {
       return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     } else {
       Tensor hidden_states_nd = hidden_states.as_or_throw<Tensor>();
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->ndim, 3);
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[0], 1);
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[1], total_length);
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
-      return hidden_states_nd.CreateView(out_shape, hidden_states_nd->dtype);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.ndim(), 3);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.shape()[0], 1);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.shape()[1], total_length);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.shape()[2], hidden_size_);
+      return tvm::runtime::CreateView(hidden_states_nd, out_shape, hidden_states_nd.dtype());
     }
   }
 
@@ -493,13 +494,13 @@ class ModelImpl : public ModelObj {
       // embeddings: (1, b, h)
       Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
-      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], num_sequence);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
-      embeddings_dref_or_nd =
-          embeddings_nd.CreateView({num_sequence, 1, hidden_size_}, embeddings_nd->dtype);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.ndim(), 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd.shape()[0], num_sequence);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.shape()[1], hidden_size_);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.device().device_type, device_.device_type);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.device().device_id, device_.device_id);
+      embeddings_dref_or_nd = tvm::runtime::CreateView(
+          embeddings_nd, {num_sequence, 1, hidden_size_}, embeddings_nd.dtype());
     } else {
       Shape embedding_shape{num_sequence, 1, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
@@ -549,9 +550,9 @@ class ModelImpl : public ModelObj {
     }
 
     // logits: (b, 1, v)
-    TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-    TVM_FFI_ICHECK_EQ(logits->shape[0], num_sequence);
-    TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
+    TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(logits.shape()[0], num_sequence);
+    TVM_FFI_ICHECK_EQ(logits.shape()[1], 1);
     return logits;
   }
 
@@ -589,13 +590,13 @@ class ModelImpl : public ModelObj {
       // embeddings: (1, n, h)
       Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
-      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
-      embeddings_dref_or_nd =
-          embeddings_nd.CreateView({total_length, 1, hidden_size_}, embeddings_nd->dtype);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.ndim(), 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd.shape()[0], total_length);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.shape()[1], hidden_size_);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.device().device_type, device_.device_type);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.device().device_id, device_.device_id);
+      embeddings_dref_or_nd = tvm::runtime::CreateView(
+          embeddings_nd, {total_length, 1, hidden_size_}, embeddings_nd.dtype());
     } else {
       Shape embedding_shape{total_length, 1, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
@@ -626,9 +627,9 @@ class ModelImpl : public ModelObj {
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
     // logits: (b, 1, v)
-    TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-    TVM_FFI_ICHECK_EQ(logits->shape[0], total_length);
-    TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
+    TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(logits.shape()[0], total_length);
+    TVM_FFI_ICHECK_EQ(logits.shape()[1], 1);
     return logits;
   }
 
@@ -693,11 +694,11 @@ class ModelImpl : public ModelObj {
       return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     } else {
       Tensor hidden_states_nd = hidden_states.as_or_throw<Tensor>();
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->ndim, 3);
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[0], num_sequence);
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[1], 1);
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
-      return hidden_states_nd.CreateView(out_shape, hidden_states_nd->dtype);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.ndim(), 3);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.shape()[0], num_sequence);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.shape()[1], 1);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.shape()[2], hidden_size_);
+      return tvm::runtime::CreateView(hidden_states_nd, out_shape, hidden_states_nd.dtype());
     }
   }
 
@@ -740,13 +741,13 @@ class ModelImpl : public ModelObj {
       // embeddings: (1, n, h)
       Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
-      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
-      embeddings_dref_or_nd =
-          embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.ndim(), 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd.shape()[0], total_length);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.shape()[1], hidden_size_);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.device().device_type, device_.device_type);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.device().device_id, device_.device_id);
+      embeddings_dref_or_nd = tvm::runtime::CreateView(
+          embeddings_nd, {1, total_length, hidden_size_}, embeddings_nd.dtype());
     } else {
       Shape embedding_shape{1, total_length, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
@@ -791,9 +792,9 @@ class ModelImpl : public ModelObj {
     }
 
     // logits: (1, total_length, v)
-    TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-    TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
-    TVM_FFI_ICHECK_EQ(logits->shape[1], total_length);
+    TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(logits.shape()[0], 1);
+    TVM_FFI_ICHECK_EQ(logits.shape()[1], total_length);
     return logits;
   }
 
@@ -823,13 +824,13 @@ class ModelImpl : public ModelObj {
       // embeddings: (1, n, h)
       Tensor embeddings_nd = embeddings.as_or_throw<Tensor>();
       TVM_FFI_ICHECK_NE(hidden_size_, -1);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
-      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
-      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
-      embeddings_dref_or_nd =
-          embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.ndim(), 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd.shape()[0], total_length);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.shape()[1], hidden_size_);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.device().device_type, device_.device_type);
+      TVM_FFI_ICHECK_EQ(embeddings_nd.device().device_id, device_.device_id);
+      embeddings_dref_or_nd = tvm::runtime::CreateView(
+          embeddings_nd, {1, total_length, hidden_size_}, embeddings_nd.dtype());
     } else {
       Shape embedding_shape{1, total_length, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
@@ -867,11 +868,11 @@ class ModelImpl : public ModelObj {
     Shape out_shape{total_length, hidden_size_};
     if (!ft_.use_disco) {
       Tensor hidden_states_nd = hidden_states.as_or_throw<Tensor>();
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->ndim, 3);
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[0], 1);
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[1], total_length);
-      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
-      return hidden_states_nd.CreateView(out_shape, hidden_states_nd->dtype);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.ndim(), 3);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.shape()[0], 1);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.shape()[1], total_length);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd.shape()[2], hidden_size_);
+      return tvm::runtime::CreateView(hidden_states_nd, out_shape, hidden_states_nd.dtype());
     } else {
       return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     }
@@ -1057,19 +1058,15 @@ class ModelImpl : public ModelObj {
 
   void SetMaxNumSequence(int max_num_sequence) final {
     this->max_num_sequence_ = max_num_sequence;
-    this->logit_pos_arr_ = Tensor::Empty({max_num_sequence}, DLDataType{kDLInt, 32, 1},
-                                         Device{DLDeviceType::kDLCPU, 0});
+    this->logit_pos_arr_ = tvm::runtime::Empty({max_num_sequence}, DLDataType{kDLInt, 32, 1},
+                                               Device{DLDeviceType::kDLCPU, 0});
   }
 
   void SetPrefillChunkSize(int prefill_chunk_size) final {
     this->prefill_chunk_size_ = prefill_chunk_size;
     Device preferred_host_device = GetPreferredHostDevice(device_);
-    memory::Allocator* allocator = memory::MemoryManager::GetOrCreateAllocator(
-        preferred_host_device, memory::AllocatorType::kNaive);
-    TVM_FFI_ICHECK_NOTNULL(allocator);
-    token_ids_storage_ = memory::Storage(
-        allocator->Alloc(preferred_host_device, {prefill_chunk_size_}, DLDataType{kDLInt, 32, 1}),
-        allocator);
+    token_ids_storage_ = tvm::runtime::Empty({prefill_chunk_size_}, DLDataType{kDLInt, 32, 1},
+                                             preferred_host_device);
     if (this->num_stages_ > 1) {
       // Create a remote Tensor for logits when pipeline parallelism is enabled.
       disco_logits_arr_ =
@@ -1117,7 +1114,7 @@ class ModelImpl : public ModelObj {
       embedding_shape = shape_ref.as_or_throw<DRef>()->DebugGetFromRemote(0).cast<Shape>();
     } else {
       Tensor embedding_nd = embedding.as_or_throw<Tensor>();
-      embedding_shape = embedding_nd.Shape();
+      embedding_shape = embedding_nd.shape();
     }
     TVM_FFI_ICHECK_NE(prefill_chunk_size_, -1);
     TVM_FFI_ICHECK_EQ(embedding_shape.size(), 2);
@@ -1141,12 +1138,12 @@ class ModelImpl : public ModelObj {
     } else {
       hidden_states_nd = hidden_states.as_or_throw<Tensor>();
     }
-    Shape hidden_states_shape = hidden_states_nd.Shape();
+    Shape hidden_states_shape = hidden_states_nd.shape();
     TVM_FFI_ICHECK_NE(prefill_chunk_size_, -1);
     TVM_FFI_ICHECK_EQ(hidden_states_shape.size(), 2);
     TVM_FFI_ICHECK_GE(hidden_states_shape[0], prefill_chunk_size_);
     this->hidden_size_ = hidden_states_shape[1];
-    this->hidden_states_dtype_ = hidden_states_nd->dtype;
+    this->hidden_states_dtype_ = hidden_states_nd.dtype();
     return hidden_states;
   }
 
@@ -1175,11 +1172,11 @@ class ModelImpl : public ModelObj {
       dst_view = ft_.nd_view_func_(*dst, out_shape).cast<ObjectRef>();
     } else {
       Tensor dst_nd = (*dst).as_or_throw<Tensor>();
-      dst_view = dst_nd.CreateView(out_shape, hidden_states_dtype_);
+      dst_view = tvm::runtime::CreateView(dst_nd, out_shape, hidden_states_dtype_);
     }
-    Tensor indices_nd = logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())},
-                                                  DLDataType{kDLInt, 32, 1});
-    indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    Tensor indices_nd = tvm::runtime::CreateView(
+        logit_pos_arr_, {static_cast<int64_t>(indices.size())}, DLDataType{kDLInt, 32, 1});
+    tvm::runtime::CopyFromBytes(indices_nd, indices.data(), indices.size() * sizeof(int));
     TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device = ft_.CopyToWorker0(indices_nd, "logit_pos", {max_num_sequence_});
     ft_.gather_hidden_states_func_(input, indices_device, dst_view);
@@ -1188,20 +1185,20 @@ class ModelImpl : public ModelObj {
 
   void ScatterHiddenStates(const ObjectRef& input, const std::vector<int>& indices,
                            ObjectRef* dst) final {
-    Tensor indices_nd = logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())},
-                                                  DLDataType{kDLInt, 32, 1});
-    indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    Tensor indices_nd = tvm::runtime::CreateView(
+        logit_pos_arr_, {static_cast<int64_t>(indices.size())}, DLDataType{kDLInt, 32, 1});
+    tvm::runtime::CopyFromBytes(indices_nd, indices.data(), indices.size() * sizeof(int));
     TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device = ft_.CopyToWorker0(indices_nd, "logit_pos", {max_num_sequence_});
     ft_.scatter_hidden_states_func_(input, indices_device, *dst);
   }
 
   Tensor GatherDraftProbs(const Tensor& input, const std::vector<int>& indices, Tensor* dst) final {
-    Tensor dst_view = dst->CreateView({static_cast<int64_t>(indices.size()), vocab_size_},
-                                      DLDataType{kDLFloat, 32, 1});
-    Tensor indices_nd = logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())},
-                                                  DLDataType{kDLInt, 32, 1});
-    indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    Tensor dst_view = tvm::runtime::CreateView(
+        *dst, {static_cast<int64_t>(indices.size()), vocab_size_}, DLDataType{kDLFloat, 32, 1});
+    Tensor indices_nd = tvm::runtime::CreateView(
+        logit_pos_arr_, {static_cast<int64_t>(indices.size())}, DLDataType{kDLInt, 32, 1});
+    tvm::runtime::CopyFromBytes(indices_nd, indices.data(), indices.size() * sizeof(int));
     TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device =
         ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
@@ -1210,9 +1207,9 @@ class ModelImpl : public ModelObj {
   }
 
   void ScatterDraftProbs(const Tensor& input, const std::vector<int>& indices, Tensor* dst) final {
-    Tensor indices_nd = logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())},
-                                                  DLDataType{kDLInt, 32, 1});
-    indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    Tensor indices_nd = tvm::runtime::CreateView(
+        logit_pos_arr_, {static_cast<int64_t>(indices.size())}, DLDataType{kDLInt, 32, 1});
+    tvm::runtime::CopyFromBytes(indices_nd, indices.data(), indices.size() * sizeof(int));
     TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device =
         ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
@@ -1266,8 +1263,8 @@ class ModelImpl : public ModelObj {
   ObjectRef CopyIdsToWorker0(const std::vector<int32_t>& ids, Shape shape, String name) {
     TVM_FFI_ICHECK_NE(prefill_chunk_size_, -1);
     Tensor ids_nd =
-        Tensor::Empty(shape, DLDataType{kDLInt, 32, 1}, Device{DLDeviceType::kDLCPU, 0});
-    int32_t* p_ids = static_cast<int32_t*>(ids_nd->data);
+        tvm::runtime::Empty(shape, DLDataType{kDLInt, 32, 1}, Device{DLDeviceType::kDLCPU, 0});
+    int32_t* p_ids = static_cast<int32_t*>(ids_nd.data_ptr());
     std::fill(std::copy(ids.begin(), ids.end(), p_ids), p_ids + shape.Product(), 0);
     return ft_.CopyToWorker0(ids_nd, name, {prefill_chunk_size_});
   }
@@ -1309,7 +1306,7 @@ class ModelImpl : public ModelObj {
   // Model parameters
   ObjectRef params_;
   // Shared Tensor
-  memory::Storage token_ids_storage_{nullptr};
+  Tensor token_ids_storage_;
   Tensor logit_pos_arr_{nullptr};
   ObjectRef disco_logits_arr_{nullptr};
   // A boolean indicating if tracing is enabled.
@@ -1326,17 +1323,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "mlc.copy_embedding_to_offset", [](Tensor embedding, Tensor dst, int offset) {
         // embedding: (m, hidden_size)
         // dst: (prefill_chunk_size, hidden_size)
-        TVM_FFI_ICHECK_EQ(embedding->ndim, 2);
-        TVM_FFI_ICHECK_EQ(dst->ndim, 2);
-        TVM_FFI_ICHECK_LE(embedding->shape[0] + offset, dst->shape[0]);
-        TVM_FFI_ICHECK_EQ(embedding->shape[1], dst->shape[1]);
-        const DLTensor& copy_src = *(embedding.operator->());
-        const DLTensor* p_copy_dst = dst.operator->();
+        TVM_FFI_ICHECK_EQ(embedding.ndim(), 2);
+        TVM_FFI_ICHECK_EQ(dst.ndim(), 2);
+        TVM_FFI_ICHECK_LE(embedding.shape()[0] + offset, dst.shape()[0]);
+        TVM_FFI_ICHECK_EQ(embedding.shape()[1], dst.shape()[1]);
+        const DLTensor& copy_src = *(embedding.GetDLTensorPtr());
+        const DLTensor* p_copy_dst = dst.GetDLTensorPtr();
         DLTensor copy_dst = *p_copy_dst;
-        copy_dst.shape = embedding->shape;
-        copy_dst.byte_offset = offset * embedding->shape[1] *
-                               ((embedding->dtype.bits * embedding->dtype.lanes + 7) / 8);
-        Tensor::CopyFromTo(&copy_src, &copy_dst);
+        copy_dst.shape = copy_src.shape;
+        copy_dst.byte_offset = offset * embedding.shape()[1] *
+                               ((embedding.dtype().bits * embedding.dtype().lanes + 7) / 8);
+        tvm::runtime::CopyFromTo(&copy_src, &copy_dst);
       });
 }
 

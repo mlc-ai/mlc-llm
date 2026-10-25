@@ -9,8 +9,8 @@ from typing import Callable, Dict, List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
 from tqdm import tqdm
-from tvm.runtime import Device, Tensor
-from tvm.runtime import tensor as as_tensor
+from tvm_tirx.runtime import Device, Tensor
+from tvm_tirx.runtime import tensor as as_tensor
 
 from mlc_llm.support import logging
 from mlc_llm.support.preshard import _sharded_param_name

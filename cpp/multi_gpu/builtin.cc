@@ -23,6 +23,7 @@ using tvm::ffi::Array;
 using tvm::ffi::ObjectRef;
 using tvm::ffi::Optional;
 using tvm::ffi::Shape;
+using tvm::ffi::Tensor;
 
 ObjectRef DispatchFunctionByGroup(tvm::ffi::AnyView vm_arg,
                                   Array<Array<ObjectRef>> funcs_and_args) {
@@ -65,16 +66,16 @@ ObjectRef SendFromLastGroupToWorker0(Tensor send, Optional<Tensor> recv, Shape s
   int sender_id = world_size - group_size;
   if (worker_id == 0) {
     TVM_FFI_ICHECK(recv.has_value()) << "The receive Tensor is undefined for worker 0.";
-    Tensor recv_arr = recv.value().CreateView(shape, dtype);
+    Tensor recv_arr = tvm::runtime::CreateView(recv.value(), shape, dtype);
     RecvFromWorker(recv_arr, sender_id);
     return recv_arr;
   } else if (worker_id == sender_id) {
-    TVM_FFI_ICHECK_EQ(send->dtype, dtype)
+    TVM_FFI_ICHECK_EQ(send.dtype(), dtype)
         << "The src Tensor has mismatched dtype than the expected dtype.";
-    TVM_FFI_ICHECK_EQ(send->ndim, shape.size())
+    TVM_FFI_ICHECK_EQ(send.ndim(), shape.size())
         << "The src Tensor has mismatched shape than the expected shape.";
-    for (int i = 0; i < send->ndim; ++i) {
-      TVM_FFI_ICHECK_EQ(send->shape[i], shape[i])
+    for (int i = 0; i < send.ndim(); ++i) {
+      TVM_FFI_ICHECK_EQ(send.shape()[i], shape[i])
           << "The src Tensor has mismatched shape than the expected shape.";
     }
     SendToWorker(send, /*receiver_id=*/0);

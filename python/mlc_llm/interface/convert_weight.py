@@ -10,11 +10,12 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple  # noqa: UP035
 
-from tvm import tirx
 from tvm.contrib import tvmjs
-from tvm.runtime import DataType, Device, Tensor
-from tvm.runtime import cpu as cpu_device
-from tvm.target import Target
+from tvm_ffi import dtype as DataType
+from tvm_tirx import tirx
+from tvm_tirx.runtime import Device, Tensor
+from tvm_tirx.runtime import cpu as cpu_device
+from tvm_tirx.target import Target
 
 from mlc_llm.loader import LOADER
 from mlc_llm.model import Model

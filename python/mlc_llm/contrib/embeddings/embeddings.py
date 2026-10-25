@@ -5,12 +5,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
-import tvm
 import tvm_ffi
+import tvm_tirx
 from tvm import relax
 from tvm.contrib import tvmjs
-from tvm.runtime import Device, Module
 from tvm.runtime.vm import VirtualMachine
+from tvm_ffi import Module
+from tvm_tirx.runtime import Device
 
 from mlc_llm.serve import engine_utils
 from mlc_llm.support.auto_device import detect_device
@@ -18,14 +19,14 @@ from mlc_llm.tokenizers import Tokenizer
 
 
 def _extract_metadata(mod: Module):
-    return json.loads(VirtualMachine(mod, tvm.runtime.device("cpu"))["_metadata"]())
+    return json.loads(VirtualMachine(mod, tvm_ffi.device("cpu"))["_metadata"]())
 
 
 def _load_params(
     model_weight_path: str,
     device: Device,
     model_metadata: Dict[str, Any],  # noqa: UP006
-) -> List[tvm.runtime.Tensor]:  # noqa: UP006
+) -> List[tvm_tirx.runtime.Tensor]:  # noqa: UP006
     params, meta = tvmjs.load_tensor_cache(model_weight_path, device)
     param_names = [param["name"] for param in model_metadata["params"]]
     assert len(param_names) == meta["ParamSize"]
@@ -42,7 +43,7 @@ def _get_tvm_module(
     device: Device,
     instrument: tvm_ffi.Function = None,
 ):
-    ex = tvm.runtime.load_module(lib_path)
+    ex = tvm_ffi.load_module(lib_path)
     vm = relax.VirtualMachine(ex, device)
     if instrument:
         vm.set_instrument(instrument)
@@ -102,7 +103,7 @@ class DefaultDebugInstrument:
         # Save the arguments to npz
         arg_dict = {}
         for i, arg in enumerate(args):
-            if isinstance(arg, tvm.runtime.Tensor):
+            if isinstance(arg, tvm_tirx.runtime.Tensor):
                 arg_dict[f"arg_{i}"] = arg.numpy()
 
         np.savez(self.debug_out / f"{func_name}.npz", **arg_dict)
@@ -152,7 +153,7 @@ class MLCEmbeddings:
         self.tokenizer = Tokenizer(self.model_path)
         self.prefill_func = self.mod["prefill"]
 
-    def embed(self, queries: List[str]) -> tvm.runtime.Tensor:  # noqa: UP006
+    def embed(self, queries: List[str]) -> tvm_tirx.runtime.Tensor:  # noqa: UP006
         """
         Embeds a list of queries in a single batch.
 
@@ -167,8 +168,10 @@ class MLCEmbeddings:
             A list of embeddings for the queries.
         """
         tokens, attention_mask = self._tokenize_queries(queries)
-        tokens_tvm = tvm.runtime.tensor(tokens.astype("int32"), device=self.device)
-        attention_mask_tvm = tvm.runtime.tensor(attention_mask.astype("int32"), device=self.device)
+        tokens_tvm = tvm_tirx.runtime.tensor(tokens.astype("int32"), device=self.device)
+        attention_mask_tvm = tvm_tirx.runtime.tensor(
+            attention_mask.astype("int32"), device=self.device
+        )
         output = self.prefill_func(tokens_tvm, attention_mask_tvm, self.params)
         return output
 

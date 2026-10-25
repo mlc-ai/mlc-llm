@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 import tvm
 import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.frontend.nn.llm import tree_attn
 
 # test category "op_correctness"
@@ -99,22 +101,22 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
     attn_score_scaling_factor = 1.0
 
     ### TVM Inputs
-    dev = tvm.cuda(0)
-    q_tvm = tvm.runtime.tensor(q, dev)
-    q_indptr_tvm = tvm.runtime.tensor(q_indptr, dev)
-    k_tvm = tvm.runtime.tensor(k, dev)
-    v_tvm = tvm.runtime.tensor(v, dev)
-    kv_indptr_tvm = tvm.runtime.tensor(kv_indptr, dev)
-    q_rope_position_tvm = tvm.runtime.tensor(q_rope_position, dev)
-    # m_arr_tvm = tvm.runtime.tensor(m_arr, dev)
-    mn_indptr_tvm = tvm.runtime.tensor(mn_indptr, dev)
-    mask_tvm = tvm.runtime.tensor(mask, dev)
-    output_tvm = tvm.runtime.tensor(output, dev)
-    lse_tvm = tvm.runtime.tensor(lse, dev)
+    dev = tvm_tirx.cuda(0)
+    q_tvm = tvm_tirx.runtime.tensor(q, dev)
+    q_indptr_tvm = tvm_tirx.runtime.tensor(q_indptr, dev)
+    k_tvm = tvm_tirx.runtime.tensor(k, dev)
+    v_tvm = tvm_tirx.runtime.tensor(v, dev)
+    kv_indptr_tvm = tvm_tirx.runtime.tensor(kv_indptr, dev)
+    q_rope_position_tvm = tvm_tirx.runtime.tensor(q_rope_position, dev)
+    # m_arr_tvm = tvm_tirx.runtime.tensor(m_arr, dev)
+    mn_indptr_tvm = tvm_tirx.runtime.tensor(mn_indptr, dev)
+    mask_tvm = tvm_tirx.runtime.tensor(mask, dev)
+    output_tvm = tvm_tirx.runtime.tensor(output, dev)
+    lse_tvm = tvm_tirx.runtime.tensor(lse, dev)
 
-    target = tvm.target.Target("cuda")
+    target = tvm_tirx.target.Target("cuda")
     kernel = tree_attn(h_kv=h_kv, h_q=h_q, d=d, dtype="float16", rope_scaling={}, target=target)
-    mod = tvm.build(kernel, target=target)
+    mod = tvm_tirx.tirx.compile(kernel, target=target).mod
     mod(
         q_tvm,
         q_indptr_tvm,
@@ -217,7 +219,7 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
             output_i = np.matmul(qk, v_reshape).transpose(1, 0, 2)  # (num_nodes, h_q, d)
             # print(output_i)
 
-            tvm.testing.assert_allclose(
+            tvm_tirx.testing.assert_allclose(
                 output_i, output_tvm[q_base : q_base + num_nodes], rtol=1e-3, atol=1e-3
             )
 

@@ -5,11 +5,11 @@ Implementation for Llama4 architecture.
 import dataclasses
 from typing import Any, Dict, Optional  # noqa: UP035
 
-import tvm
-from tvm import tirx
+import tvm_tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.relax.frontend.nn.llm import position_embedding
+from tvm_tirx import tirx
 
 from mlc_llm import op as op_ext
 from mlc_llm.model.model_utils import index_last_token
@@ -276,7 +276,7 @@ class Llama4TextAttention(nn.Module):
         if self.use_rope:
             qkv = op.concat([query_states, key_states, value_states], dim=2)
 
-            apply_rope = tvm.tirx.IntImm("int64", 1)
+            apply_rope = tvm_tirx.ir.IntImm("int64", 1)
 
             rotary_emb = position_embedding.llama4_rope_with_position_map(
                 theta=self.rope_theta,

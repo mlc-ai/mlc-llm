@@ -2,6 +2,8 @@ import numpy as np
 import pytest
 import tvm
 import tvm.testing
+import tvm_tirx
+import tvm_tirx.testing
 
 from mlc_llm.op.batch_spec_verify import batch_spec_verify
 
@@ -94,14 +96,14 @@ def test_batch_spec_verify(nbatch, vocab, plist):
     uniform_samples = np.random.rand(num_nodes).astype("float32")
 
     ### TVM Inputs
-    dev = tvm.cuda(0)
-    draft_probs_tvm = tvm.runtime.tensor(draft_probs, dev)
-    draft_tokens_tvm = tvm.runtime.tensor(draft_tokens, dev)
-    model_probs_tvm = tvm.runtime.tensor(model_probs, dev)
-    token_tree_first_child_tvm = tvm.runtime.tensor(token_tree_first_child, dev)
-    token_tree_next_sibling_tvm = tvm.runtime.tensor(token_tree_next_sibling, dev)
-    uniform_samples_tvm = tvm.runtime.tensor(uniform_samples, dev)
-    token_tree_parent_ptr_tvm = tvm.runtime.tensor(token_tree_parent_ptr, dev)
+    dev = tvm_tirx.cuda(0)
+    draft_probs_tvm = tvm_tirx.runtime.tensor(draft_probs, dev)
+    draft_tokens_tvm = tvm_tirx.runtime.tensor(draft_tokens, dev)
+    model_probs_tvm = tvm_tirx.runtime.tensor(model_probs, dev)
+    token_tree_first_child_tvm = tvm_tirx.runtime.tensor(token_tree_first_child, dev)
+    token_tree_next_sibling_tvm = tvm_tirx.runtime.tensor(token_tree_next_sibling, dev)
+    uniform_samples_tvm = tvm_tirx.runtime.tensor(uniform_samples, dev)
+    token_tree_parent_ptr_tvm = tvm_tirx.runtime.tensor(token_tree_parent_ptr, dev)
 
     # print("draft_probs", draft_probs)
     # print("draft_tokens", draft_tokens)
@@ -139,12 +141,14 @@ def test_batch_spec_verify(nbatch, vocab, plist):
     # print("model_probs", model_probs_tvm.numpy())
     # print("token_tree_parent_ptr", token_tree_parent_ptr_tvm.numpy())
 
-    tvm.testing.assert_allclose(model_probs, model_probs_tvm.numpy())
-    tvm.testing.assert_allclose(
+    tvm_tirx.testing.assert_allclose(model_probs, model_probs_tvm.numpy())
+    tvm_tirx.testing.assert_allclose(
         token_tree_parent_ptr, token_tree_parent_ptr_tvm.numpy(), rtol=0, atol=0
     )
 
-    time_evaluator = mod.jit().time_evaluator("batch_spec_verify", dev, number=10, repeat=3)
+    time_evaluator = tvm.runtime.time_evaluator(
+        mod.jit(), "batch_spec_verify", dev, number=10, repeat=3
+    )
     print(f"batch_size: {nbatch}, vocab_size: {vocab}, tree_structure: {plist}")
     print(
         time_evaluator(

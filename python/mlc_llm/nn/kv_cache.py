@@ -4,11 +4,11 @@ import json
 from typing import Any, Dict, List, Literal, Optional, Union  # noqa: UP035
 
 import numpy as np
-import tvm
+import tvm_tirx
 from tvm import relax as rx
-from tvm import tirx
 from tvm.relax.frontend.nn.llm.kv_cache import PagedKVCache as TVMPagedKVCache
 from tvm.relax.frontend.nn.llm.kv_cache import RopeMode
+from tvm_tirx import tirx
 
 
 class PagedKVCache(TVMPagedKVCache):
@@ -51,9 +51,9 @@ class PagedKVCache(TVMPagedKVCache):
         if layer_partition is None:
             layer_partition = [0, num_hidden_layers]
         if isinstance(attn_kind, List):  # noqa: UP006
-            rx_attn_kind = [tvm.ir.StringImm(layer_kind) for layer_kind in attn_kind]
+            rx_attn_kind = [tvm_tirx.ir.StringImm(layer_kind) for layer_kind in attn_kind]
         else:
-            rx_attn_kind = tvm.ir.StringImm(attn_kind)
+            rx_attn_kind = tvm_tirx.ir.StringImm(attn_kind)
         return PagedKVCache(
             _expr=rx.call_pure_packed(
                 "mlc.create_paged_kv_cache_generic",
@@ -79,7 +79,7 @@ class PagedKVCache(TVMPagedKVCache):
                 rx.prim_value(rope_mode),
                 rx.prim_value(rope_scale),
                 rx.prim_value(rope_theta),
-                tvm.ir.StringImm(json.dumps(rope_scaling)),
+                tvm_tirx.ir.StringImm(json.dumps(rope_scaling)),
                 (
                     rx.const(np.array(rope_ext_factors, "float32"))
                     if rope_ext_factors is not None
@@ -89,7 +89,7 @@ class PagedKVCache(TVMPagedKVCache):
                 ),
                 rx.prim_value(rotary_dim),
                 rx.prim_value(int(enable_disaggregation)),
-                tvm.ir.DataTypeImm(dtype),
+                tvm_tirx.ir.DataTypeImm(dtype),
                 ty_args=rx.ObjectType(),
             ),
             _name=name,

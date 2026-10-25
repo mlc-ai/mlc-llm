@@ -4,8 +4,9 @@ import dataclasses
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional  # noqa: UP035
 
-from tvm import te, tirx, topi
+from tvm import te, topi
 from tvm.relax.frontend import nn
+from tvm_tirx import ir, tirx
 
 
 @dataclasses.dataclass
@@ -39,10 +40,10 @@ class ShardSingleDim:
         segs = self.segs or [shape[self.dim]]
         assert sum(segs) == shape[self.dim]
         # NOTE: we use int64 to prevent int32 overflow
-        shape = [tirx.IntImm("int64", v) for v in shape]
-        segs = [tirx.IntImm("int64", v) for v in segs]
+        shape = [ir.IntImm("int64", v) for v in shape]
+        segs = [ir.IntImm("int64", v) for v in segs]
         w = te.placeholder(
-            [tirx.IntImm("int64", v) for v in self._compute_in_shape(shards, weight)],
+            [ir.IntImm("int64", v) for v in self._compute_in_shape(shards, weight)],
             weight.dtype,
             name="w",
         )
@@ -69,7 +70,7 @@ class ShardSingleDim:
                         ),
                         (
                             *shape[: self.dim],
-                            tirx.IntImm("int64", shards),
+                            ir.IntImm("int64", shards),
                             sub_seg,
                             *shape[self.dim + 1 :],
                         ),

@@ -221,30 +221,31 @@ class BatchDraftActionObj : public EngineActionObj {
         if (input_tokens.size() == num_rsentries) {
           // Each request entry only has one token to feed into the draft model.
           logits = models_[model_id]->BatchDecode(embeddings, request_internal_ids);
-          TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-          TVM_FFI_ICHECK_EQ(logits->shape[0], num_rsentries);
-          TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
+          TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+          TVM_FFI_ICHECK_EQ(logits.shape()[0], num_rsentries);
+          TVM_FFI_ICHECK_EQ(logits.shape()[1], 1);
         } else if (draft_id == 0) {
           // There exists some request entry which has more than one token to feed.
           // It may happen when the engine just switches from the normal batch decode
           // mode to the speculative decoding mode.
           logits = models_[model_id]->BatchPrefill(embeddings, request_internal_ids, input_lengths);
-          TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-          TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
-          TVM_FFI_ICHECK_EQ(logits->shape[1], num_rsentries);
+          TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+          TVM_FFI_ICHECK_EQ(logits.shape()[0], 1);
+          TVM_FFI_ICHECK_EQ(logits.shape()[1], num_rsentries);
         } else {
           TVM_FFI_ICHECK_GT(engine_config_->spec_tree_width, 1);
           logits = models_[model_id]->BatchTreeDecode(embeddings, request_internal_ids,
                                                       input_lengths, token_tree_parent_ptr);
-          TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-          TVM_FFI_ICHECK_EQ(logits->shape[0], cum_num_tokens.back());
-          TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
+          TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+          TVM_FFI_ICHECK_EQ(logits.shape()[0], cum_num_tokens.back());
+          TVM_FFI_ICHECK_EQ(logits.shape()[1], 1);
         }
         TVM_FFI_ICHECK_EQ(input_lengths.size(), num_rsentries);
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
 
         // - Update logits.
-        logits = logits.CreateView({cum_num_tokens.back(), logits->shape[2]}, logits->dtype);
+        logits = tvm::runtime::CreateView(logits, {cum_num_tokens.back(), logits.shape()[2]},
+                                          logits.dtype());
 
         logit_processor_->InplaceUpdateLogits(logits, generation_cfg_for_logitproc, mstates,
                                               request_ids, &cum_num_tokens, &mstates,

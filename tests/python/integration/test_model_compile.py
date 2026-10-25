@@ -6,7 +6,7 @@ import sys
 import tempfile
 from itertools import product
 
-import tvm
+import tvm_tirx
 
 from mlc_llm.model import MODEL_PRESETS
 from mlc_llm.model import MODELS as SUPPORTED_MODELS
@@ -88,7 +88,7 @@ def test_model_compile():
     num_workers = int(sys.argv[2])
     target = DEVICE2TARGET[device]
     if not isinstance(target, str):
-        target = str(tvm.target.Target(target))
+        target = str(tvm_tirx.target.Target(target))
     suffix = DEVICE2SUFFIX[device]
 
     passed_cmds = []

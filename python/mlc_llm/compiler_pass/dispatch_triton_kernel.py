@@ -2,9 +2,11 @@
 
 from typing import List  # noqa: UP035
 
-import tvm
-from tvm import IRModule, relax
+import tvm_ffi
+import tvm_tirx
+from tvm import relax
 from tvm.relax.expr_functor import PyExprMutator, mutator
+from tvm_tirx import IRModule
 
 from mlc_llm.op.triton import (
     get_tir_w8a8_block_fp8_group_matmul,
@@ -17,13 +19,13 @@ logger = logging.getLogger(__name__)
 
 @mutator
 class _Rewriter(PyExprMutator):
-    def __init__(self, mod: IRModule, target: tvm.target.Target) -> None:
+    def __init__(self, mod: IRModule, target: tvm_tirx.target.Target) -> None:
         super().__init__(mod)
         self.mod = mod
         self.target = target
-        self.extern_mods: List[tvm.runtime.Module] = []  # noqa: UP006
+        self.extern_mods: List[tvm_ffi.Module] = []  # noqa: UP006
 
-    def transform(self) -> tvm.IRModule:
+    def transform(self) -> tvm_tirx.IRModule:
         """Entry point of the transformation"""
         for g_var, func in self.mod.functions_items():
             if not isinstance(func, relax.Function):
@@ -43,7 +45,7 @@ class _Rewriter(PyExprMutator):
         call = super().visit_call_(call)
 
         if (
-            call.op != tvm.ir.Op.get("relax.call_dps_packed")
+            call.op != tvm_tirx.ir.Op.get("relax.call_dps_packed")
             or not isinstance(call.args[0], relax.ExternFunc)
             or not str(call.args[0].global_symbol).startswith("mlc.triton.")
         ):
@@ -156,11 +158,11 @@ class _Rewriter(PyExprMutator):
         )
 
 
-@tvm.transform.module_pass(opt_level=0, name="DispatchTritonKernel")
+@tvm_tirx.transform.module_pass(opt_level=0, name="DispatchTritonKernel")
 class DispatchTritonKernel:
     """Rewrite KV cache creation functions to IRModule."""
 
-    def __init__(self, target: tvm.target.Target) -> None:
+    def __init__(self, target: tvm_tirx.target.Target) -> None:
         """Initializer.
 
         Parameters
@@ -168,7 +170,7 @@ class DispatchTritonKernel:
         """
         self.target = target
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         if self.target.kind.name != "cuda":
             return mod

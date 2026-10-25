@@ -1,5 +1,5 @@
 import pytest
-from tvm.target import Target
+from tvm_tirx.target import Target
 
 from mlc_llm.support.auto_target import _apply_webgpu_subgroups
 

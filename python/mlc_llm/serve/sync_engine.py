@@ -12,7 +12,8 @@ import json
 from collections.abc import Sequence
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union  # noqa: UP035
 
-import tvm
+import tvm_ffi
+import tvm_tirx
 
 from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve import data
@@ -41,7 +42,7 @@ def _create_tvm_module(
     """Internal method to create a module."""
     if creator_args is None:
         creator_args = []
-    module = tvm.get_global_func(creator, allow_missing=False)(*creator_args)
+    module = tvm_ffi.get_global_func(creator, allow_missing=False)(*creator_args)
     return {key: module[key] for key in ffi_funcs}
 
 
@@ -88,7 +89,7 @@ class SyncMLCEngine:
     def __init__(
         self,
         model: str,
-        device: Union[str, tvm.runtime.Device] = "auto",
+        device: Union[str, tvm_tirx.runtime.Device] = "auto",
         *,
         model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
@@ -110,7 +111,7 @@ class SyncMLCEngine:
         models = _parse_models(model, model_lib, engine_config.additional_models)
         if isinstance(device, str):
             device = detect_device(device)
-        assert isinstance(device, tvm.runtime.Device)
+        assert isinstance(device, tvm_tirx.runtime.Device)
         (
             model_args,
             model_config_paths,

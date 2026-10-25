@@ -4,10 +4,11 @@ from functools import reduce
 from typing import Literal, Optional, Tuple, Union  # noqa: UP035
 
 import numpy as np
-from tvm import te, tirx
+from tvm import te
 from tvm.relax.frontend.nn import IntExpr, Tensor, op
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,name-defined"
 
@@ -35,9 +36,9 @@ def moe_sum(x: Tensor, dim: int) -> Tensor:
 
 def _gating_topk_init_local_top_k(k_val, dtype, local_top_k, local_top_k_index):
     for t in range(k_val):
-        T.buffer_store(local_top_k, T.min_value(dtype), indices=[t])
+        T.tensor_store(local_top_k, [t], T.min_value(ty=dtype))
     for t in range(k_val):
-        T.buffer_store(local_top_k_index, t, indices=[-1])
+        T.tensor_store(local_top_k_index, [-1], t)
 
 
 def _gating_topk_process_value(k_val, x, local_top_k, local_top_k_index, vi, vk):
@@ -48,10 +49,10 @@ def _gating_topk_process_value(k_val, x, local_top_k, local_top_k_index, vi, vk)
         if_frames[i].__enter__()
         with then_frames[i]:
             for j in range(k_val - 1, i, -1):
-                T.buffer_store(local_top_k, local_top_k[j - 1], indices=[j])
-                T.buffer_store(local_top_k_index, local_top_k_index[j - 1], indices=[j])
-            T.buffer_store(local_top_k, x[vi, vk], indices=[i])
-            T.buffer_store(local_top_k_index, vk, indices=[i])
+                T.tensor_store(local_top_k, [j], local_top_k[j - 1])
+                T.tensor_store(local_top_k_index, [j], local_top_k_index[j - 1])
+            T.tensor_store(local_top_k, [i], x[vi, vk])
+            T.tensor_store(local_top_k_index, [i], vk)
         if i != k_val - 1:
             else_frames[i].__enter__()
 
@@ -95,10 +96,12 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:  # noqa: UP006
             out_index: T.Tensor((batch_size, k_val), index_dtype),
         ) -> None:
             T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": True})
-            local_top_k = Ts.sblock_alloc_buffer((k_val,), dtype=dtype, scope="local")
-            local_top_k_index = Ts.sblock_alloc_buffer((k_val,), dtype=index_dtype, scope="local")
-            for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
-                for ii in T.thread_binding(0, TX, "threadIdx.x"):
+            local_top_k = Ts.sblock_alloc_tensor((k_val,), dtype=dtype, scope="local")
+            local_top_k_index = Ts.sblock_alloc_tensor((k_val,), dtype=index_dtype, scope="local")
+            for io in T.parallel(
+                0, T.ceildiv(batch_size, TX), annotations={"thread_binding": "blockIdx.x"}
+            ):
+                for ii in T.parallel(0, TX, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("top_k"):
                         vi = Ts.axis.spatial(batch_size, io * TX + ii)
                         Ts.where(io * TX + ii < batch_size)
@@ -180,12 +183,14 @@ def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor,
             out_index: T.Tensor((batch_size, k_val), index_dtype),
         ) -> None:
             T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": True})
-            local_top_k = Ts.sblock_alloc_buffer((k_val,), dtype=dtype, scope="local")
-            local_top_k_index = Ts.sblock_alloc_buffer((k_val,), dtype=index_dtype, scope="local")
-            local_top_k_f32 = Ts.sblock_alloc_buffer((k_val,), dtype="float32", scope="local")
-            local_top_k_max = Ts.sblock_alloc_buffer((1,), dtype="float32", scope="local")
-            for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
-                for ii in T.thread_binding(0, TX, "threadIdx.x"):
+            local_top_k = Ts.sblock_alloc_tensor((k_val,), dtype=dtype, scope="local")
+            local_top_k_index = Ts.sblock_alloc_tensor((k_val,), dtype=index_dtype, scope="local")
+            local_top_k_f32 = Ts.sblock_alloc_tensor((k_val,), dtype="float32", scope="local")
+            local_top_k_max = Ts.sblock_alloc_tensor((1,), dtype="float32", scope="local")
+            for io in T.parallel(
+                0, T.ceildiv(batch_size, TX), annotations={"thread_binding": "blockIdx.x"}
+            ):
+                for ii in T.parallel(0, TX, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("top_k"):
                         vi = Ts.axis.spatial(batch_size, io * TX + ii)
                         Ts.where(io * TX + ii < batch_size)
@@ -485,8 +490,12 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]
         token_indices: T.Tensor([batch_size * experts_per_tok], "int32"),
     ):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
-        for bj_o in T.thread_binding(0, T.ceildiv(batch_size * experts_per_tok, TX), "blockIdx.x"):
-            for bj_i in T.thread_binding(0, TX, "threadIdx.x"):
+        for bj_o in T.parallel(
+            0,
+            T.ceildiv(batch_size * experts_per_tok, TX),
+            annotations={"thread_binding": "blockIdx.x"},
+        ):
+            for bj_i in T.parallel(0, TX, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("indices"):
                     Ts.reads(expert_indices[:, :], cumsum[:])
                     Ts.writes(reverse_indices[:], token_indices[:])

@@ -3,10 +3,11 @@ from typing import List, Optional  # noqa: UP035
 import numpy as np
 import pytest
 import torch
-import tvm
-import tvm.testing
-from tvm import DataType
+import tvm_ffi
+import tvm_tirx
+import tvm_tirx.testing
 from tvm.relax.frontend import nn
+from tvm_ffi import dtype as DataType
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.quantization import QUANTIZATION
@@ -96,11 +97,13 @@ def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: 
     config = QUANTIZATION[quant_name]
     assert isinstance(config, GroupQuantize)
     weight_np = np.random.random(shape).astype(dtype)
-    output = config.quantize_weight(tvm.runtime.tensor(weight_np, device=tvm.device(device)))
+    output = config.quantize_weight(
+        tvm_tirx.runtime.tensor(weight_np, device=tvm_ffi.device(device))
+    )
     quantized_weight, scale = output[0].numpy(), output[1].numpy()
     quantized_weight_ref, scale_ref = quantize_np(config, weight_np)
-    tvm.testing.assert_allclose(scale, scale_ref, rtol=1e-3, atol=1e-3)
-    tvm.testing.assert_allclose(
+    tvm_tirx.testing.assert_allclose(scale, scale_ref, rtol=1e-3, atol=1e-3)
+    tvm_tirx.testing.assert_allclose(
         dequantize_np(config, quantized_weight, scale, shape),
         dequantize_np(config, quantized_weight_ref, scale_ref, shape),
         rtol=1e-2 if quant_name.startswith("q3") else 1e-3,
@@ -141,9 +144,9 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):  # no
     mod.linear.q_weight.data = weight_np
     mod.linear.q_scale.data = scale_np
     model = mod.jit(spec={"forward": {"x": nn.spec.Tensor((shape[1], shape[1]), dtype)}})
-    out = model["forward"](torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype))))
+    out = model["forward"](torch.eye(shape[1], dtype=getattr(torch, dtype)))
     ref = dequantize_np(config, weight_np, scale_np, shape).T
-    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
+    tvm_tirx.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
 @pytest.mark.parametrize(
@@ -172,7 +175,7 @@ def test_quantize_model(quant_name: str, shape: List[int], dtype: str):  # noqa:
         "model.linear.q_weight",
         "model.linear.q_scale",
     ]
-    weight = tvm.runtime.tensor(np.random.random([shape[1], shape[0]]).astype(dtype))
+    weight = tvm_tirx.runtime.tensor(np.random.random([shape[1], shape[0]]).astype(dtype))
     mapped = quant_map.map_func["model.linear.weight"](weight)
     expected = config.quantize_weight(weight, output_transpose=False)
     for actual, reference in zip(mapped, expected):

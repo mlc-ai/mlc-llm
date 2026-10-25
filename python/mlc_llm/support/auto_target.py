@@ -4,11 +4,13 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple  # noqa: UP035
 
-from tvm import IRModule, relax
-from tvm.support import ndk, tar, xcode
-from tvm.target import Target
-from tvm.transform import Pass
+from tvm import relax
+from tvm.contrib import emcc
 from tvm_ffi import get_global_func, register_global_func
+from tvm_tirx import IRModule
+from tvm_tirx.ir.transform import Pass
+from tvm_tirx.support import ndk, tar, xcode
+from tvm_tirx.target import Target
 
 from . import logging
 from .auto_device import AUTO_DETECT_DEVICES, detect_device, device2str
@@ -282,6 +284,7 @@ def _build_webgpu():
             system_lib=True,
         ).export_library(
             str(output),
+            fcompile=emcc.create_wasm,
             libs=[bc_path],
         )
 
@@ -366,7 +369,7 @@ def _register_cuda_hook(target: Target):
     @register_global_func("tvm_callback_cuda_compile", override=True)
     def tvm_callback_cuda_compile(code):
         """use nvcc to generate fatbin code for better optimization"""
-        from tvm.support import nvcc
+        from tvm_tirx.support import nvcc
 
         if multi_arch is None:
             ptx = nvcc.compile_cuda(code, target_format="fatbin", compiler="nvcc")

@@ -38,7 +38,7 @@ def test_gemma3_creation(model_name: str):
     assert len(named_params) > 0
 
     # Optional: show module structure
-    mod.show(black_format=False)
+    mod.show()
 
     # Print parameters for debugging
     for name, param in named_params:

@@ -1,7 +1,7 @@
 """Operators for batch verify in speculative decoding."""
 
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 
@@ -53,7 +53,7 @@ def batch_spec_verify(vocab_size):
     TX = 1024
 
     def _var(dtype="int32"):
-        return Ts.sblock_alloc_buffer((1,), dtype, scope="local")
+        return Ts.sblock_alloc_tensor((1,), dtype, scope="local")
 
     num_nodes = T.dynamic("num_nodes", "int32")
     nbatch = T.dynamic("nbatch", "int32")
@@ -91,11 +91,11 @@ def batch_spec_verify(vocab_size):
             q_child = _var("float32")
             uniform_sample = _var("float32")
 
-            pred_shared = Ts.sblock_alloc_buffer((1,), "bool", scope="shared")
-            pred_local = Ts.sblock_alloc_buffer((1,), "bool", scope="local")
+            pred_shared = Ts.sblock_alloc_tensor((1,), "bool", scope="shared")
+            pred_local = Ts.sblock_alloc_tensor((1,), "bool", scope="local")
 
-            for _bx in T.thread_binding(0, nbatch, thread="blockIdx.x"):
-                for _tx in T.thread_binding(0, TX, thread="threadIdx.x"):
+            for _bx in T.parallel(0, nbatch, annotations={"thread_binding": "blockIdx.x"}):
+                for _tx in T.parallel(0, TX, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("CTA"):
                         # batch size
                         b = Ts.axis.S(nbatch, _bx)

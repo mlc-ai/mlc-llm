@@ -5,9 +5,10 @@ Implementation for Phi architecture.
 import dataclasses
 from typing import Any, Dict, Optional  # noqa: UP035
 
-from tvm import relax, target, tirx
+from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm_tirx import ir, target, tirx
 
 from mlc_llm import op as op_ext
 from mlc_llm.model.model_utils import index_last_token
@@ -248,7 +249,7 @@ class Phi3VForCausalLM(nn.Module):
         )
 
         n, c, h, w = pixel_values.shape
-        assert isinstance(h, tirx.Mul) and isinstance(h.b, tirx.IntImm) and h.b.value == 336
+        assert isinstance(h, tirx.Mul) and isinstance(h.b, ir.IntImm) and h.b.value == 336
         pixel_values = op.reshape(pixel_values, shape=(1, 3, h.a, 336, w // 336, 336))
         pixel_values = op.permute_dims(pixel_values, axes=(0, 2, 4, 1, 3, 5))
         pixel_values = op.reshape(pixel_values, shape=(-1, 3, 336, 336))

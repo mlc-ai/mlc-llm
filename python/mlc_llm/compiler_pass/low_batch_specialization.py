@@ -1,20 +1,21 @@
 """A compiler pass that dispatch low-batch-gemm to gemv schedule."""
 
-import tvm
 import tvm_ffi
-from tvm import s_tir, tirx
-from tvm.ir.module import IRModule
+import tvm_tirx
+from tvm import s_tir
 from tvm.s_tir import dlight as dl
+from tvm_tirx import tirx
+from tvm_tirx.ir.module import IRModule
 
 
-@tvm.transform.module_pass(opt_level=0, name="LowBatchGemvSpecialize")
+@tvm_tirx.transform.module_pass(opt_level=0, name="LowBatchGemvSpecialize")
 class LowBatchGemvSpecialize:
     """A compiler pass that dispatch low-batch-gemm to gemv schedule."""
 
     def transform_module(
         self,
         mod: IRModule,
-        _ctx: tvm.transform.PassContext,
+        _ctx: tvm_tirx.transform.PassContext,
     ) -> IRModule:
         """IRModule-level transformation"""
         for g_var, func in mod.functions_items():
@@ -50,7 +51,7 @@ class LowBatchGemvSpecialize:
                 sym_var = next(iter(symbolic_vars))
                 body = gemm_func.body
                 for i, range_limit in reversed(list(enumerate(low_batch_range))):
-                    body = tvm.ir.If(
+                    body = tvm_tirx.ir.If(
                         tirx.op.gpu_thread_invariant(sym_var <= range_limit),
                         low_batch_funcs[i].body,
                         body,

@@ -2,11 +2,11 @@
 
 from typing import List  # noqa: UP035
 
-import tvm
-from tvm.ir.module import IRModule
+import tvm_tirx
+from tvm_tirx.ir.module import IRModule
 
 
-@tvm.transform.module_pass(opt_level=0, name="CleanUpTIRAttrs")
+@tvm_tirx.transform.module_pass(opt_level=0, name="CleanUpTIRAttrs")
 class CleanUpTIRAttrs:
     """A compiler pass that cleans up undesired TIR attrs."""
 
@@ -16,7 +16,7 @@ class CleanUpTIRAttrs:
     def transform_module(
         self,
         mod: IRModule,
-        _ctx: tvm.transform.PassContext,
+        _ctx: tvm_tirx.transform.PassContext,
     ) -> IRModule:
         """IRModule-level transformation"""
         for g_var, func in mod.functions_items():
