@@ -11,7 +11,7 @@ def set_global_random_seed(seed):
         sys.modules["torch"].manual_seed(seed)
     if "random" in sys.modules:
         sys.modules["random"].seed(seed)
-    if "tvm" in sys.modules:
-        set_seed = sys.modules["tvm"].get_global_func("mlc.random.set_seed")
+    if "tvm_ffi" in sys.modules:
+        set_seed = sys.modules["tvm_ffi"].get_global_func("mlc.random.set_seed", allow_missing=True)
         if set_seed:
             set_seed(seed)
