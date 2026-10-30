@@ -1155,7 +1155,16 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                 if choice.finish_reason is not None and finish_reasons[choice.index] is None:
                     finish_reasons[choice.index] = choice.finish_reason
                 if choice.logprobs is not None:
-                    logprob_results[choice.index] = choice.logprobs
+                    if logprob_results[choice.index] is None:
+                        logprob_results[choice.index] = choice.logprobs
+                    else:
+                        logprob_results[choice.index].token_logprobs.extend(
+                            choice.logprobs.token_logprobs
+                        )
+                        logprob_results[choice.index].tokens.extend(choice.logprobs.tokens)
+                        logprob_results[choice.index].top_logprobs.extend(
+                            choice.logprobs.top_logprobs
+                        )
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
 
@@ -1717,7 +1726,16 @@ class MLCEngine(engine_base.MLCEngineBase):
                 if choice.finish_reason is not None and finish_reasons[choice.index] is None:
                     finish_reasons[choice.index] = choice.finish_reason
                 if choice.logprobs is not None:
-                    logprob_results[choice.index] = choice.logprobs
+                    if logprob_results[choice.index] is None:
+                        logprob_results[choice.index] = choice.logprobs
+                    else:
+                        logprob_results[choice.index].token_logprobs.extend(
+                            choice.logprobs.token_logprobs
+                        )
+                        logprob_results[choice.index].tokens.extend(choice.logprobs.tokens)
+                        logprob_results[choice.index].top_logprobs.extend(
+                            choice.logprobs.top_logprobs
+                        )
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
         return engine_base.wrap_completion_response(
