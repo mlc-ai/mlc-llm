@@ -375,20 +375,24 @@ class ChatCompletionRequest(BaseModel):
 
         # select the tool based on the tool_choice if specified
         if isinstance(self.tool_choice, dict):
-            if self.tool_choice["type"] != "function":
+            if self.tool_choice.get("type") != "function":
                 raise BadRequestError("Only 'function' tool choice is supported")
 
-            if len(self.tool_choice["function"]) > 1:
+            tool_choice_function = self.tool_choice.get("function")
+            if not isinstance(tool_choice_function, dict) or "name" not in tool_choice_function:
+                raise BadRequestError("tool_choice.function must be an object with a 'name' field")
+
+            if len(tool_choice_function) > 1:
                 raise BadRequestError("Only one tool is supported when tool_choice is specified")
 
             for tool in self.tools:
-                if tool.function.name == self.tool_choice["function"]["name"]:
+                if tool.function.name == tool_choice_function["name"]:
                     conv_template.use_function_calling = True
                     conv_template.function_string = tool.function.model_dump_json(by_alias=True)
                     return
 
             raise BadRequestError(
-                f"The tool_choice function {self.tool_choice['function']['name']}"
+                f"The tool_choice function {tool_choice_function['name']}"
                 " is not found in the tools list"
             )
 
