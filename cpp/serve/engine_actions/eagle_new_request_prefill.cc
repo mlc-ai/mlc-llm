@@ -3,16 +3,13 @@
  * \file serve/engine_actions/eagle_new_request_prefill.cc
  */
 
-#include <tvm/support/cuda/nvtx.h>
-
+#include "../../support/nvtx.h"
 #include "../sampler/sampler.h"
 #include "batch_prefill_base.h"
 
 namespace mlc {
 namespace llm {
 namespace serve {
-
-using tvm::support::NVTXScopedRange;
 
 /*!
  * \brief The action that prefills requests in the `waiting_queue` of
@@ -349,12 +346,12 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       const std::vector<SampleResult>& sample_results, int model_id,
       const Tensor& renormalized_probs, const ObjectRef& hidden_states_for_sample,
       EngineState estate, const std::vector<int>& sample_indices) {
-    std::vector<int> reuse_count(renormalized_probs->shape[0], 0);
+    std::vector<int> reuse_count(renormalized_probs.shape()[0], 0);
     for (int i = 0; i < static_cast<int>(sample_indices.size()); ++i) {
       // The same probability may be sampled multiple times.
       reuse_count[sample_indices[i]]++;
     }
-    draft_token_workspace_manager_->AllocSlots(renormalized_probs->shape[0], reuse_count,
+    draft_token_workspace_manager_->AllocSlots(renormalized_probs.shape()[0], reuse_count,
                                                &draft_token_slots_);
 
     models_[0]->ScatterDraftProbs(renormalized_probs, draft_token_slots_,

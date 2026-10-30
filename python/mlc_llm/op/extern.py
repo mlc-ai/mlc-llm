@@ -18,7 +18,7 @@ before any compilation happens, and configured during a model's `forward` method
 import dataclasses
 from typing import Optional
 
-from tvm.target import Target
+from tvm_tirx.target import Target
 
 
 @dataclasses.dataclass

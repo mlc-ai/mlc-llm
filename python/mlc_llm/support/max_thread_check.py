@@ -1,6 +1,6 @@
 """Helper functions for checking max num thread."""
 
-from tvm.target import Target
+from tvm_tirx.target import Target
 
 
 def get_max_num_threads_per_block(target: Target) -> int:

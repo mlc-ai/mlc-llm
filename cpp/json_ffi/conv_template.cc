@@ -328,7 +328,8 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
 
             Tensor image_data = image_data_res.Unwrap();
             std::vector<int64_t> new_shape = {1, image_size, image_size, 3};
-            Tensor image_tensor = image_data.CreateView(new_shape, image_data.DataType());
+            Tensor image_tensor =
+                tvm::runtime::CreateView(image_data, new_shape, image_data.dtype());
             // TODO: Not sure if commenting will affect other functions. But
             // python part will do clip preprocessing. auto image_tensor =
             // ClipPreprocessor(image_data_res.Unwrap(), image_size, device);

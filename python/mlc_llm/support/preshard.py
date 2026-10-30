@@ -4,11 +4,12 @@ import logging
 from collections.abc import Sequence
 from typing import Any, Callable, Dict, Tuple  # noqa: UP035
 
-from tvm import IRModule, relax
+from tvm import relax
 from tvm.relax.frontend import nn
-from tvm.runtime import Device, Tensor
 from tvm.s_tir import dlight as dl
-from tvm.target import Target
+from tvm_tirx import IRModule
+from tvm_tirx.runtime import Device, Tensor
+from tvm_tirx.target import Target
 
 logger = logging.getLogger("preshard")
 
@@ -38,7 +39,7 @@ def _create_shard_func(bb: relax.BlockBuilder, param: nn.Parameter, tensor_paral
                 relax.call_tir(
                     tir_gvar,
                     weight_var,
-                    out_ty=relax.TensorType(sharded_weight_shape, param.dtype),
+                    ty_args=[relax.TensorType(sharded_weight_shape, param.dtype)],
                 )
             )
             lv1 = bb.emit(relax.op.split(lv0, indices_or_sections=tensor_parallel_shards, axis=0))

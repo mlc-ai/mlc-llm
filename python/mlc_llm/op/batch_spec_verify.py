@@ -1,7 +1,7 @@
 """Operators for batch verify in speculative decoding."""
 
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 
@@ -53,13 +53,13 @@ def batch_spec_verify(vocab_size):
     TX = 1024
 
     def _var(dtype="int32"):
-        return Ts.sblock_alloc_buffer((1,), dtype, scope="local")
+        return Ts.sblock_alloc_tensor((1,), dtype, scope="local")
 
     num_nodes = T.dynamic("num_nodes", "int32")
     nbatch = T.dynamic("nbatch", "int32")
 
     # fmt: off
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         draft_probs: T.Tensor((num_nodes, vocab_size), "float32"),
         draft_tokens: T.Tensor((num_nodes,), "int32"),
@@ -91,11 +91,11 @@ def batch_spec_verify(vocab_size):
             q_child = _var("float32")
             uniform_sample = _var("float32")
 
-            pred_shared = Ts.sblock_alloc_buffer((1,), "bool", scope="shared")
-            pred_local = Ts.sblock_alloc_buffer((1,), "bool", scope="local")
+            pred_shared = Ts.sblock_alloc_tensor((1,), "bool", scope="shared")
+            pred_local = Ts.sblock_alloc_tensor((1,), "bool", scope="local")
 
-            for _bx in T.thread_binding(0, nbatch, thread="blockIdx.x"):
-                for _tx in T.thread_binding(0, TX, thread="threadIdx.x"):
+            for _bx in T.parallel(0, nbatch, annotations={"thread_binding": "blockIdx.x"}):
+                for _tx in T.parallel(0, TX, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("CTA"):
                         # batch size
                         b = Ts.axis.S(nbatch, _bx)
@@ -106,10 +106,10 @@ def batch_spec_verify(vocab_size):
                         done[0] = False
 
                         while T.Not(done[0]):
-                            T.tvm_storage_sync("shared") # ensure all effects last round are visible
+                            T.gpu_storage_sync("shared") # ensure all effects last round are visible
                             if child_ptr[0] == -1:
                                 done[0] = True
-                                T.tvm_storage_sync("shared") # sync before exit
+                                T.gpu_storage_sync("shared") # sync before exit
                             else:
                                 # decide to validate current ptr
                                 if tx == 0:
@@ -118,7 +118,7 @@ def batch_spec_verify(vocab_size):
                                     q_child[0] = draft_probs[child_ptr[0], child_token[0]]
                                     uniform_sample[0] = uniform_samples[child_ptr[0]]
                                     pred_shared[0] = p_child[0] >= uniform_sample[0] * q_child[0]  # use multiplication to avoid division by zero  # noqa: E501
-                                T.tvm_storage_sync("shared") # make sure all read of model_probs are done  # noqa: E501
+                                T.gpu_storage_sync("shared") # make sure all read of model_probs are done  # noqa: E501
                                 pred_local[0] = pred_shared[0]
 
                                 # accept the proposal, we move to child
@@ -139,12 +139,16 @@ def batch_spec_verify(vocab_size):
                                     with Ts.sblock("block_cross_thread"):
                                         Ts.reads(psum[0])
                                         Ts.writes(t0[0])
-                                        T.attr(
-                                            T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                                            "reduce_scope",
-                                            T.int32(0),
+                                        T.gpu_thread_allreduce(
+                                            T.Lambda(
+                                                [T.float32, T.float32], lambda x0, y0: x0 + y0,
+                                            ),
+                                            T.float32(0),
+                                            psum[0],
+                                            True,
+                                            t0[0],
+                                            tx,
                                         )
-                                        T.tvm_thread_allreduce(T.uint32(1), psum[0], True, t0[0], tx)  # noqa: E501
 
                                     if t0[0] < 1e-7:
                                         # accept the proposal, we move to child

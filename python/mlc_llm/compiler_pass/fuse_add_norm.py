@@ -2,12 +2,12 @@
 
 from typing import Optional
 
-import tvm
+import tvm_tirx
 from tvm import relax
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 from ..support.max_thread_check import get_max_num_threads_per_block
 
@@ -21,7 +21,7 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
 
     batch_size = T.dynamic("batch_size", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def decode_add_rms(
         A: T.Tensor((batch_size, 1, hidden_size), in_dtype),
         B: T.Tensor((batch_size, 1, hidden_size), in_dtype),
@@ -30,14 +30,14 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
         add: T.Tensor((batch_size, 1, hidden_size), in_dtype),
     ):
         T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
-        add_local = Ts.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
-        sum_shared = Ts.sblock_alloc_buffer((batch_size, 1), scope="shared")
-        sum_local = Ts.sblock_alloc_buffer((TX, batch_size, 1), scope="local")
-        for v_bx in T.thread_binding(batch_size, thread="blockIdx.x"):
-            for v_tx in T.thread_binding(
+        add_local = Ts.sblock_alloc_tensor((hidden_size // TX,), in_dtype, scope="local")
+        sum_shared = Ts.sblock_alloc_tensor((batch_size, 1), scope="shared")
+        sum_local = Ts.sblock_alloc_tensor((TX, batch_size, 1), scope="local")
+        for v_bx in T.parallel(batch_size, annotations={"thread_binding": "blockIdx.x"}):
+            for v_tx in T.parallel(
                 TX,
-                thread="threadIdx.x",
                 annotations={
+                    "thread_binding": "threadIdx.x",
                     "pragma_auto_unroll_max_step": 256,
                     "pragma_unroll_explicit": 1,
                 },
@@ -60,7 +60,7 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
                         tx, bx, i = Ts.axis.remap("SSR", [v_tx, v_bx, v_i])
                         sum_local[tx, bx, 0] += T.float32(add_local[i]) * T.float32(add_local[i])
             for _j in range(1):
-                for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
+                for v_tx_2 in T.parallel(TX, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_multiply_red"):
                         tx, bx = Ts.axis.remap("RS", [v_tx_2, v_bx])
                         Ts.reads(sum_local[tx, bx, 0])
@@ -69,7 +69,7 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
                             sum_shared[bx, 0] = T.float32(0)
                         sum_shared[bx, 0] += sum_local[tx, bx, 0]
             for i in range(add_local_size):
-                for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
+                for v_tx_2 in T.parallel(TX, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_cast_2"):
                         bx = Ts.axis.spatial(batch_size, v_bx)
                         h = Ts.axis.spatial(hidden_size, i * TX + v_tx_2)
@@ -92,7 +92,7 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
 
     seq_len = T.dynamic("seq_len", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def prefill_add_rms(
         A: T.Tensor((1, seq_len, hidden_size), in_dtype),
         B: T.Tensor((1, seq_len, hidden_size), in_dtype),
@@ -101,14 +101,14 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
         add: T.Tensor((1, seq_len, hidden_size), in_dtype),
     ):
         T.func_attr({"tirx.noalias": True, "tirx.is_scheduled": 1})
-        add_local = Ts.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
-        sum_shared = Ts.sblock_alloc_buffer((1, seq_len), scope="shared")
-        sum_local = Ts.sblock_alloc_buffer((TX, 1, seq_len), scope="local")
-        for v_bx in T.thread_binding(seq_len, thread="blockIdx.x"):
-            for v_tx in T.thread_binding(
+        add_local = Ts.sblock_alloc_tensor((hidden_size // TX,), in_dtype, scope="local")
+        sum_shared = Ts.sblock_alloc_tensor((1, seq_len), scope="shared")
+        sum_local = Ts.sblock_alloc_tensor((TX, 1, seq_len), scope="local")
+        for v_bx in T.parallel(seq_len, annotations={"thread_binding": "blockIdx.x"}):
+            for v_tx in T.parallel(
                 TX,
-                thread="threadIdx.x",
                 annotations={
+                    "thread_binding": "threadIdx.x",
                     "pragma_auto_unroll_max_step": 256,
                     "pragma_unroll_explicit": 1,
                 },
@@ -130,14 +130,14 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
                         tx, bx, i = Ts.axis.remap("SSR", [v_tx, v_bx, v_i])
                         sum_local[tx, 0, bx] += T.float32(add_local[i]) * T.float32(add_local[i])
             for _j in range(1):
-                for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
+                for v_tx_2 in T.parallel(TX, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_multiply_red"):
                         tx, bx = Ts.axis.remap("RS", [v_tx_2, v_bx])
                         with Ts.init():
                             sum_shared[0, bx] = T.float32(0)
                         sum_shared[0, bx] = sum_shared[0, bx] + sum_local[tx, 0, bx]
             for v_i in range(add_local_size):
-                for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
+                for v_tx_2 in T.parallel(TX, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("T_cast_2"):
                         bx = Ts.axis.spatial(seq_len, v_bx)
                         v1 = Ts.axis.spatial(hidden_size, v_i * TX + v_tx_2)
@@ -151,35 +151,37 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
     return prefill_add_rms
 
 
-@tvm.transform.module_pass(opt_level=0, name="FuseAddRMSNorm")
+@tvm_tirx.transform.module_pass(opt_level=0, name="FuseAddRMSNorm")
 class FuseAddRMSNorm:
     """A compiler pass that fuses add + rms_norm."""
 
-    def __init__(self, target: tvm.target.Target) -> None:
+    def __init__(self, target: tvm_tirx.target.Target) -> None:
         """Initializer.
 
         Parameters
         ----------
-        target : tvm.target.Target
+        target : tvm_tirx.target.Target
             Target device.
         """
         self.target = target
 
-    def transform_module(self, mod: tvm.IRModule, _ctx: tvm.transform.PassContext) -> tvm.IRModule:
+    def transform_module(
+        self, mod: tvm_tirx.IRModule, _ctx: tvm_tirx.transform.PassContext
+    ) -> tvm_tirx.IRModule:
         """IRModule-level transformation."""
         return _FuseAddRMSNormRewriter(mod.clone(), self.target).transform()
 
 
 @mutator
 class _FuseAddRMSNormRewriter(PyExprMutator):
-    def __init__(self, mod: tvm.IRModule, target: tvm.target.Target):
+    def __init__(self, mod: tvm_tirx.IRModule, target: tvm_tirx.target.Target):
         super().__init__(mod)
         self.mod = mod
-        self.prefill_norm_gv: Optional[tvm.ir.GlobalVar] = None
-        self.decode_norm_gv: Optional[tvm.ir.GlobalVar] = None
+        self.prefill_norm_gv: Optional[tvm_tirx.ir.GlobalVar] = None
+        self.decode_norm_gv: Optional[tvm_tirx.ir.GlobalVar] = None
         self.TX = min(1024, get_max_num_threads_per_block(target))
 
-    def transform(self) -> tvm.IRModule:
+    def transform(self) -> tvm_tirx.IRModule:
         """Entry point of the transformation"""
         for g_var, func in self.mod.functions_items():
             if not isinstance(func, relax.Function):
@@ -193,7 +195,7 @@ class _FuseAddRMSNormRewriter(PyExprMutator):
         call = super().visit_call_(call)
 
         # Match the "rms_norm(add(x1, x2), w)" pattern
-        if call.op != tvm.ir.Op.get("relax.nn.rms_norm") or call.ty.dtype not in [
+        if call.op != tvm_tirx.ir.Op.get("relax.nn.rms_norm") or call.ty.dtype not in [
             "bfloat16",
             "float16",
         ]:
@@ -203,7 +205,7 @@ class _FuseAddRMSNormRewriter(PyExprMutator):
         eps = call.attrs.epsilon
         assert isinstance(call.args[0], relax.Var)
         y = self.lookup_binding(call.args[0])
-        if not isinstance(y, relax.Call) or y.op != tvm.ir.Op.get("relax.add"):
+        if not isinstance(y, relax.Call) or y.op != tvm_tirx.ir.Op.get("relax.add"):
             return call
         assert len(y.args) == 2
         x1 = y.args[0]
@@ -234,7 +236,7 @@ class _FuseAddRMSNormRewriter(PyExprMutator):
             relax.call_tir(
                 func_gv,
                 [x1, x2, weight],
-                out_ty=[x1.ty, x2.ty],
+                ty_args=[relax.TupleType([x1.ty, x2.ty])],
             )
         )
         new_o = relax.TupleGetItem(tuple_output, 0)

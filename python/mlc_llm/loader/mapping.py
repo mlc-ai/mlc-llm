@@ -4,7 +4,7 @@ import dataclasses
 from typing import Callable, Dict, List, Set, Union  # noqa: UP035
 
 import numpy as np
-from tvm.runtime import Tensor
+from tvm_tirx.runtime import Tensor
 
 MapFuncVariadic = Union[
     Callable[[], np.ndarray],

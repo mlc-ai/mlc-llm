@@ -4,9 +4,11 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, List, Literal, Optional, Tuple, Union  # noqa: UP035
 
-from tvm import DataType, DataTypeCode, IRModule, relax, te, tirx, topi
+from tvm import relax, te, topi
 from tvm.relax.frontend import nn
-from tvm.runtime import Tensor
+from tvm_ffi import dtype as DataType
+from tvm_tirx import DataTypeCode, IRModule, ir, tirx
+from tvm_tirx.runtime import Tensor
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.nn import MixtralExperts
@@ -259,7 +261,7 @@ class GroupQuantize:
                             *idx[axis + 1 :],
                         )
                     ),
-                    te.min_value(self.model_dtype),
+                    te.min_value(ty=self.model_dtype),
                 ),
                 axis=r,
             ),
@@ -409,17 +411,17 @@ class GroupQuantizeLinear(nn.Module):
                 out_shape=(
                     [
                         (
-                            tirx.IntImm("int64", self.out_features)
+                            ir.IntImm("int64", self.out_features)
                             if isinstance(self.out_features, int)
                             else weight.shape[0]
                         ),  # Reuse same tirx.Var for symbolic shape (after Exporter)
-                        tirx.IntImm("int64", self.in_features),
+                        ir.IntImm("int64", self.in_features),
                     ]
                     if self.config.linear_weight_layout == "NK"
                     else [
-                        tirx.IntImm("int64", self.in_features),
+                        ir.IntImm("int64", self.in_features),
                         (
-                            tirx.IntImm("int64", self.out_features)
+                            ir.IntImm("int64", self.out_features)
                             if isinstance(self.out_features, int)
                             else weight.shape[1]
                         ),  # Reuse same tirx.Var for symbolic shape (after Exporter)
@@ -504,11 +506,11 @@ class GroupQuantizeEmbedding(nn.Module):
                 axis=-1,
                 out_shape=[
                     (
-                        tirx.IntImm("int64", self.num)
+                        ir.IntImm("int64", self.num)
                         if isinstance(self.num, int)
                         else weight.shape[0]
                     ),  # Reuse same tirx.Var for symbolic shape (after Exporter)
-                    tirx.IntImm("int64", self.dim),
+                    ir.IntImm("int64", self.dim),
                 ],
             ),
             name_hint="dequantize",
@@ -542,11 +544,11 @@ class GroupQuantizeEmbedding(nn.Module):
                 axis=-1,
                 out_shape=[
                     (
-                        tirx.IntImm("int64", self.num)
+                        ir.IntImm("int64", self.num)
                         if isinstance(self.num, int)
                         else weight.shape[0]
                     ),
-                    tirx.IntImm("int64", self.dim),
+                    ir.IntImm("int64", self.dim),
                 ],
             ),
             name_hint="dequantize",

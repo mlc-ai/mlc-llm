@@ -7,10 +7,11 @@ import os
 from typing import List, Literal, Optional, Tuple, Union  # noqa: UP035
 
 import numpy as np
-import tvm
+import tvm_ffi
+import tvm_tirx
 from tvm import relax
-from tvm.runtime import Device
 from tvm_ffi import Shape
+from tvm_tirx.runtime import Device
 
 from mlc_llm.serve import engine_utils
 from mlc_llm.support.auto_device import detect_device
@@ -55,7 +56,7 @@ class AsyncEmbeddingEngine:
         self.tokenizer = Tokenizer(model)
 
         # Load TVM module, metadata, and params via engine_utils helpers
-        ex = tvm.runtime.load_module(model_lib)
+        ex = tvm_ffi.load_module(model_lib)
         vm = relax.VirtualMachine(ex, device=self.device)
         self._mod = vm.module
         self._metadata = json.loads(self._mod["_metadata"]())
@@ -156,11 +157,13 @@ class AsyncEmbeddingEngine:
             self._create_kv_cache_func = self._mod["create_flashinfer_paged_kv_cache"]
         else:
             raise RuntimeError("Cannot find KV cache creation function in model library.")
-        self._kv_state_add_sequence = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
-        self._kv_state_remove_sequence = tvm.get_global_func("vm.builtin.kv_state_remove_sequence")
-        self._kv_state_begin_forward = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
-        self._kv_state_end_forward = tvm.get_global_func("vm.builtin.kv_state_end_forward")
-        self._nd_reshape = tvm.get_global_func("vm.builtin.reshape")
+        self._kv_state_add_sequence = tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")
+        self._kv_state_remove_sequence = tvm_ffi.get_global_func(
+            "vm.builtin.kv_state_remove_sequence"
+        )
+        self._kv_state_begin_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
+        self._kv_state_end_forward = tvm_ffi.get_global_func("vm.builtin.kv_state_end_forward")
+        self._nd_reshape = tvm_ffi.get_global_func("vm.builtin.reshape")
 
     def embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:  # noqa: UP006
         """Compute embeddings for a list of input strings (synchronous).
@@ -248,8 +251,8 @@ class AsyncEmbeddingEngine:
             token_ids = np.array([tokens], dtype=np.int32)  # [1, seq_len]
             attention_mask: np.ndarray = np.ones((1, seq_len), dtype=np.int32)  # [1, seq_len]
 
-            tokens_tvm = tvm.runtime.tensor(token_ids, device=self.device)
-            mask_tvm = tvm.runtime.tensor(attention_mask, device=self.device)
+            tokens_tvm = tvm_tirx.runtime.tensor(token_ids, device=self.device)
+            mask_tvm = tvm_tirx.runtime.tensor(attention_mask, device=self.device)
 
             output = self._prefill_func(tokens_tvm, mask_tvm, self._params)
             # .numpy() copies to CPU, escaping TVM workspace buffer reuse across calls.
@@ -395,7 +398,9 @@ class AsyncEmbeddingEngine:
         all_tokens = []
         for tokens in token_lists:
             all_tokens.extend(tokens)
-        token_ids = tvm.runtime.tensor(np.array(all_tokens, dtype=np.int32), device=self.device)
+        token_ids = tvm_tirx.runtime.tensor(
+            np.array(all_tokens, dtype=np.int32), device=self.device
+        )
         all_embed = self._embed_func(token_ids, self._params)
         all_embed = self._nd_reshape(all_embed, Shape([1, total_tokens, all_embed.shape[-1]]))
 
@@ -454,7 +459,7 @@ class AsyncEmbeddingEngine:
                 chunk_tokens = tokens[chunk_start:chunk_end]
                 chunk_len = len(chunk_tokens)
 
-                token_ids = tvm.runtime.tensor(
+                token_ids = tvm_tirx.runtime.tensor(
                     np.array(chunk_tokens, dtype=np.int32), device=self.device
                 )
                 chunk_embed = self._embed_func(token_ids, self._params)

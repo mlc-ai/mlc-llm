@@ -9,7 +9,7 @@ from typing import Literal, Optional, Union
 
 import psutil
 import requests
-from tvm.runtime import Device
+from tvm_tirx.runtime import Device
 
 from mlc_llm.serve.config import EngineConfig
 from mlc_llm.serve.engine_base import _check_engine_config

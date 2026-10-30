@@ -3,12 +3,12 @@
 from collections.abc import Sequence
 from typing import Union
 
-import tvm
+import tvm_tirx
 from tvm import relax as rx
-from tvm import tirx
 from tvm.relax.frontend.nn import Object, Tensor
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 
 class RNNState(Object):
@@ -19,7 +19,7 @@ class RNNState(Object):
         max_batch_size: tirx.Var,
         num_hidden_layers: int,
         max_history: int,
-        init_values: Sequence[tvm.ir.DataTypeImm],
+        init_values: Sequence[tvm_tirx.ir.DataTypeImm],
         name: str = "rnn_state",
     ) -> "RNNState":
         """Create a RNN state object.
@@ -32,7 +32,7 @@ class RNNState(Object):
             The number of hidden layers.
         max_history : int
             The maximum history length.
-        init_values : Sequence[tvm.ir.DataTypeImm]
+        init_values : Sequence[tvm_tirx.ir.DataTypeImm]
             The initial values of the RNN state. Must be compile-time Relax constants
             (e.g. R.const(np.zeros(...))).
         """
@@ -109,7 +109,7 @@ class RNNState(Object):
                 rx.call_dps_packed(
                     "vm.builtin.rnn_state_get",
                     [self._expr, layer_id, state_id],
-                    out_ty=rx.TensorType(shape, dtype),
+                    ty_args=[rx.TensorType(shape, dtype)],
                 )
             )
         )
@@ -148,7 +148,7 @@ class RNNState(Object):
         max_batch_size: Union[int, tirx.Var],
         max_history: Union[int, tirx.Var],
         state_id: int,
-    ) -> tirx.PrimFunc:
+    ) -> tirx.Function:
         """Create the get function with given state shape.
 
         Parameters
@@ -170,14 +170,14 @@ class RNNState(Object):
 
         Returns
         -------
-        tirx.PrimFunc
+        tirx.Function
             The get function.
         """
 
         def _func_one_dim():
             batch_size = T.dynamic("batch_size", "int32")
 
-            @Ts.prim_func
+            @Ts.function
             def f(
                 storage: T.Tensor((max_batch_size, max_history, shape[0]), dtype),
                 seq_slot_ids: T.Tensor((batch_size,), "int32"),
@@ -200,7 +200,7 @@ class RNNState(Object):
             # Add a wrapper function to avoid parse the following code when len(shape) = 1
             batch_size = T.dynamic("batch_size", "int32")
 
-            @Ts.prim_func
+            @Ts.function
             def f(
                 storage: T.Tensor((max_batch_size, max_history, *shape), dtype),
                 seq_slot_ids: T.Tensor((batch_size,), "int32"),
@@ -215,14 +215,7 @@ class RNNState(Object):
                             vi, *vs = Ts.axis.remap("S" * (len(shape) + 1), [i, *s])
                             seq_id = T.meta_var(seq_slot_ids[vi])
                             history_id = T.meta_var(history_slot_ids[vi])
-                            # The following line is equivalent to:
-                            # `output[vi, *vs] = storage[seq_id, history_id, *vs]`
-                            # However, unpacking operator in subscript requires Python 3.11 or newer
-                            T.buffer_store(
-                                output,
-                                T.BufferLoad(storage, [seq_id, history_id, *vs]),
-                                [vi, *vs],
-                            )
+                            output[(vi, *vs)] = storage[(seq_id, history_id, *vs)]
 
             return f
 
@@ -235,7 +228,7 @@ class RNNState(Object):
         max_batch_size: Union[int, tirx.Var],
         max_history: Union[int, tirx.Var],
         state_id: int,
-    ) -> tirx.PrimFunc:
+    ) -> tirx.Function:
         """Create the set function with given state shape.
 
         Parameters
@@ -257,14 +250,14 @@ class RNNState(Object):
 
         Returns
         -------
-        tirx.PrimFunc
+        tirx.Function
             The set function.
         """
 
         def _func_one_dim():
             batch_size = T.dynamic("batch_size", "int32")
 
-            @Ts.prim_func
+            @Ts.function
             def f(
                 storage: T.Tensor((max_batch_size, max_history, shape[0]), dtype),
                 seq_slot_ids: T.Tensor((batch_size,), "int32"),
@@ -288,7 +281,7 @@ class RNNState(Object):
         def _func_high_dim():
             batch_size = T.dynamic("batch_size", "int32")
 
-            @Ts.prim_func
+            @Ts.function
             def f(
                 storage: T.Tensor((max_batch_size, max_history, *shape), dtype),
                 seq_slot_ids: T.Tensor((batch_size,), "int32"),
@@ -305,14 +298,7 @@ class RNNState(Object):
                             history_id = T.meta_var(
                                 (history_slot_ids[vi] + 1) % T.cast(max_history, "int32")
                             )
-                            # The following line is equivalent to:
-                            # `storage[seq_id, history_id, *vs] = data[vi, *vs]`
-                            # However, unpacking operator in subscript requires Python 3.11 or newer
-                            T.buffer_store(
-                                storage,
-                                T.BufferLoad(data, [vi, *vs]),
-                                [seq_id, history_id, *vs],
-                            )
+                            storage[(seq_id, history_id, *vs)] = data[(vi, *vs)]
 
             return f
 

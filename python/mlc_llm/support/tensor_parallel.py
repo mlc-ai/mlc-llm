@@ -4,8 +4,9 @@ import dataclasses
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional  # noqa: UP035
 
-from tvm import te, tirx, topi
+from tvm import te, topi
 from tvm.relax.frontend import nn
+from tvm_tirx import ir, tirx
 
 
 @dataclasses.dataclass
@@ -33,16 +34,16 @@ class ShardSingleDim:
     dim: int
     segs: Optional[List[int]] = None  # noqa: UP006
 
-    def gen_tir(self, shards: int, weight: nn.Tensor) -> tirx.PrimFunc:
+    def gen_tir(self, shards: int, weight: nn.Tensor) -> tirx.Function:
         """Generate a TIR function that shards the weight tensor by its rows."""
         shape = weight.shape
         segs = self.segs or [shape[self.dim]]
         assert sum(segs) == shape[self.dim]
         # NOTE: we use int64 to prevent int32 overflow
-        shape = [tirx.IntImm("int64", v) for v in shape]
-        segs = [tirx.IntImm("int64", v) for v in segs]
+        shape = [ir.IntImm("int64", v) for v in shape]
+        segs = [ir.IntImm("int64", v) for v in segs]
         w = te.placeholder(
-            [tirx.IntImm("int64", v) for v in self._compute_in_shape(shards, weight)],
+            [ir.IntImm("int64", v) for v in self._compute_in_shape(shards, weight)],
             weight.dtype,
             name="w",
         )
@@ -69,7 +70,7 @@ class ShardSingleDim:
                         ),
                         (
                             *shape[: self.dim],
-                            tirx.IntImm("int64", shards),
+                            ir.IntImm("int64", shards),
                             sub_seg,
                             *shape[self.dim + 1 :],
                         ),
@@ -79,7 +80,7 @@ class ShardSingleDim:
             )
             offset += sub_seg * shards
         o = topi.concatenate(ws, axis=1 + self.dim)
-        func = te.create_prim_func([w, o])
+        func = te.create_function([w, o])
         return func
 
     def gen_shard_info(self, shards: int, weight: nn.Tensor) -> Dict[str, Any]:  # noqa: UP006

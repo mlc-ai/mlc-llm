@@ -5,9 +5,10 @@ from __future__ import annotations
 import math
 from typing import Dict, Tuple  # noqa: UP035
 
-from tvm import te, tirx
+from tvm import te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm_tirx import tirx
 
 from mlc_llm import op as op_ext
 from mlc_llm.model.gemma.gemma_model import GemmaEmbedding
@@ -601,7 +602,6 @@ def gemma4_artifact_programs(_config: Gemma4Config):
 GEMMA4_ARTIFACT = ArtifactDefinition(
     tasks=gemma4_artifact_tasks,
     programs=gemma4_artifact_programs,
-    required_features=("shader-f16",),
 )
 
 

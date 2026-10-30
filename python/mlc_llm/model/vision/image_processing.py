@@ -2,14 +2,15 @@
 Implements the CLIP Image processor.
 """
 
-from tvm import s_tir, tirx
+from tvm import s_tir
 from tvm.relax.frontend.nn import Module, Tensor, op
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 
 def _var(dtype, size=1):
-    return Ts.sblock_alloc_buffer((size,), dtype, scope="local")
+    return Ts.sblock_alloc_tensor((size,), dtype, scope="local")
 
 
 class ImageProcessor(Module):
@@ -41,13 +42,13 @@ class ImageProcessor(Module):
                 long = tirx.Select(w > h, w, h)
                 requested_new_short = params["shortest_edge"]
                 new_short, new_long = (
-                    tirx.Cast("int64", requested_new_short),
+                    tirx.Cast(ty="int64", value=requested_new_short),
                     tirx.Cast(
-                        "int64",
-                        requested_new_short
+                        ty="int64",
+                        value=requested_new_short
                         * tirx.div(
-                            tirx.Cast("float32", long),
-                            tirx.Cast("float32", short),
+                            tirx.Cast(ty="float32", value=long),
+                            tirx.Cast(ty="float32", value=short),
                         ),
                     ),
                 )
@@ -59,27 +60,27 @@ class ImageProcessor(Module):
                 pad_num = 336 if "pad_num" not in params else params["pad_num"]
                 ratio = tirx.Select(
                     w > h,
-                    tirx.div(tirx.Cast("float32", w), tirx.Cast("float32", h)),
-                    tirx.div(tirx.Cast("float32", h), tirx.Cast("float32", w)),
+                    tirx.div(tirx.Cast(ty="float32", value=w), tirx.Cast(ty="float32", value=h)),
+                    tirx.div(tirx.Cast(ty="float32", value=h), tirx.Cast(ty="float32", value=w)),
                 )
 
-                scale = tirx.ceil(tirx.sqrt(tirx.Cast("float32", hd_num) * ratio))
+                scale = tirx.ceil(tirx.sqrt(tirx.Cast(ty="float32", value=hd_num) * ratio))
 
                 scale = tirx.Select(
                     (scale * tirx.ceil(tirx.div(scale, ratio))) > hd_num,
                     scale - 1,
                     scale,
                 )
-                scale = tirx.Cast("int64", scale)
+                scale = tirx.Cast(ty="int64", value=scale)
 
                 new_w = tirx.Select(
                     w >= h,
                     scale * pad_num,
-                    tirx.Cast("int64", tirx.div(scale * pad_num, ratio)),
+                    tirx.Cast(ty="int64", value=tirx.div(scale * pad_num, ratio)),
                 )
                 new_h = tirx.Select(
                     w >= h,
-                    tirx.Cast("int64", tirx.div(new_w, ratio)),
+                    tirx.Cast(ty="int64", value=tirx.div(new_w, ratio)),
                     scale * pad_num,
                 )
                 return (new_h, new_w)
@@ -104,7 +105,7 @@ class ImageProcessor(Module):
             left = T.dynamic("left", "int64")
             right = T.dynamic("right", "int64")
 
-            @Ts.prim_func
+            @Ts.function
             def crop_func(
                 image_buf: T.Tensor((n, c, h, w), dtype),
                 top: T.int64(),
@@ -116,8 +117,8 @@ class ImageProcessor(Module):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 out_h = bottom - top
                 out_w = right - left
-                for n_idx in T.thread_binding(n, thread="blockIdx.x"):
-                    for c_idx in T.thread_binding(c, thread="blockIdx.y"):
+                for n_idx in T.parallel(n, annotations={"thread_binding": "blockIdx.x"}):
+                    for c_idx in T.parallel(c, annotations={"thread_binding": "blockIdx.y"}):
                         for h_idx, w_idx in T.grid(out_h, out_w):
                             with Ts.sblock("crop"):
                                 Ts.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
@@ -159,15 +160,15 @@ class ImageProcessor(Module):
             h = T.dynamic("h", "int64")
             w = T.dynamic("w", "int64")
 
-            @Ts.prim_func
+            @Ts.function
             def rescale_func(
                 image_buf: T.Tensor((n, c, h, w), dtype),
                 out_buf: T.Tensor((n, c, h, w), o_dtype),
             ):
                 T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
 
-                for n_idx in T.thread_binding(n, thread="blockIdx.x"):
-                    for c_idx in T.thread_binding(c, thread="blockIdx.y"):
+                for n_idx in T.parallel(n, annotations={"thread_binding": "blockIdx.x"}):
+                    for c_idx in T.parallel(c, annotations={"thread_binding": "blockIdx.y"}):
                         for h_idx, w_idx in T.grid(h, w):
                             with Ts.sblock("rescale"):
                                 Ts.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
@@ -203,7 +204,7 @@ class ImageProcessor(Module):
             h = T.dynamic("h", "int64")
             w = T.dynamic("w", "int64")
 
-            @Ts.prim_func
+            @Ts.function
             def normalize_func(
                 image_buf: T.Tensor((n, c, h, w), dtype),
                 out_buf: T.Tensor((n, c, h, w), o_dtype),
@@ -211,8 +212,8 @@ class ImageProcessor(Module):
                 mean = _var(o_dtype, 3)
                 stddev = _var(o_dtype, 3)
 
-                for n_idx in T.thread_binding(n, thread="blockIdx.x"):
-                    for c_idx in T.thread_binding(c, thread="blockIdx.y"):
+                for n_idx in T.parallel(n, annotations={"thread_binding": "blockIdx.x"}):
+                    for c_idx in T.parallel(c, annotations={"thread_binding": "blockIdx.y"}):
                         for h_idx, w_idx in T.grid(h, w):
                             with Ts.sblock("normalize"):
                                 Ts.reads(
@@ -280,7 +281,7 @@ class ImageProcessor(Module):
             t = T.dynamic("t", "int64")
             b = T.dynamic("b", "int64")
 
-            @Ts.prim_func
+            @Ts.function
             def pad_func(
                 image_buf: T.Tensor((n, c, h, w), dtype),
                 t: T.int64(),
@@ -291,8 +292,8 @@ class ImageProcessor(Module):
                 out_h = h + t + b
                 out_w = w + left + right
 
-                for n_idx in T.thread_binding(n, thread="blockIdx.x"):
-                    for c_idx in T.thread_binding(c, thread="blockIdx.y"):
+                for n_idx in T.parallel(n, annotations={"thread_binding": "blockIdx.x"}):
+                    for c_idx in T.parallel(c, annotations={"thread_binding": "blockIdx.y"}):
                         for h_idx, w_idx in T.grid(out_h, out_w):
                             with Ts.sblock("pad"):
                                 Ts.reads(image_buf[n_idx, c_idx, h_idx, w_idx])

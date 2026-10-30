@@ -1,7 +1,7 @@
-import tvm
-from tvm.ir import assert_structural_equal
-from tvm.script import ir as I
-from tvm.script import relax as R
+import tvm_tirx
+from tvm.relax import script as R
+from tvm_tirx.ir import assert_structural_equal
+from tvm_tirx.script import ir as I
 
 from mlc_llm.compiler_pass.fuse_ft_dequantize_matmul_epilogue import (
     FuseFTDequantizeEpilogue,
@@ -31,7 +31,7 @@ def test_fuse_bias():
                         R.prim_value(4096),
                         R.prim_value(4096),
                     ),
-                    out_sinfo=R.Tensor((1, 1, 1024), "float16"),
+                    ty_args=[R.Tensor((1, 1, 1024), "float16")],
                 )
                 lv2 = R.add(lv1, bias)
                 R.output(lv2)
@@ -61,12 +61,12 @@ def test_fuse_bias():
                         R.prim_value(4096),
                         R.prim_value(0),
                     ),
-                    out_sinfo=R.Tensor((1, 1, 1024), "float16"),
+                    ty_args=[R.Tensor((1, 1, 1024), "float16")],
                 )
                 R.output(lv2)
             return lv2
 
-    seq = tvm.transform.Sequential([FuseFTDequantizeEpilogue()])
+    seq = tvm_tirx.transform.Sequential([FuseFTDequantizeEpilogue()])
     mod = seq(Before)
     assert_structural_equal(mod, After)
 
@@ -93,7 +93,7 @@ def test_fuse_activation():
                         R.prim_value(4096),
                         R.prim_value(4096),
                     ),
-                    out_sinfo=R.Tensor((1, 1, 1024), "float16"),
+                    ty_args=[R.Tensor((1, 1, 1024), "float16")],
                 )
                 lv2 = R.nn.silu(lv1)
                 R.output(lv2)
@@ -120,12 +120,12 @@ def test_fuse_activation():
                         R.prim_value(4096),
                         R.prim_value(4096),
                     ),
-                    out_sinfo=R.Tensor((1, 1, 1024), "float16"),
+                    ty_args=[R.Tensor((1, 1, 1024), "float16")],
                 )
                 R.output(lv2)
             return lv2
 
-    seq = tvm.transform.Sequential([FuseFTDequantizeEpilogue()])
+    seq = tvm_tirx.transform.Sequential([FuseFTDequantizeEpilogue()])
     mod = seq(Before)
     assert_structural_equal(mod, After)
 
@@ -153,7 +153,7 @@ def test_fuse_bias_activation():
                         R.prim_value(4096),
                         R.prim_value(4096),
                     ),
-                    out_sinfo=R.Tensor((1, 1, 1024), "float16"),
+                    ty_args=[R.Tensor((1, 1, 1024), "float16")],
                 )
                 lv2 = R.add(lv1, bias)
                 lv3 = R.nn.relu(lv2)
@@ -184,12 +184,12 @@ def test_fuse_bias_activation():
                         R.prim_value(4096),
                         R.prim_value(0),
                     ),
-                    out_sinfo=R.Tensor((1, 1, 1024), "float16"),
+                    ty_args=[R.Tensor((1, 1, 1024), "float16")],
                 )
                 R.output(lv2)
             return lv2
 
-    seq = tvm.transform.Sequential([FuseFTDequantizeEpilogue()])
+    seq = tvm_tirx.transform.Sequential([FuseFTDequantizeEpilogue()])
     mod = seq(Before)
     assert_structural_equal(mod, After)
 
@@ -218,7 +218,7 @@ def test_fuse_residual_binary():
                         R.prim_value(4096),
                         R.prim_value(4096),
                     ),
-                    out_sinfo=R.Tensor((1, 1, 1024), "float16"),
+                    ty_args=[R.Tensor((1, 1, 1024), "float16")],
                 )
                 lv2 = R.add(lv1, bias)
                 lv3 = R.nn.relu(lv2)
@@ -253,12 +253,12 @@ def test_fuse_residual_binary():
                         R.prim_value(4096),
                         R.prim_value(4096),
                     ),
-                    out_sinfo=R.Tensor((1, 1, 1024), "float16"),
+                    ty_args=[R.Tensor((1, 1, 1024), "float16")],
                 )
                 R.output(lv2)
             return lv2
 
-    seq = tvm.transform.Sequential([FuseFTDequantizeEpilogue()])
+    seq = tvm_tirx.transform.Sequential([FuseFTDequantizeEpilogue()])
     mod = seq(Before)
     assert_structural_equal(mod, After)
 
@@ -287,7 +287,7 @@ def test_fuse_residual_unary():
                         R.prim_value(4096),
                         R.prim_value(4096),
                     ),
-                    out_sinfo=R.Tensor((1, 1, 1024), "float16"),
+                    ty_args=[R.Tensor((1, 1, 1024), "float16")],
                 )
                 lv2 = R.add(lv1, bias)
                 lv3 = R.nn.relu(lv2)
@@ -323,12 +323,12 @@ def test_fuse_residual_unary():
                         R.prim_value(4096),
                         R.prim_value(4096),
                     ),
-                    out_sinfo=R.Tensor((1, 1, 1024), "float16"),
+                    ty_args=[R.Tensor((1, 1, 1024), "float16")],
                 )
                 R.output(lv2)
             return lv2
 
-    seq = tvm.transform.Sequential([FuseFTDequantizeEpilogue()])
+    seq = tvm_tirx.transform.Sequential([FuseFTDequantizeEpilogue()])
     mod = seq(Before)
     assert_structural_equal(mod, After)
 

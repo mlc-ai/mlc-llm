@@ -5,11 +5,12 @@ from typing import Any, Dict, Optional, Tuple  # noqa: UP035
 
 import numpy as np
 from tvm import relax as R
-from tvm import te, tirx
+from tvm import te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Object, Tensor, op
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 from mlc_llm.nn.rnn_state import RNNState
 from mlc_llm.support import logging
@@ -72,7 +73,7 @@ def create_wkv6_func(
     batch_size = T.dynamic("batch_size", "int64")
     seq_len = T.dynamic("seq_len", "int64")
 
-    @Ts.prim_func
+    @Ts.function
     def wkv_func(
         # Inputs
         r_buf: T.Tensor((batch_size, seq_len, num_heads, head_size), dtype),
@@ -86,9 +87,9 @@ def create_wkv6_func(
         out_state_buf: T.Tensor((batch_size, num_heads, head_size, head_size), state_dtype),
     ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
-        for b in T.thread_binding(batch_size, thread="blockIdx.y"):
-            for h in T.thread_binding(num_heads, thread="blockIdx.x"):
-                for i in T.thread_binding(head_size, thread="threadIdx.x"):
+        for b in T.parallel(batch_size, annotations={"thread_binding": "blockIdx.y"}):
+            for h in T.parallel(num_heads, annotations={"thread_binding": "blockIdx.x"}):
+                for i in T.parallel(head_size, annotations={"thread_binding": "threadIdx.x"}):
                     for j in range(head_size):
                         with Ts.sblock("init_state"):
                             vb, vh, vi, vj = Ts.axis.remap("SSSS", [b, h, i, j])

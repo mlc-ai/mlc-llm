@@ -4,9 +4,12 @@ import os
 from pathlib import Path
 from typing import Dict, List, Set, Tuple  # noqa: UP035
 
-import tvm
-from tvm import rpc, runtime
+import tvm_ffi
+import tvm_tirx
+from tvm import rpc
 from tvm.relax.testing.lib_comparator import LibCompareVMInstrument
+from tvm.runtime import time_evaluator
+from tvm_tirx import runtime
 
 from mlc_llm.interface.help import HELP
 from mlc_llm.support.argparse import ArgumentParser
@@ -47,7 +50,7 @@ class LibCompare(LibCompareVMInstrument):
 
     Parameters
     ----------
-    mod: runtime.Module
+    mod: tvm_ffi.Module
         The module of interest to be validated.
 
     device: runtime.Device
@@ -65,7 +68,7 @@ class LibCompare(LibCompareVMInstrument):
 
     def __init__(
         self,
-        mod: runtime.Module,
+        mod: tvm_ffi.Module,
         device: runtime.Device,
         debug_out: Path,
         time_eval: bool = True,
@@ -124,14 +127,15 @@ class LibCompare(LibCompareVMInstrument):
     def compare(
         self,
         name: str,
-        ref_args: List[tvm.runtime.Tensor],  # noqa: UP006
-        new_args: List[tvm.runtime.Tensor],  # noqa: UP006
+        ref_args: List[tvm_tirx.runtime.Tensor],  # noqa: UP006
+        new_args: List[tvm_tirx.runtime.Tensor],  # noqa: UP006
         ret_indices: List[int],  # noqa: UP006
     ):
         super().compare(name, ref_args, new_args, ret_indices)
 
         if self.time_eval and name not in self.time_eval_results:
-            res = self.mod.time_evaluator(
+            res = time_evaluator(
+                self.mod,
                 name,
                 self.device,
                 number=20,
@@ -168,8 +172,8 @@ def get_instrument(args):
         lib = sess.load_module(os.path.basename(args.cmp_lib_path))
         cmp_device = sess.cl(0)
     else:
-        lib = tvm.runtime.load_module(args.cmp_lib_path)
-        cmp_device = tvm.device(args.cmp_device)
+        lib = tvm_ffi.load_module(args.cmp_lib_path)
+        cmp_device = tvm_ffi.device(args.cmp_device)
 
     return LibCompare(
         lib,

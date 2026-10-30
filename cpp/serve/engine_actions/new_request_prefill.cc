@@ -3,16 +3,13 @@
  * \file serve/engine_actions/new_request_prefill.cc
  */
 
-#include <tvm/support/cuda/nvtx.h>
-
+#include "../../support/nvtx.h"
 #include "../sampler/sampler.h"
 #include "batch_prefill_base.h"
 
 namespace mlc {
 namespace llm {
 namespace serve {
-
-using tvm::support::NVTXScopedRange;
 
 /*!
  * \brief The action that prefills requests in the `waiting_queue` of
@@ -144,9 +141,9 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       Tensor logits = models_[model_id]->BatchPrefill(embeddings, request_internal_ids,
                                                       prefill_lengths, token_ids, modality_ids);
       RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
-      TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-      TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
-      TVM_FFI_ICHECK_EQ(logits->shape[1], num_rsentries);
+      TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+      TVM_FFI_ICHECK_EQ(logits.shape()[0], 1);
+      TVM_FFI_ICHECK_EQ(logits.shape()[1], num_rsentries);
 
       if (model_id == 0) {
         // We only need to sample for model 0 in prefill.
@@ -164,8 +161,9 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       generation_cfg.push_back(prefill_inputs[i].rsentry->request->generation_cfg);
       mstates_for_logitproc.push_back(prefill_inputs[i].rsentry->mstates[0]);
     }
-    logits_for_sample = logits_for_sample.CreateView({num_rsentries, logits_for_sample->shape[2]},
-                                                     logits_for_sample->dtype);
+    logits_for_sample =
+        tvm::runtime::CreateView(logits_for_sample, {num_rsentries, logits_for_sample.shape()[2]},
+                                 logits_for_sample.dtype());
     logit_processor_->InplaceUpdateLogits(logits_for_sample, generation_cfg, mstates_for_logitproc,
                                           request_ids);
 

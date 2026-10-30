@@ -28,6 +28,7 @@ using tvm::ffi::ObjectPtr;
 using tvm::ffi::ObjectRef;
 using tvm::ffi::Optional;
 using tvm::ffi::Shape;
+using tvm::ffi::Tensor;
 
 class Model;
 

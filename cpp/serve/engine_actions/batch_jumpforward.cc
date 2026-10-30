@@ -3,11 +3,10 @@
  * \file serve/engine_actions/batch_verify.cc
  */
 
-#include <tvm/support/cuda/nvtx.h>
-
 #include <cmath>
 #include <exception>
 
+#include "../../support/nvtx.h"
 #include "../config.h"
 #include "../model.h"
 #include "../sampler/sampler.h"
@@ -17,8 +16,6 @@
 namespace mlc {
 namespace llm {
 namespace serve {
-
-using tvm::support::NVTXScopedRange;
 
 /*!
  * \brief The action that runs verification for requests in the

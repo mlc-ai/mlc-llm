@@ -1,9 +1,9 @@
 """The pass that attaches logit processor functions to the IRModule."""
 
-import tvm
-from tvm import IRModule
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm.s_tir import script as Ts
+from tvm_tirx import IRModule
+from tvm_tirx.script import tirx as T
 
 from ..support.max_thread_check import (
     check_thread_limits,
@@ -11,21 +11,21 @@ from ..support.max_thread_check import (
 )
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachLogitProcessFunc")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachLogitProcessFunc")
 class AttachLogitProcessFunc:
     """Attach logit processing TIR functions to IRModule."""
 
-    def __init__(self, target: tvm.target.Target):
+    def __init__(self, target: tvm_tirx.target.Target):
         """Initializer.
 
         Parameters
         ----------
-        target : tvm.target.Target
+        target : tvm_tirx.target.Target
             The target of the model compilation.
         """
         self.target = target
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         mod = mod.clone()
         if self.target.kind.name == "llvm":
@@ -44,7 +44,7 @@ def _get_apply_logit_bias_inplace_cpu():
     vocab_size = T.dynamic("vocab_size", "int32")
     num_token = T.dynamic("num_token", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_logit_bias_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         # seq_ids
@@ -66,7 +66,7 @@ def _get_apply_logit_bias_inplace_cpu():
     return _apply_logit_bias_inplace
 
 
-def _get_apply_logit_bias_inplace(target: tvm.target.Target):
+def _get_apply_logit_bias_inplace(target: tvm_tirx.target.Target):
     tx = 1024  # default
     max_num_threads_per_block = get_max_num_threads_per_block(target)
     tx = min(tx, max_num_threads_per_block)
@@ -76,7 +76,7 @@ def _get_apply_logit_bias_inplace(target: tvm.target.Target):
     vocab_size = T.dynamic("vocab_size", "int32")
     num_token = T.dynamic("num_token", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_logit_bias_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         # seq_ids
@@ -92,8 +92,10 @@ def _get_apply_logit_bias_inplace(target: tvm.target.Target):
                 "tirx.is_scheduled": True,
             }
         )
-        for p0 in T.thread_binding(0, (num_token + tx - 1) // tx, "blockIdx.x"):
-            for p1 in T.thread_binding(0, tx, "threadIdx.x"):
+        for p0 in T.parallel(
+            0, (num_token + tx - 1) // tx, annotations={"thread_binding": "blockIdx.x"}
+        ):
+            for p1 in T.parallel(0, tx, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("block"):
                     vp = Ts.axis.spatial(num_token, p0 * tx + p1)
                     Ts.where(p0 * tx + p1 < num_token)
@@ -108,7 +110,7 @@ def _get_apply_penalty_inplace_cpu():
     num_token = T.dynamic("num_token", "int32")
     num_seq = T.dynamic("num_seq", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_penalty_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         seq_ids: T.Tensor((num_seq,), "int32"),
@@ -140,7 +142,7 @@ def _get_apply_penalty_inplace_cpu():
     return _apply_penalty_inplace
 
 
-def _get_apply_penalty_inplace(target: tvm.target.Target):
+def _get_apply_penalty_inplace(target: tvm_tirx.target.Target):
     tx = 1024  # default
     max_num_threads_per_block = get_max_num_threads_per_block(target)
     tx = min(tx, max_num_threads_per_block)
@@ -151,7 +153,7 @@ def _get_apply_penalty_inplace(target: tvm.target.Target):
     num_token = T.dynamic("num_token", "int32")
     num_seq = T.dynamic("num_seq", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_penalty_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         seq_ids: T.Tensor((num_seq,), "int32"),
@@ -168,8 +170,10 @@ def _get_apply_penalty_inplace(target: tvm.target.Target):
                 "tirx.is_scheduled": True,
             }
         )
-        for p0 in T.thread_binding(0, (num_token + tx - 1) // tx, "blockIdx.x"):
-            for p1 in T.thread_binding(0, tx, "threadIdx.x"):
+        for p0 in T.parallel(
+            0, (num_token + tx - 1) // tx, annotations={"thread_binding": "blockIdx.x"}
+        ):
+            for p1 in T.parallel(0, tx, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("block"):
                     vp = Ts.axis.spatial(num_token, p0 * tx + p1)
                     Ts.where(p0 * tx + p1 < num_token)
@@ -193,7 +197,7 @@ def _get_apply_bitmask_inplace_cpu():
     vocab_size = T.dynamic("vocab_size", "int32")
     num_seq = T.dynamic("num_seq", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_bitmask_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         seq_ids: T.Tensor((num_seq,), "int32"),
@@ -215,13 +219,13 @@ def _get_apply_bitmask_inplace_cpu():
                 logits[seq_ids[vs], vv] = T.if_then_else(
                     (bitmask[seq_ids[vs], vv // 32] >> (vv % 32)) & 1 == 1,
                     logits[seq_ids[vs], vv],
-                    T.min_value("float32"),
+                    T.min_value(ty="float32"),
                 )
 
     return _apply_bitmask_inplace
 
 
-def _get_apply_bitmask_inplace(target: tvm.target.Target):
+def _get_apply_bitmask_inplace(target: tvm_tirx.target.Target):
     tx = 1024  # default
     max_num_threads_per_block = get_max_num_threads_per_block(target)
     tx = min(tx, max_num_threads_per_block)
@@ -231,7 +235,7 @@ def _get_apply_bitmask_inplace(target: tvm.target.Target):
     vocab_size = T.dynamic("vocab_size", "int32")
     num_seq = T.dynamic("num_seq", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _apply_bitmask_inplace(
         logits: T.Tensor((batch_size, vocab_size), "float32"),
         seq_ids: T.Tensor((num_seq,), "int32"),
@@ -245,8 +249,10 @@ def _get_apply_bitmask_inplace(target: tvm.target.Target):
                 "tirx.is_scheduled": True,
             }
         )
-        for fused_s_v_0 in T.thread_binding(0, (num_seq * vocab_size + tx - 1) // tx, "blockIdx.x"):
-            for fused_s_v_1 in T.thread_binding(0, tx, "threadIdx.x"):
+        for fused_s_v_0 in T.parallel(
+            0, (num_seq * vocab_size + tx - 1) // tx, annotations={"thread_binding": "blockIdx.x"}
+        ):
+            for fused_s_v_1 in T.parallel(0, tx, annotations={"thread_binding": "threadIdx.x"}):
                 with Ts.sblock("block"):
                     vs = Ts.axis.spatial(num_seq, (fused_s_v_0 * tx + fused_s_v_1) // vocab_size)
                     vv = Ts.axis.spatial(vocab_size, (fused_s_v_0 * tx + fused_s_v_1) % vocab_size)
@@ -254,7 +260,7 @@ def _get_apply_bitmask_inplace(target: tvm.target.Target):
                     logits[seq_ids[vs], vv] = T.if_then_else(
                         (bitmask[seq_ids[vs], vv // 32] >> (vv % 32)) & 1 == 1,
                         logits[seq_ids[vs], vv],
-                        T.min_value("float32"),
+                        T.min_value(ty="float32"),
                     )
 
     return _apply_bitmask_inplace

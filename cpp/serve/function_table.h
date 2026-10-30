@@ -31,6 +31,7 @@ using tvm::ffi::Object;
 using tvm::ffi::ObjectRef;
 using tvm::ffi::Optional;
 using tvm::ffi::Shape;
+using tvm::ffi::Tensor;
 using tvm::ffi::TypedFunction;
 
 //--------------------------------------------------------
@@ -76,7 +77,7 @@ struct FunctionTable {
 
   bool use_disco = false;
   Device local_gpu_device;
-  Session sess{nullptr};
+  Optional<Session> sess;
   Optional<DRef> disco_mod = std::nullopt;
   Optional<Map<String, ObjectRef>> cached_buffers = std::nullopt;
   Optional<tvm::ffi::Module> local_vm = std::nullopt;

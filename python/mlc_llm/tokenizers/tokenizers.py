@@ -9,7 +9,7 @@ from dataclasses import asdict, dataclass
 from typing import List, Literal  # noqa: UP035
 
 import tvm_ffi
-from tvm.runtime import Object
+from tvm_ffi import Object
 
 from . import _ffi_api
 

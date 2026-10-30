@@ -1,13 +1,14 @@
 """The pass that attaches logit processor functions to the IRModule."""
 
-import tvm
-from tvm import IRModule, relax, tirx
+import tvm_tirx
+from tvm import relax
 from tvm.relax import BlockBuilder, TensorType
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.script import tirx as T
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachSpecDecodeAuxFuncs")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachSpecDecodeAuxFuncs")
 class AttachSpecDecodeAuxFuncs:
     """Attach logit processing TIR functions to IRModule."""
 
@@ -16,7 +17,7 @@ class AttachSpecDecodeAuxFuncs:
     def __init__(self, tensor_parallel_shards: int):
         self.tensor_parallel_shards = tensor_parallel_shards
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         mod = mod.clone()
         bb = BlockBuilder(mod)
@@ -41,7 +42,7 @@ def _get_scatter_2d_inplace(dtype: str, global_symbol: str):
     m = T.dynamic("m", "int32")
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _scatter_2d(
         src: T.Tensor((batch_size, n), dtype),
         indices: T.Tensor((batch_size,), "int32"),
@@ -61,7 +62,7 @@ def _get_gather_2d_inplace(dtype: str, global_symbol: str):
     m = T.dynamic("m", "int32")
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _gather_2d(
         src: T.Tensor((m, n), dtype),
         indices: T.Tensor((batch_size,), "int32"),
@@ -94,8 +95,8 @@ def _add_scatter_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dt
                         "_scatter_hidden_states",
                     ),
                     [src, indices, dst],
-                    2,
-                    dst.ty,
+                    inplace_indices=2,
+                    ty_args=[dst.ty],
                 )
             )
         gv = bb.emit_func_output(output)
@@ -120,8 +121,8 @@ def _add_gather_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dty
                         "_gather_hidden_states",
                     ),
                     [src, indices, dst],
-                    2,
-                    dst.ty,
+                    inplace_indices=2,
+                    ty_args=[dst.ty],
                 )
             )
         gv = bb.emit_func_output(output)

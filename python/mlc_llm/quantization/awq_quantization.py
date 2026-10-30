@@ -3,9 +3,11 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional  # noqa: UP035
 
-from tvm import DataType, DataTypeCode, te, tirx, topi
+from tvm import te, topi
 from tvm.relax.frontend import nn
-from tvm.runtime import Tensor
+from tvm_ffi import dtype as DataType
+from tvm_tirx import DataTypeCode, ir, tirx
+from tvm_tirx.runtime import Tensor
 
 from mlc_llm.loader import QuantizeMapping
 
@@ -255,8 +257,8 @@ class AWQQuantizeLinear(nn.Module):
                 zeros,
                 scale,
                 [
-                    tirx.IntImm("int64", self.out_features),
-                    tirx.IntImm("int64", self.in_features),
+                    ir.IntImm("int64", self.out_features),
+                    ir.IntImm("int64", self.in_features),
                 ],
             ),
             name_hint="dequantize",

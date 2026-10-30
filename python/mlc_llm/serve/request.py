@@ -3,7 +3,7 @@
 from typing import List  # noqa: UP035
 
 import tvm_ffi
-from tvm.runtime import Object
+from tvm_ffi import Object
 
 from mlc_llm.protocol.generation_config import GenerationConfig
 

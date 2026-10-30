@@ -24,7 +24,7 @@ It is also required to have the following method:
     def quantize_model(self, module: nn.Module) -> nn.Module:
         ...
 
-    def quantize_weight(self, weight: tvm.runtime.Tensor) -> List[tvm.runtime.Tensor]:
+    def quantize_weight(self, weight: tvm_tirx.runtime.Tensor) -> List[tvm_tirx.runtime.Tensor]:
         ...
 """
 

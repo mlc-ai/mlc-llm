@@ -1,24 +1,20 @@
 """A compiler pass that fuses dequantize + take."""
 
 import tvm
-from tvm import IRModule, relax, tirx
-from tvm.relax.dpl.pattern import (
-    GlobalVarPattern,
-    TuplePattern,
-    is_const,
-    is_op,
-    wildcard,
-)
+import tvm_tirx
+from tvm import relax
+from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_const, is_op, wildcard
+from tvm_tirx import IRModule, tirx
 
 
-@tvm.transform.module_pass(opt_level=0, name="FuseDequantizeTake")
+@tvm_tirx.transform.module_pass(opt_level=0, name="FuseDequantizeTake")
 class FuseDequantizeTake:
     """A compiler pass that fuses dequantize + take."""
 
     def transform_module(
         self,
         mod: IRModule,
-        _ctx: tvm.transform.PassContext,
+        _ctx: tvm_tirx.transform.PassContext,
     ) -> IRModule:
         """IRModule-level transformation"""
         seq = []
@@ -35,14 +31,13 @@ class FuseDequantizeTake:
                     )
                 )
         seq.append(relax.transform.FuseTIR())
-        mod = tvm.transform.Sequential(seq)(mod)
+        mod = tvm_tirx.transform.Sequential(seq)(mod)
         for g_var, func in mod.functions_items():
             name = g_var.name_hint
-            if isinstance(func, tirx.PrimFunc) and (
+            if isinstance(func, tirx.Function) and (
                 ("fused_dequantize" in name) and ("take" in name)
             ):
-                sch_mod = tvm.IRModule({"main": func})
-                sch_mod = tvm.s_tir.transform.ForceNarrowIndexToInt32()(sch_mod)
+                sch_mod = tvm_tirx.IRModule({"main": func})
                 sch = tvm.s_tir.Schedule(sch_mod)
                 sch.compute_inline("dequantize")
                 mod[g_var] = sch.mod["main"]

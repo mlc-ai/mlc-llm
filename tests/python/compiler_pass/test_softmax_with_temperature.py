@@ -1,18 +1,25 @@
 """The softmax_with_temperature reductions must use every thread of the workgroup."""
 
 import pytest
-import tvm
-from tvm.ir.module import IRModule
+import tvm_tirx
+from tvm import s_tir
+from tvm_tirx.ir.module import IRModule
 
-from mlc_llm.compiler_pass.attach_softmax_with_temperature import AttachSoftmaxWithTemperature
+from mlc_llm.compiler_pass.attach_softmax_with_temperature import (
+    AttachSoftmaxWithTemperature,
+)
 
 pytestmark = [pytest.mark.unittest]
 
 
-def _thread_tags(func: tvm.tirx.PrimFunc, block_name: str) -> list:
-    sch = tvm.s_tir.Schedule(func)
+def _thread_tags(func: tvm_tirx.tirx.Function, block_name: str) -> list:
+    sch = s_tir.Schedule(func)
     loops = [sch.get(loop) for loop in sch.get_loops(sch.get_sblock(block_name))]
-    tags = [loop.thread_binding.thread_tag for loop in loops if loop.thread_binding is not None]
+    tags = [
+        str(loop.annotations["thread_binding"])
+        for loop in loops
+        if "thread_binding" in loop.annotations
+    ]
     return [tag for tag in tags if tag.startswith("threadIdx")]
 
 
@@ -22,7 +29,7 @@ def test_softmax_reductions_bind_all_threads(block_name):
     chunks used to bind threadIdx.x only, so without subgroups the TY rows ran the same reduction
     tree on one shared buffer, a data race. Binding threadIdx.y as well removes it.
     """
-    target = tvm.target.Target("webgpu", host="llvm")
+    target = tvm_tirx.target.Target("webgpu", host="llvm")
     with target:
         mod = AttachSoftmaxWithTemperature(target)(IRModule())
     softmax = mod["softmax_with_chunked_sum"]

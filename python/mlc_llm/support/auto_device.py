@@ -5,9 +5,9 @@ import subprocess
 import sys
 from typing import Dict, Optional  # noqa: UP035
 
-import tvm
-from tvm.runtime import Device
+import tvm_ffi
 from tvm_ffi import DLDeviceType
+from tvm_tirx.runtime import Device
 
 from . import logging
 from .style import bold, green, red
@@ -26,7 +26,7 @@ def detect_device(device_hint: str) -> Optional[Device]:
     if device_hint == "auto":
         device = None
         for device_type in AUTO_DETECT_DEVICES:
-            cur_device = tvm.device(device_type=device_type, index=0)
+            cur_device = tvm_ffi.device(device_type=device_type, index=0)
             if _device_exists(cur_device):
                 if device is None:
                     device = cur_device
@@ -36,7 +36,7 @@ def detect_device(device_hint: str) -> Optional[Device]:
         logger.info("Using device: %s", bold(device2str(device)))
         return device
     try:
-        device = tvm.device(device_hint)
+        device = tvm_ffi.device(device_hint)
     except Exception as err:
         raise ValueError(f"Invalid device name: {device_hint}") from err
     if not _device_exists(device):
@@ -46,11 +46,11 @@ def detect_device(device_hint: str) -> Optional[Device]:
 
 def device2str(device: Device) -> str:
     """Convert a TVM device object to string."""
-    return f"{tvm.runtime.Device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]}:{device.index}"
+    return f"{Device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]}:{device.index}"
 
 
 def _device_exists(device: Device) -> bool:
-    device_type = tvm.runtime.Device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]
+    device_type = Device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]
     device_str = device2str(device)
     if device_str in _RESULT_CACHE:
         return _RESULT_CACHE[device_str]

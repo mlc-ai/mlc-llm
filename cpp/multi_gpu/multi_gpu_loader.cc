@@ -38,6 +38,7 @@ using tvm::ffi::Function;
 using tvm::ffi::Object;
 using tvm::ffi::Optional;
 using tvm::ffi::Shape;
+using tvm::ffi::Tensor;
 using tvm::ffi::TypedFunction;
 using DurationType = std::chrono::microseconds;
 
@@ -82,10 +83,10 @@ class PreprocessorPool {
     for (const ModelMetadata::Param::Preproc& preproc : param_info.preprocs) {
       const std::string& func_name = preproc.func_name;
       Tensor param_in = param;
-      param = Tensor::Empty(preproc.out_shape, preproc.out_dtype, param->device);
+      param = tvm::runtime::Empty(preproc.out_shape, preproc.out_dtype, param.device());
       TVM_FFI_ICHECK(preproc_funcs.count(func_name));
-      DLTensor dl_param_in = *param_in.operator->();
-      DLTensor dl_param = *param.operator->();
+      DLTensor dl_param_in = *param_in.GetDLTensorPtr();
+      DLTensor dl_param = *param.GetDLTensorPtr();
       preproc_funcs.at(func_name)(&dl_param_in, &dl_param);
     }
     return param;
@@ -102,7 +103,7 @@ struct ParamInfo {
 
 Tensor RecvFromGlobalWorker0(Device device, const ModelMetadata::Param& param_info) {
   Shape shape = param_info.preprocs.empty() ? param_info.shape : param_info.preprocs[0].in_shape;
-  Tensor result = Tensor::Empty(shape, param_info.dtype, device);
+  Tensor result = tvm::runtime::Empty(shape, param_info.dtype, device);
   RecvFromWorker0(result);
   return result;
 }
@@ -114,14 +115,14 @@ Tensor BroadcastOrShardAndScatter(Tensor param, const ModelMetadata::Param& para
     BroadcastFromWorker0(param, /*in_group=*/true, param);
     return param;
   }
-  Device device = param->device;
+  Device device = param.device();
   Shape shape = param_info.preprocs.back().out_shape;
   DLDataType dtype = param_info.preprocs.back().out_dtype;
   TVM_FFI_ICHECK(shape.size() >= 1 && shape[0] == num_shards)
       << "ValueError: The first dimension of the output shape must be equal to the "
       << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
   param = preprocs.Apply(param, param_info);
-  Tensor result = Tensor::Empty(Shape(shape.begin() + 1, shape.end()), dtype, device);
+  Tensor result = tvm::runtime::Empty(Shape(shape.begin() + 1, shape.end()), dtype, device);
   ScatterFromWorker0(param, /*in_group=*/true, result);
   return result;
 }
@@ -133,10 +134,10 @@ Tensor ReceiveBroadcastedOrSharded(Device device, const ModelMetadata::Param& pa
   if (needs_sharding) {
     Shape shape = param_info.preprocs.back().out_shape;
     DLDataType dtype = param_info.preprocs.back().out_dtype;
-    result = Tensor::Empty(Shape(shape.begin() + 1, shape.end()), dtype, device);
+    result = tvm::runtime::Empty(Shape(shape.begin() + 1, shape.end()), dtype, device);
     ScatterFromWorker0(std::nullopt, /*in_group=*/true, result);
   } else {
-    result = Tensor::Empty(param_info.shape, param_info.dtype, device);
+    result = tvm::runtime::Empty(param_info.shape, param_info.dtype, device);
     BroadcastFromWorker0(result, /*in_group=*/true, result);
   }
   return result;

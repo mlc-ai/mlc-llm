@@ -2,21 +2,22 @@
 
 from typing import Dict, List, Optional, Tuple  # noqa: UP035
 
-import tvm
 import tvm_ffi
-from tvm import relax, tirx
-from tvm.ir.module import IRModule
+import tvm_tirx
+from tvm import relax
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
+from tvm_tirx import tirx
+from tvm_tirx.ir.module import IRModule
 
 
-@tvm.transform.module_pass(opt_level=0, name="PipelineParallelRewrite")
+@tvm_tirx.transform.module_pass(opt_level=0, name="PipelineParallelRewrite")
 class PipelineParallelRewrite:
     """A compiler pass that rewrites IR for pipeline parallelism."""
 
     def transform_module(
         self,
         mod: IRModule,
-        _ctx: tvm.transform.PassContext,
+        _ctx: tvm_tirx.transform.PassContext,
     ) -> IRModule:
         """IRModule-level transformation"""
         return _PipelineParallelRewriter(mod.clone()).transform()
@@ -110,9 +111,9 @@ class _PipelineParallelRewriter(PyExprMutator):
         required_func_params: List[relax.Var],  # noqa: UP006
         stage_receive_vars: List[relax.Var],  # noqa: UP006
         stage_send_vars: List[relax.Var],  # noqa: UP006
-        func_attrs: tvm.ir.DictAttrs,
+        func_attrs: tvm_tirx.ir.DictAttrs,
         func_output: Optional[relax.Var],
-    ) -> Tuple[tvm.ir.GlobalVar, List[relax.Expr]]:  # noqa: UP006
+    ) -> Tuple[tvm_tirx.ir.GlobalVar, List[relax.Expr]]:  # noqa: UP006
         self.undefined_shape_vars_remap = {}
         self.undefined_param_shape_vars_remap = {}
 
@@ -133,7 +134,7 @@ class _PipelineParallelRewriter(PyExprMutator):
                         relax.call_dps_packed(
                             "runtime.disco.recv_from_prev_group",
                             args=[],
-                            out_ty=self._update_struct_info(receive_var.ty),
+                            ty_args=[self._update_struct_info(receive_var.ty)],
                         ),
                         name_hint=receive_var.name_hint,
                     )
@@ -338,7 +339,7 @@ def _extract_pipeline_stages(
         if (
             isinstance(binding, relax.VarBinding)
             and isinstance(binding.value, relax.Call)
-            and binding.value.op == tvm.ir.Op.get("relax.call_pure_packed")
+            and binding.value.op == tvm_tirx.ir.Op.get("relax.call_pure_packed")
             and binding.value.args[0].global_symbol == "mlc.pipeline_parallel_stage_boundary"
         ):
             assert len(current_stage_bindings) > 0

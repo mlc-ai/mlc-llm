@@ -18,9 +18,9 @@ import dataclasses
 from functools import partial
 from typing import Any, Dict, Optional, Tuple  # noqa: UP035
 
-from tvm import tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm_tirx import tirx
 
 from mlc_llm import op as op_ext
 from mlc_llm.model.model_utils import index_last_token

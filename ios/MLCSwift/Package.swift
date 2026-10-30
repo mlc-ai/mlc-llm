@@ -18,8 +18,9 @@ let package = Package(
             path: "Sources/ObjC",
             cxxSettings: [
                 .headerSearchPath("../../tvm_home/include"),
-                .headerSearchPath("../../tvm_home/3rdparty/tvm-ffi/include"),
-                .headerSearchPath("../../tvm_home/3rdparty/tvm-ffi/3rdparty/dlpack/include")
+                .headerSearchPath("../../tvm_home/3rdparty/tvm-tirx/include"),
+                .headerSearchPath("../../tvm_home/3rdparty/tvm-tirx/3rdparty/tvm-ffi/include"),
+                .headerSearchPath("../../tvm_home/3rdparty/tvm-tirx/3rdparty/tvm-ffi/3rdparty/dlpack/include")
             ]
         ),
         .target(
@@ -28,5 +29,5 @@ let package = Package(
             path: "Sources/Swift"
         )
     ],
-    cxxLanguageStandard: .cxx17
+    cxxLanguageStandard: .cxx20
 )

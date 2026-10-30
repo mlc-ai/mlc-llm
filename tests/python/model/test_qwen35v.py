@@ -1,6 +1,7 @@
 # pylint: disable=invalid-name,missing-docstring
 """Unit tests for Qwen3.5 Vision-Language model architecture."""
 
+import tvm_tirx
 from tvm.relax.frontend.nn import spec as nn_spec
 
 from mlc_llm.model import MODELS
@@ -165,11 +166,9 @@ def test_qwen35v_artifact_points_at_exported_functions():
 
 
 def test_qwen35v_takes_uint32_pixels_on_webgpu():
-    import tvm
-
     entry = MODELS["qwen3_5_vision"]
     config = entry.config.from_dict(SMALL_QWEN35V_CONFIG)
-    with tvm.target.Target("webgpu"):
+    with tvm_tirx.target.Target("webgpu"):
         model = entry.model(config)
         programs = entry.artifact.programs(config)
     assert model.image_dtype == "uint32"

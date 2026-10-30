@@ -3,16 +3,13 @@
  * \file serve/engine_actions/new_request_prefill.cc
  */
 
-#include <tvm/support/cuda/nvtx.h>
-
+#include "../../support/nvtx.h"
 #include "../sampler/sampler.h"
 #include "batch_prefill_base.h"
 
 namespace mlc {
 namespace llm {
 namespace serve {
-
-using tvm::support::NVTXScopedRange;
 
 /*!
  * \brief The action that prefills requests in the `waiting_queue` of
@@ -151,9 +148,9 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
       Tensor logits =
           models_[model_id]->BatchPrefill(embeddings, request_internal_ids, prefill_lengths);
       RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
-      TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-      TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
-      TVM_FFI_ICHECK_EQ(logits->shape[1], num_rsentries);
+      TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+      TVM_FFI_ICHECK_EQ(logits.shape()[0], 1);
+      TVM_FFI_ICHECK_EQ(logits.shape()[1], num_rsentries);
     }
 
     // - Commit the prefix cache changes from previous round of action.

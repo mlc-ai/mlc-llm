@@ -302,10 +302,6 @@ class ThreadedEngineImpl : public ThreadedEngine {
     if (background_engine_ != nullptr) {
       background_engine_->AbortAllRequests();
       background_engine_ = nullptr;
-      // Clear the allocated memory in cached memory pool.
-      static Function fclear_memory_manager =
-          Function::GetGlobalRequired("vm.builtin.memory_manager.clear");
-      fclear_memory_manager();
       default_generation_config_ = std::nullopt;
       complete_engine_config_ = std::nullopt;
     }

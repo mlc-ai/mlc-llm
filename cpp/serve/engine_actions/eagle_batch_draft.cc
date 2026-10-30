@@ -138,8 +138,8 @@ class EagleBatchDraftActionObj : public EngineActionObj {
           logits = models_[0]->GetLogits(hidden_states);
         }
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
-        TVM_FFI_ICHECK_EQ(logits->ndim, 2);
-        TVM_FFI_ICHECK_EQ(logits->shape[0], num_rsentries);
+        TVM_FFI_ICHECK_EQ(logits.ndim(), 2);
+        TVM_FFI_ICHECK_EQ(logits.shape()[0], num_rsentries);
 
         // - Update logits.
         logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids, nullptr,

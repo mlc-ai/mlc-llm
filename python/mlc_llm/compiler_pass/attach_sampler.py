@@ -2,21 +2,22 @@
 
 from typing import Dict  # noqa: UP035
 
-import tvm
-from tvm import IRModule, relax, te, tirx
+import tvm_tirx
+from tvm import relax, te
 from tvm.relax.frontend import nn
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.script import tirx as T
 
 from mlc_llm.op.batch_spec_verify import batch_spec_verify
 from mlc_llm.op.top_p_pivot import top_p_pivot, top_p_renorm
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachGPUSamplingFunc")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachGPUSamplingFunc")
 class AttachGPUSamplingFunc:
     """Attach GPU sampling functions to IRModule."""
 
-    def __init__(self, target: tvm.target.Target, variable_bounds: Dict[str, int]):  # noqa: UP006
+    def __init__(self, target: tvm_tirx.target.Target, variable_bounds: Dict[str, int]):  # noqa: UP006
         # Specifically for RWKV workloads, which contains -1 max_seq_len
         max_batch_size = variable_bounds["batch_size"]
         self.variable_bounds = {
@@ -27,7 +28,7 @@ class AttachGPUSamplingFunc:
         self.non_negative_var = ["vocab_size"]
         self.target = target
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         target_kind = self.target.kind.name
         if target_kind not in ["cuda", "vulkan", "metal", "webgpu"]:
@@ -131,7 +132,7 @@ def _attach_argsort_func(bb: relax.BlockBuilder):
                 ),
                 probs,
                 sorted_indices,
-                primfunc_name_hint="take_sorted_probs",
+                function_name_hint="take_sorted_probs",
             )
             output = bb.emit_output((sorted_values, sorted_indices))
         gv = bb.emit_func_output(output)
@@ -141,7 +142,7 @@ def _attach_argsort_func(bb: relax.BlockBuilder):
 batch_size = T.dynamic("batch_size", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def full(value: T.int64, result: T.Tensor((batch_size, 1), "int32")):
     """The filling function for top k."""
     for i in T.serial(batch_size):
@@ -228,7 +229,7 @@ def _attach_sample_with_top_p(bb: relax.BlockBuilder):
     return gv
 
 
-def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Target):
+def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm_tirx.target.Target):
     batch_size = tirx.Var("batch_size", "int64")
     vocab_size = tirx.Var("vocab_size", "int64")
     num_pivots = 3
@@ -241,7 +242,7 @@ def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Targ
                 relax.call_tir(
                     bb.add_func(top_p_pivot(num_pivots, target), "top_p_pivot_cutoff"),
                     args=[probs, top_p, init_pivots],
-                    out_ty=[top_p.ty, top_p.ty],
+                    ty_args=[relax.TupleType([top_p.ty, top_p.ty])],
                 )
             )
             final_pivot = cutoff_output[0]
@@ -250,7 +251,7 @@ def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Targ
                 relax.call_tir(
                     bb.add_func(top_p_renorm(target), "top_p_renorm_after_cutoff"),
                     args=[probs, final_pivot, renorm_sum],
-                    out_ty=probs.ty,
+                    ty_args=[probs.ty],
                 )
             )
         gv = bb.emit_func_output(renormalized_probs)
@@ -263,7 +264,7 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
     num_positions = T.dynamic("num_positions", "int32")
     vocab_size = T.dynamic("vocab_size", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def sampler_take_probs_tir(
         unsorted_probs: T.Tensor((batch_size, vocab_size), "float32"),
         sorted_indices: T.Tensor((batch_size, vocab_size), "int32"),
@@ -327,10 +328,14 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
                 relax.call_tir(
                     bb.add_func(sampler_take_probs_tir, "sampler_take_probs_tir"),
                     args,
-                    out_ty=[
-                        relax.TensorType((num_samples,), "float32"),
-                        relax.TensorType((num_positions,), "float32"),
-                        relax.TensorType((num_positions,), "int32"),
+                    ty_args=[
+                        relax.TupleType(
+                            [
+                                relax.TensorType((num_samples,), "float32"),
+                                relax.TensorType((num_positions,), "float32"),
+                                relax.TensorType((num_positions,), "int32"),
+                            ]
+                        )
                     ],
                 )
             )
@@ -375,9 +380,13 @@ def _attach_batch_verifier(bb: relax.BlockBuilder):
                         args.index(model_probs),
                         args.index(token_tree_parent_ptr),
                     ],
-                    out_ty=[
-                        model_probs.ty,
-                        token_tree_parent_ptr.ty,
+                    ty_args=[
+                        relax.TupleType(
+                            [
+                                model_probs.ty,
+                                token_tree_parent_ptr.ty,
+                            ]
+                        )
                     ],
                 )
             )

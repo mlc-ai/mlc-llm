@@ -4,10 +4,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional  # noqa: UP035
 
 import tvm
-from tvm import IRModule
+import tvm_tirx
 from tvm.relax import register_pipeline
 from tvm.relax.frontend import nn
 from tvm.s_tir import dlight as dl
+from tvm_tirx import IRModule
 
 from mlc_llm.interface.compiler_flags import IPCAllReduceStrategyType
 from mlc_llm.support import logging
@@ -45,20 +46,20 @@ from .scatter_tuple_get_item import ScatterTupleGetItem
 logger = logging.getLogger(__name__)
 
 
-@tvm.transform.module_pass(opt_level=0, name="_LogProgress")
+@tvm_tirx.transform.module_pass(opt_level=0, name="_LogProgress")
 class _LogProgress:
     """A dummy compiler pass that does nothing but logging."""
 
     def __init__(self, *args):
         self.args = args
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """A dummy transformation"""
         logger.info(*self.args)
         return mod
 
 
-@tvm.transform.module_pass(opt_level=0, name="DebugDump")
+@tvm_tirx.transform.module_pass(opt_level=0, name="DebugDump")
 class _DebugDump:
     """A dummy compiler pass that does nothing but logging.
     Only enabled when debug_dump is not None"""
@@ -68,7 +69,7 @@ class _DebugDump:
         self.file_path = file_path
         self.show_meta = show_meta
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """A dummy transformation that dumps the module to file"""
         if self.file_path is not None:
             # NOTE: We use debug level here to avoid spamming the console
@@ -80,14 +81,14 @@ class _DebugDump:
 
 @register_pipeline("mlc_llm")
 def _mlc_llm_pipeline(
-    target: tvm.target.Target,
+    target: tvm_tirx.target.Target,
     flashinfer: bool = False,
     cublas_gemm: bool = False,
     faster_transformer: bool = False,
     allreduce_strategy: IPCAllReduceStrategyType = IPCAllReduceStrategyType.NONE,
     variable_bounds: Optional[Dict[str, int]] = None,  # noqa: UP006
     cuda_graph_symbolic_capture_hints: Optional[Dict[str, List[str]]] = None,  # noqa: UP006
-    additional_tirs: Optional[Dict[str, tvm.tirx.PrimFunc]] = None,  # noqa: UP006
+    additional_tirs: Optional[Dict[str, tvm_tirx.tirx.Function]] = None,  # noqa: UP006
     metadata: Optional[Dict[str, Any]] = None,  # noqa: UP006
     ext_mods: Optional[List[nn.ExternModule]] = None,  # noqa: UP006
     debug_dump: Optional[Path] = None,
@@ -98,11 +99,12 @@ def _mlc_llm_pipeline(
     metadata = metadata or {}
     ext_mods = ext_mods or []
     tensor_parallel_shards = metadata.get("tensor_parallel_shards", 1)
-    index_bits = 64 if target.kind.name == "cuda" else 32
 
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
-        seq = tvm.transform.Sequential(
+    @tvm_tirx.transform.module_pass(opt_level=0)
+    def _pipeline(
+        mod: tvm_tirx.ir.IRModule, _ctx: tvm_tirx.transform.PassContext
+    ) -> tvm_tirx.ir.IRModule:
+        seq = tvm_tirx.transform.Sequential(
             [
                 # Phase 0. Add additional information for compilation and remove unused Relax func
                 DispatchKVCacheCreation(target, flashinfer, metadata),
@@ -117,26 +119,28 @@ def _mlc_llm_pipeline(
                 AttachSpecDecodeAuxFuncs(tensor_parallel_shards),
                 AttachMemoryPlanAttr(),
                 AttachSequenceLengthPaddingFactor(target, metadata),
-                tvm.tirx.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
+                tvm_tirx.tirx.transform.BindTarget(
+                    tvm_tirx.target.Target.current(allow_none=False)
+                ),
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
                 DispatchTritonKernel(target),
                 FuseFTDequantizeEpilogue(),
                 FuseDequantizeTranspose(),
-                BLASDispatch(target) if cublas_gemm else tvm.transform.Sequential([]),
+                BLASDispatch(target) if cublas_gemm else tvm_tirx.transform.Sequential([]),
                 (
                     FuseAddRMSNorm(target=target)
                     if target.kind.name != "llvm"
-                    else tvm.transform.Sequential([])
+                    else tvm_tirx.transform.Sequential([])
                 ),
                 FuseTransposeMatmul(),
                 _DebugDump("debug-phase1.py", debug_dump, show_meta=False),
                 # Phase 2. Lowering to TIR, inherited TVM Relax's official "zero" pipeline
                 _LogProgress("Lowering to TVM TIR kernels"),
                 tvm.relax.backend.DispatchSampling(),
-                # Match scan hierarchy thresholds to the index narrowing below.
-                tvm.relax.backend.DispatchSortScan(index_bits=index_bits),
+                # Use the target's index width for scan hierarchy thresholds.
+                tvm.relax.backend.DispatchSortScan(),
                 tvm.relax.transform.LegalizeOps(),
                 tvm.relax.transform.AnnotateTIROpPattern(),
                 tvm.relax.transform.FoldConstant(),
@@ -171,12 +175,7 @@ def _mlc_llm_pipeline(
                 (
                     LiftTIRGlobalBufferAlloc()
                     if target.kind.name != "llvm"
-                    else tvm.transform.Sequential([])
-                ),
-                (
-                    tvm.s_tir.transform.ForceNarrowIndexToInt32()
-                    if index_bits == 32
-                    else tvm.transform.Sequential([])
+                    else tvm_tirx.transform.Sequential([])
                 ),
                 ScatterTupleGetItem(),
                 PipelineParallelRewrite(),
@@ -187,7 +186,7 @@ def _mlc_llm_pipeline(
                 (
                     tvm.relax.transform.IPCAllReduceRewrite(allreduce_strategy)
                     if allreduce_strategy != IPCAllReduceStrategyType.NONE
-                    else tvm.transform.Sequential([])
+                    else tvm_tirx.transform.Sequential([])
                 ),
                 tvm.relax.transform.StaticPlanBlockMemory(),
                 AttachMetadataWithMemoryUsage(metadata),

@@ -1,17 +1,18 @@
 """The pass that attaches an empty function for initialization."""
 
-import tvm
-from tvm import IRModule, relax
+import tvm_tirx
+from tvm import relax
+from tvm_tirx import IRModule
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachCUDAGraphAllocInitFunc")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachCUDAGraphAllocInitFunc")
 class AttachCUDAGraphAllocInitFunc:
     """Attach an empty function for initialization."""
 
     def __init__(self):
         pass
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
         bb = relax.BlockBuilder(mod)
         alloc_func_gv = None

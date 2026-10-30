@@ -3,10 +3,9 @@
  * \file serve/engine_actions/batch_decode.cc
  */
 
-#include <tvm/support/cuda/nvtx.h>
-
 #include <numeric>
 
+#include "../../support/nvtx.h"
 #include "../../support/random.h"
 #include "../config.h"
 #include "../model.h"
@@ -17,8 +16,6 @@
 namespace mlc {
 namespace llm {
 namespace serve {
-
-using tvm::support::NVTXScopedRange;
 
 /*!
  * \brief The action that runs one-step decode for requests in the
@@ -138,19 +135,19 @@ class BatchDecodeActionObj : public EngineActionObj {
     Tensor logits;
     if (is_every_request_single_token) {
       logits = models_[0]->BatchDecode(embeddings, request_internal_ids, input_tokens);
-      TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-      TVM_FFI_ICHECK_EQ(logits->shape[0], num_rsentries);
-      TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
+      TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+      TVM_FFI_ICHECK_EQ(logits.shape()[0], num_rsentries);
+      TVM_FFI_ICHECK_EQ(logits.shape()[1], 1);
     } else {
       logits = models_[0]->BatchPrefill(embeddings, request_internal_ids, lengths, input_tokens);
-      TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-      TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
-      TVM_FFI_ICHECK_EQ(logits->shape[1], num_rsentries);
+      TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+      TVM_FFI_ICHECK_EQ(logits.shape()[0], 1);
+      TVM_FFI_ICHECK_EQ(logits.shape()[1], num_rsentries);
     }
     RECORD_EVENT(trace_recorder_, request_ids, "finish decode");
 
     // - Update logits.
-    logits = logits.CreateView({num_rsentries, logits->shape[2]}, logits->dtype);
+    logits = tvm::runtime::CreateView(logits, {num_rsentries, logits.shape()[2]}, logits.dtype());
     logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
 
     // - Compute probability distributions.

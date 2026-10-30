@@ -127,8 +127,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         embeddings, request_internal_ids, verify_lengths, token_tree_parent_ptr);
     Tensor logits = models_[verify_model_id_]->GetLogits(hidden_states);
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify");
-    TVM_FFI_ICHECK_EQ(logits->ndim, 2);
-    TVM_FFI_ICHECK_EQ(logits->shape[0], cum_verify_lengths.back());
+    TVM_FFI_ICHECK_EQ(logits.ndim(), 2);
+    TVM_FFI_ICHECK_EQ(logits.shape()[0], cum_verify_lengths.back());
 
     // - Update logits.
     logit_processor_->InplaceUpdateLogits(logits, generation_cfg, verify_request_mstates,
@@ -260,8 +260,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       } else {
         Tensor hidden_states_for_fully_accepted_nd =
             hidden_states_for_fully_accepted.as_or_throw<Tensor>();
-        DeviceAPI::Get(hidden_states_for_fully_accepted_nd->device)
-            ->StreamSync(hidden_states_for_fully_accepted_nd->device, nullptr);
+        DeviceAPI::Get(hidden_states_for_fully_accepted_nd.device())
+            ->StreamSync(hidden_states_for_fully_accepted_nd.device(), nullptr);
       }
     }
     {
@@ -303,8 +303,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         int lm_head_model_id = models_[draft_model_id_]->CanGetLogits() ? draft_model_id_ : 0;
         logits = models_[lm_head_model_id]->GetLogits(hidden_states);
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
-        TVM_FFI_ICHECK_EQ(logits->ndim, 2);
-        TVM_FFI_ICHECK_EQ(logits->shape[0], num_rsentries);
+        TVM_FFI_ICHECK_EQ(logits.ndim(), 2);
+        TVM_FFI_ICHECK_EQ(logits.shape()[0], num_rsentries);
       } else if (engine_config_->speculative_mode == SpeculativeMode::kMedusa) {
         multi_step_logits = models_[draft_model_id_]->GetMultiStepLogits(hidden_states);
       }

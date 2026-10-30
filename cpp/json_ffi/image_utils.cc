@@ -1,8 +1,6 @@
 #include "image_utils.h"
 
-#include <tvm/support/io.h>
-
-#include "../../3rdparty/tvm/src/support/base64.h"
+#include <tvm/ffi/extra/base64.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -11,73 +9,27 @@ namespace llm {
 namespace json_ffi {
 
 using namespace tvm::runtime;
-
-class MemoryBufferStream : public tvm::support::Stream {
- public:
-  using Stream::Read;
-  using Stream::Write;
-
-  MemoryBufferStream(const char* data, size_t size) : data_(data), size_(size), pos_(0) {}
-
-  size_t Read(void* ptr, size_t size) override {
-    size_t remaining = size_ - pos_;
-    if (size > remaining) {
-      size = remaining;
-    }
-    if (size == 0) {
-      return 0;
-    }
-    std::memcpy(ptr, data_ + pos_, size);
-    pos_ += size;
-    return size;
-  }
-
-  size_t Write(const void* ptr, size_t size) override {
-    TVM_FFI_THROW(InternalError) << "MemoryBufferStream does not support write";
-    return 0;
-  }
-
- private:
-  const char* data_;
-  size_t size_;
-  size_t pos_;
-};
-
-size_t Base64DecodedSize(const std::string& base64_str) {
-  size_t len = base64_str.size();
-  size_t padding = 0;
-  if (base64_str[len - 1] == '=') {
-    padding++;
-  }
-  if (base64_str[len - 2] == '=') {
-    padding++;
-  }
-  return 3 * len / 4 - padding;
-}
+using tvm::ffi::Tensor;
 
 Result<Tensor> LoadImageFromBase64(const std::string& base64_str) {
   using TResult = Result<Tensor>;
-  MemoryBufferStream stream(base64_str.c_str(), base64_str.size());
-  tvm::support::Base64InStream base64_stream(&stream);
-  size_t decoded_size = Base64DecodedSize(base64_str);
-  std::vector<unsigned char> decoded(decoded_size);
-  base64_stream.InitPosition();
-  base64_stream.Read((void*)decoded.data(), decoded_size);
+  tvm::ffi::Bytes decoded = tvm::ffi::Base64Decode(tvm::ffi::String(base64_str));
   int width, height, num_channels;
   unsigned char* image_data =
-      stbi_load_from_memory(decoded.data(), decoded_size, &width, &height, &num_channels, 3);
+      stbi_load_from_memory(reinterpret_cast<const unsigned char*>(decoded.data()), decoded.size(),
+                            &width, &height, &num_channels, 3);
   if (!image_data) {
     return TResult::Error(stbi_failure_reason());
   }
-  auto image_tensor = Tensor::Empty({height, width, 3}, {kDLUInt, 8, 1}, {kDLCPU, 0});
-  image_tensor.CopyFromBytes((void*)image_data, width * height * 3);
+  auto image_tensor = tvm::runtime::Empty({height, width, 3}, {kDLUInt, 8, 1}, {kDLCPU, 0});
+  tvm::runtime::CopyFromBytes(image_tensor, (void*)image_data, width * height * 3);
   stbi_image_free(image_data);
   return TResult::Ok(image_tensor);
 }
 
 Tensor ClipPreprocessor(Tensor image_data, int target_size, DLDevice device) {
-  int height = image_data->shape[0];
-  int width = image_data->shape[1];
+  int height = image_data.shape()[0];
+  int width = image_data.shape()[1];
   // Resize
   const int short_side = width < height ? width : height;
   const int long_side = width > height ? width : height;
@@ -100,10 +52,10 @@ Tensor ClipPreprocessor(Tensor image_data, int target_size, DLDevice device) {
       const float x_diff = x_ratio * x - x1;
       const float y_diff = y_ratio * y - y1;
       for (int c = 0; c < 3; c++) {
-        const uint8_t top_left = ((uint8_t*)image_data->data)[(y1 * width + x1) * 3 + c];
-        const uint8_t top_right = ((uint8_t*)image_data->data)[(y1 * width + x2) * 3 + c];
-        const uint8_t bottom_left = ((uint8_t*)image_data->data)[(y2 * width + x1) * 3 + c];
-        const uint8_t bottom_right = ((uint8_t*)image_data->data)[(y2 * width + x2) * 3 + c];
+        const uint8_t top_left = ((uint8_t*)image_data.data_ptr())[(y1 * width + x1) * 3 + c];
+        const uint8_t top_right = ((uint8_t*)image_data.data_ptr())[(y1 * width + x2) * 3 + c];
+        const uint8_t bottom_left = ((uint8_t*)image_data.data_ptr())[(y2 * width + x1) * 3 + c];
+        const uint8_t bottom_right = ((uint8_t*)image_data.data_ptr())[(y2 * width + x2) * 3 + c];
         processed_image_data[(y * new_width + x) * 3 + c] =
             (float)(int(top_left * (1 - x_diff) * (1 - y_diff) + top_right * x_diff * (1 - y_diff) +
                         bottom_left * y_diff * (1 - x_diff) + bottom_right * x_diff * y_diff));
@@ -148,9 +100,10 @@ Tensor ClipPreprocessor(Tensor image_data, int target_size, DLDevice device) {
   }
 
   // Create Tensor
-  auto image_tensor = Tensor::Empty({1, 3, target_size, target_size}, {kDLFloat, 32, 1}, device);
-  image_tensor.CopyFromBytes((void*)image_data_channel_first.data(),
-                             target_size * target_size * 3 * sizeof(float));
+  auto image_tensor =
+      tvm::runtime::Empty({1, 3, target_size, target_size}, {kDLFloat, 32, 1}, device);
+  tvm::runtime::CopyFromBytes(image_tensor, (void*)image_data_channel_first.data(),
+                              target_size * target_size * 3 * sizeof(float));
 
   return image_tensor;
 }

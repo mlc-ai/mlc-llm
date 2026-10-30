@@ -3,9 +3,10 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple  # noqa: UP035
 
-import tvm
 import tvm_ffi
-from tvm.runtime import Object, Tensor
+import tvm_tirx
+from tvm_ffi import Object
+from tvm_tirx.runtime import Tensor
 
 from . import _ffi_api
 
@@ -66,7 +67,7 @@ class ImageData(Data):
 
     Parameters
     ----------
-    image : tvm.runtime.Tensor
+    image : tvm_tirx.runtime.Tensor
         The image data.
     """
 
@@ -108,7 +109,7 @@ class ImageData(Data):
             model_type, image_tensor.width, image_tensor.height, config
         )
         image_tensor = np.expand_dims(image_tensor, axis=0)  # HWC -> NHWC
-        image_features = tvm.runtime.tensor(image_tensor)
+        image_features = tvm_tirx.runtime.tensor(image_tensor)
         image_data = ImageData(image_features, image_embed_size)
         return image_data
 

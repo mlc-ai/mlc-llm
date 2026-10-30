@@ -3,11 +3,13 @@
 from dataclasses import dataclass
 from typing import Any, Literal, Optional, Tuple  # noqa: UP035
 
-import tvm
-from tvm import DataType, DataTypeCode, te, tirx
+import tvm_ffi
+from tvm import te
 from tvm.relax.frontend import nn
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_ffi import dtype as DataType
+from tvm_tirx import DataTypeCode, tirx
+from tvm_tirx.script import tirx as T
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.nn import MixtralExperts
@@ -289,7 +291,7 @@ class BlockScaleQuantizeLinear(nn.Module):
         # Todo: check "shape supported by cutlass" for Hopper
         if (
             extern.get_store().cutlass_gemm
-            and tvm.get_global_func(
+            and tvm_ffi.get_global_func(
                 "cutlass.groupwise_scaled_gemm_e4m3fn_e4m3fn", allow_missing=True
             )
             is not None
@@ -421,7 +423,7 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
         if (
             extern.get_store().cutlass_gemm
             and shape_supported_by_cutlass
-            and tvm.get_global_func(
+            and tvm_ffi.get_global_func(
                 "cutlass.groupwise_scaled_gemm_e4m3fn_e4m3fn", allow_missing=True
             )
             is not None
@@ -566,7 +568,7 @@ class BlockScaleQuantizeMixtralExperts(nn.Module):
         )
         if (
             extern.get_store().cutlass_gemm
-            and tvm.get_global_func(
+            and tvm_ffi.get_global_func(
                 "cutlass.groupwise_scaled_group_gemm_e4m3fn_e4m3fn", allow_missing=True
             )
             is not None
@@ -654,7 +656,7 @@ def rowwise_group_quant_fp8(
                         ),
                         eps,
                     ),
-                    tirx.min_value(scale_dtype),
+                    tirx.min_value(ty=scale_dtype),
                 ),
                 axis=max_abs_reduce_axis,
             ),
@@ -795,7 +797,7 @@ def dequantize_float8_groupwise_scaled_gemv(
             model_dtype
         )
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         x: T.Tensor((1, k), model_dtype),
         w: T.Tensor((n, k), quantize_dtype),
@@ -809,7 +811,7 @@ def dequantize_float8_groupwise_scaled_gemv(
         o: T.Tensor((n,), out_dtype),
     ):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
-        y = Ts.sblock_alloc_buffer((n, k), model_dtype)
+        y = Ts.sblock_alloc_tensor((n, k), model_dtype)
         for i1, i2 in T.grid(n, k):
             with Ts.sblock("dequantize"):
                 i, j = Ts.axis.remap("SS", [i1, i2])

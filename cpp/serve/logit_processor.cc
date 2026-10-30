@@ -7,17 +7,17 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/support/cuda/nvtx.h>
+
+#include "../support/device.h"
+#include "../support/nvtx.h"
 
 namespace mlc {
 namespace llm {
 namespace serve {
 
-using tvm::support::NVTXScopedRange;
-
 inline void CopyArray(Tensor src, Tensor dst, TVMStreamHandle copy_stream) {
-  DLTensor dl_dst = *(dst.operator->());
-  Tensor::CopyFromTo(src.operator->(), &dl_dst, copy_stream);
+  DLTensor dl_dst = *(dst.GetDLTensorPtr());
+  tvm::runtime::CopyFromTo(src.GetDLTensorPtr(), &dl_dst, copy_stream);
 }
 
 inline void SyncCopyStream(Device device, TVMStreamHandle compute_stream,
@@ -50,28 +50,29 @@ class LogitProcessorImpl : public LogitProcessorObj {
         trace_recorder_(std::move(trace_recorder)) {
     Device preferred_host_device = GetPreferredHostDevice(device);
     // Initialize auxiliary arrays on CPU.
-    seq_ids_host_ = Tensor::Empty({max_num_token}, dtype_i32_, preferred_host_device);
+    seq_ids_host_ = tvm::runtime::Empty({max_num_token}, dtype_i32_, preferred_host_device);
     pos2seq_id_host_ =
-        Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
+        tvm::runtime::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
     token_ids_host_ =
-        Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
+        tvm::runtime::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
     token_cnt_host_ =
-        Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
+        tvm::runtime::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
     token_logit_bias_host_ =
-        Tensor::Empty({max_num_token * vocab_size}, dtype_f32_, preferred_host_device);
-    penalties_host_ = Tensor::Empty({max_num_token, 3}, dtype_f32_, preferred_host_device);
+        tvm::runtime::Empty({max_num_token * vocab_size}, dtype_f32_, preferred_host_device);
+    penalties_host_ = tvm::runtime::Empty({max_num_token, 3}, dtype_f32_, preferred_host_device);
     bitmask_host_ =
-        Tensor::Empty({max_num_token, bitmask_size_}, dtype_i32_, preferred_host_device);
-    temperature_host_ = Tensor::Empty({max_num_token}, dtype_f32_, preferred_host_device);
+        tvm::runtime::Empty({max_num_token, bitmask_size_}, dtype_i32_, preferred_host_device);
+    temperature_host_ = tvm::runtime::Empty({max_num_token}, dtype_f32_, preferred_host_device);
     // Initialize auxiliary arrays on GPU.
-    seq_ids_device_ = Tensor::Empty({max_num_token}, dtype_i32_, device);
-    pos2seq_id_device_ = Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, device);
-    token_ids_device_ = Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, device);
-    token_cnt_device_ = Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, device);
-    token_logit_bias_device_ = Tensor::Empty({max_num_token * vocab_size}, dtype_f32_, device);
-    penalties_device_ = Tensor::Empty({max_num_token, 3}, dtype_f32_, device);
-    bitmask_device_ = Tensor::Empty({max_num_token, bitmask_size_}, dtype_i32_, device);
-    temperature_device_ = Tensor::Empty({max_num_token}, dtype_f32_, device);
+    seq_ids_device_ = tvm::runtime::Empty({max_num_token}, dtype_i32_, device);
+    pos2seq_id_device_ = tvm::runtime::Empty({max_num_token * vocab_size}, dtype_i32_, device);
+    token_ids_device_ = tvm::runtime::Empty({max_num_token * vocab_size}, dtype_i32_, device);
+    token_cnt_device_ = tvm::runtime::Empty({max_num_token * vocab_size}, dtype_i32_, device);
+    token_logit_bias_device_ =
+        tvm::runtime::Empty({max_num_token * vocab_size}, dtype_f32_, device);
+    penalties_device_ = tvm::runtime::Empty({max_num_token, 3}, dtype_f32_, device);
+    bitmask_device_ = tvm::runtime::Empty({max_num_token, bitmask_size_}, dtype_i32_, device);
+    temperature_device_ = tvm::runtime::Empty({max_num_token}, dtype_f32_, device);
 
     TVM_FFI_ICHECK(apply_logit_bias_func_.defined())
         << "Function \"apply_logit_bias_inplace\" not found in model";
@@ -105,12 +106,12 @@ class LogitProcessorImpl : public LogitProcessorObj {
                            const Array<RequestModelState>* draft_mstates,  //
                            const std::vector<std::vector<int>>* draft_token_indices) final {
     NVTXScopedRange nvtx_scope("Logit inplace update");
-    TVM_FFI_ICHECK_EQ(logits->ndim, 2);
-    TVM_FFI_ICHECK_EQ(logits->shape[1], vocab_size_);
-    TVM_FFI_ICHECK(logits.DataType() == (DLDataType{kDLFloat, 32, 1}));
+    TVM_FFI_ICHECK_EQ(logits.ndim(), 2);
+    TVM_FFI_ICHECK_EQ(logits.shape()[1], vocab_size_);
+    TVM_FFI_ICHECK(logits.dtype() == (DLDataType{kDLFloat, 32, 1}));
     TVM_FFI_ICHECK_EQ(generation_cfg.size(), mstates.size());
-    TVM_FFI_ICHECK_LE(logits->shape[0], max_num_token_);
-    int num_total_token = logits->shape[0];
+    TVM_FFI_ICHECK_LE(logits.shape()[0], max_num_token_);
+    int num_total_token = logits.shape()[0];
     int num_sequence = generation_cfg.size();
 
     TVM_FFI_ICHECK((draft_mstates == nullptr) == (draft_token_indices == nullptr));
@@ -156,11 +157,11 @@ class LogitProcessorImpl : public LogitProcessorObj {
                                 const std::vector<int>* cum_num_token) final {
     NVTXScopedRange nvtx_scope("Compute probs from logits");
     // logits: (n, v)
-    TVM_FFI_ICHECK_EQ(logits->ndim, 2);
-    TVM_FFI_ICHECK_LE(logits->shape[0], max_num_token_);
-    TVM_FFI_ICHECK_EQ(logits->shape[1], vocab_size_);
-    TVM_FFI_ICHECK(logits.DataType() == (DLDataType{kDLFloat, 32, 1}));
-    int num_total_token = logits->shape[0];
+    TVM_FFI_ICHECK_EQ(logits.ndim(), 2);
+    TVM_FFI_ICHECK_LE(logits.shape()[0], max_num_token_);
+    TVM_FFI_ICHECK_EQ(logits.shape()[1], vocab_size_);
+    TVM_FFI_ICHECK(logits.dtype() == (DLDataType{kDLFloat, 32, 1}));
+    int num_total_token = logits.shape()[0];
     int num_sequence = generation_cfg.size();
 
     if (cum_num_token != nullptr) {
@@ -174,7 +175,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // Construct:
     // - temperature (max_num_token,) float32
-    float* p_temperature = static_cast<float*>(temperature_host_->data);
+    float* p_temperature = static_cast<float*>(temperature_host_.data_ptr());
 
     // - Set arrays.
     for (int i = 0; i < num_sequence; ++i) {
@@ -187,26 +188,29 @@ class LogitProcessorImpl : public LogitProcessorObj {
     }
 
     // - View arrays.
-    Tensor temperature_host = temperature_host_.CreateView({num_total_token}, dtype_f32_);
-    Tensor temperature_device = temperature_device_.CreateView({num_total_token}, dtype_f32_);
+    Tensor temperature_host =
+        tvm::runtime::CreateView(temperature_host_, {num_total_token}, dtype_f32_);
+    Tensor temperature_device =
+        tvm::runtime::CreateView(temperature_device_, {num_total_token}, dtype_f32_);
 
     // - Copy arrays to GPU.
     CopyArray(/*src=*/temperature_host, /*dst=*/temperature_device, copy_stream_);
     SyncCopyStream(device_, compute_stream_, copy_stream_);
 
     // - Call kernel.
-    Tensor probs = softmax_func_(logits.CreateView({num_total_token, 1, vocab_size_}, dtype_f32_),
+    Tensor probs = softmax_func_(tvm::runtime::CreateView(logits, {num_total_token, 1, vocab_size_},
+                                                          dtype_f32_),
                                  temperature_device)
                        .cast<Tensor>();
-    TVM_FFI_ICHECK_EQ(probs->ndim, 3);
-    TVM_FFI_ICHECK_EQ(probs->shape[0], num_total_token);
-    TVM_FFI_ICHECK_EQ(probs->shape[1], 1);
-    TVM_FFI_ICHECK_EQ(probs->shape[2], vocab_size_);
+    TVM_FFI_ICHECK_EQ(probs.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(probs.shape()[0], num_total_token);
+    TVM_FFI_ICHECK_EQ(probs.shape()[1], 1);
+    TVM_FFI_ICHECK_EQ(probs.shape()[2], vocab_size_);
     if (trace_recorder_.has_value()) {
       DeviceAPI::Get(device_)->StreamSync(device_, /*stream=*/nullptr);
     }
     RECORD_EVENT(trace_recorder_, request_ids, "finish softmax");
-    return probs.CreateView({num_total_token, vocab_size_}, probs->dtype);
+    return tvm::runtime::CreateView(probs, {num_total_token, vocab_size_}, probs.dtype());
   }
 
  private:
@@ -217,9 +221,9 @@ class LogitProcessorImpl : public LogitProcessorObj {
     // - pos2seq_id (max_num_token * vocab_size,) int32
     // - token_ids (max_num_token * vocab_size,) int32
     // - token_logit_bias (max_num_token * vocab_size,) float32
-    int* p_pos2seq_id = static_cast<int*>(pos2seq_id_host_->data);
-    int* p_token_ids = static_cast<int*>(token_ids_host_->data);
-    float* p_token_logit_bias = static_cast<float*>(token_logit_bias_host_->data);
+    int* p_pos2seq_id = static_cast<int*>(pos2seq_id_host_.data_ptr());
+    int* p_token_ids = static_cast<int*>(token_ids_host_.data_ptr());
+    float* p_token_logit_bias = static_cast<float*>(token_logit_bias_host_.data_ptr());
 
     // - Set arrays.
     int num_token_for_bias = 0;
@@ -247,12 +251,15 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // - View arrays.
     int num_token = num_bias_token;
-    Tensor pos2seq_id_host = pos2seq_id_host_.CreateView({num_token}, dtype_i32_);
-    Tensor pos2seq_id_device = pos2seq_id_device_.CreateView({num_token}, dtype_i32_);
-    Tensor token_ids_host = token_ids_host_.CreateView({num_token}, dtype_i32_);
-    Tensor token_ids_device = token_ids_device_.CreateView({num_token}, dtype_i32_);
-    Tensor token_logit_bias_host = token_logit_bias_host_.CreateView({num_token}, dtype_f32_);
-    Tensor token_logit_bias_device = token_logit_bias_device_.CreateView({num_token}, dtype_f32_);
+    Tensor pos2seq_id_host = tvm::runtime::CreateView(pos2seq_id_host_, {num_token}, dtype_i32_);
+    Tensor pos2seq_id_device =
+        tvm::runtime::CreateView(pos2seq_id_device_, {num_token}, dtype_i32_);
+    Tensor token_ids_host = tvm::runtime::CreateView(token_ids_host_, {num_token}, dtype_i32_);
+    Tensor token_ids_device = tvm::runtime::CreateView(token_ids_device_, {num_token}, dtype_i32_);
+    Tensor token_logit_bias_host =
+        tvm::runtime::CreateView(token_logit_bias_host_, {num_token}, dtype_f32_);
+    Tensor token_logit_bias_device =
+        tvm::runtime::CreateView(token_logit_bias_device_, {num_token}, dtype_f32_);
 
     // - Copy arrays to GPU.
     CopyArray(/*src=*/pos2seq_id_host, /*dst=*/pos2seq_id_device, copy_stream_);
@@ -279,11 +286,11 @@ class LogitProcessorImpl : public LogitProcessorObj {
     // - token_ids (max_num_token * vocab_size,) int32
     // - token_cnt (max_num_token * vocab_size,) int32
     // - penalties (max_num_token, 3) float32
-    int* p_seq_ids = static_cast<int*>(seq_ids_host_->data);
-    int* p_pos2seq_id = static_cast<int*>(pos2seq_id_host_->data);
-    int* p_token_ids = static_cast<int*>(token_ids_host_->data);
-    int* p_token_cnt = static_cast<int*>(token_cnt_host_->data);
-    float* p_penalties = static_cast<float*>(penalties_host_->data);
+    int* p_seq_ids = static_cast<int*>(seq_ids_host_.data_ptr());
+    int* p_pos2seq_id = static_cast<int*>(pos2seq_id_host_.data_ptr());
+    int* p_token_ids = static_cast<int*>(token_ids_host_.data_ptr());
+    int* p_token_cnt = static_cast<int*>(token_cnt_host_.data_ptr());
+    float* p_penalties = static_cast<float*>(penalties_host_.data_ptr());
 
     // - Set arrays.
     int num_token_for_penalty = 0;
@@ -342,16 +349,17 @@ class LogitProcessorImpl : public LogitProcessorObj {
     // - View arrays.
     int num_seq = num_token_for_penalty;
     int num_token = num_penalty_appeared_token;
-    Tensor seq_ids_host = seq_ids_host_.CreateView({num_seq}, dtype_i32_);
-    Tensor seq_ids_device = seq_ids_device_.CreateView({num_seq}, dtype_i32_);
-    Tensor pos2seq_id_host = pos2seq_id_host_.CreateView({num_token}, dtype_i32_);
-    Tensor pos2seq_id_device = pos2seq_id_device_.CreateView({num_token}, dtype_i32_);
-    Tensor token_ids_host = token_ids_host_.CreateView({num_token}, dtype_i32_);
-    Tensor token_ids_device = token_ids_device_.CreateView({num_token}, dtype_i32_);
-    Tensor token_cnt_host = token_cnt_host_.CreateView({num_token}, dtype_i32_);
-    Tensor token_cnt_device = token_cnt_device_.CreateView({num_token}, dtype_i32_);
-    Tensor penalties_host = penalties_host_.CreateView({num_seq, 3}, dtype_f32_);
-    Tensor penalties_device = penalties_device_.CreateView({num_seq, 3}, dtype_f32_);
+    Tensor seq_ids_host = tvm::runtime::CreateView(seq_ids_host_, {num_seq}, dtype_i32_);
+    Tensor seq_ids_device = tvm::runtime::CreateView(seq_ids_device_, {num_seq}, dtype_i32_);
+    Tensor pos2seq_id_host = tvm::runtime::CreateView(pos2seq_id_host_, {num_token}, dtype_i32_);
+    Tensor pos2seq_id_device =
+        tvm::runtime::CreateView(pos2seq_id_device_, {num_token}, dtype_i32_);
+    Tensor token_ids_host = tvm::runtime::CreateView(token_ids_host_, {num_token}, dtype_i32_);
+    Tensor token_ids_device = tvm::runtime::CreateView(token_ids_device_, {num_token}, dtype_i32_);
+    Tensor token_cnt_host = tvm::runtime::CreateView(token_cnt_host_, {num_token}, dtype_i32_);
+    Tensor token_cnt_device = tvm::runtime::CreateView(token_cnt_device_, {num_token}, dtype_i32_);
+    Tensor penalties_host = tvm::runtime::CreateView(penalties_host_, {num_seq, 3}, dtype_f32_);
+    Tensor penalties_device = tvm::runtime::CreateView(penalties_device_, {num_seq, 3}, dtype_f32_);
 
     // - Copy arrays to GPU.
     CopyArray(/*src=*/seq_ids_host, /*dst=*/seq_ids_device, copy_stream_);
@@ -377,11 +385,11 @@ class LogitProcessorImpl : public LogitProcessorObj {
     // Construct:
     // - seq_ids (max_num_token,) int32
     // - bitmask (max_num_token, ceildiv(vocab_size, 32)), int32
-    int32_t* p_seq_ids = static_cast<int32_t*>(seq_ids_host_->data);
-    uint32_t* p_bitmask = static_cast<uint32_t*>(bitmask_host_->data);
+    int32_t* p_seq_ids = static_cast<int32_t*>(seq_ids_host_.data_ptr());
+    uint32_t* p_bitmask = static_cast<uint32_t*>(bitmask_host_.data_ptr());
 
     // - Set arrays.
-    int batch_size = logits->shape[0];
+    int batch_size = logits.shape()[0];
     TVM_FFI_ICHECK((cum_num_token == nullptr && batch_size == mstates.size()) ||
                    (cum_num_token != nullptr && batch_size == cum_num_token->back()));
 
@@ -410,7 +418,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
             }
           }
           // Find a slice of bitmask_host_: bitmask_host_[num_token_for_mask, :]
-          DLTensor bitmask_dltensor = *bitmask_host_.operator->();
+          DLTensor bitmask_dltensor = *bitmask_host_.GetDLTensorPtr();
           int64_t bitmask_shape[] = {bitmask_size_};
           bitmask_dltensor.data = p_bitmask + (token_start_offset + j) * bitmask_size_;
           bitmask_dltensor.shape = bitmask_shape;
@@ -440,10 +448,12 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // - View arrays.
     int num_seq = num_token_for_mask;
-    Tensor seq_ids_host = seq_ids_host_.CreateView({num_seq}, dtype_i32_);
-    Tensor seq_ids_device = seq_ids_device_.CreateView({num_seq}, dtype_i32_);
-    Tensor bitmask_host = bitmask_host_.CreateView({batch_size, bitmask_size_}, dtype_i32_);
-    Tensor bitmask_device = bitmask_device_.CreateView({batch_size, bitmask_size_}, dtype_i32_);
+    Tensor seq_ids_host = tvm::runtime::CreateView(seq_ids_host_, {num_seq}, dtype_i32_);
+    Tensor seq_ids_device = tvm::runtime::CreateView(seq_ids_device_, {num_seq}, dtype_i32_);
+    Tensor bitmask_host =
+        tvm::runtime::CreateView(bitmask_host_, {batch_size, bitmask_size_}, dtype_i32_);
+    Tensor bitmask_device =
+        tvm::runtime::CreateView(bitmask_device_, {batch_size, bitmask_size_}, dtype_i32_);
 
     // - Copy arrays to GPU.
     CopyArray(/*src=*/seq_ids_host, /*dst=*/seq_ids_device, copy_stream_);

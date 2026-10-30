@@ -1,10 +1,11 @@
 """Scalar call_tir arguments computed from symbolic shapes must survive VM lowering."""
 
 import pytest
-import tvm
-from tvm import relax, tirx
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm import relax
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 from mlc_llm.compiler_pass.pipeline import _mlc_llm_pipeline
 
@@ -20,7 +21,7 @@ def test_computed_scalar_argument_lowers(target_kind):
     """
     n = T.dynamic("n", "int64")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def take(x: T.Tensor((n,), "float32"), off: T.int64, y: T.Tensor((n,), "float32")):
         for i in T.serial(n):
             with Ts.sblock("copy"):
@@ -45,12 +46,12 @@ def test_computed_scalar_argument_lowers(target_kind):
     with bb.function("main", [x, xm]):
         with bb.dataflow():
             gv = bb.add_func(take, "take")
-            call = relax.call_tir(gv, [x, top], out_ty=relax.TensorType((h,), "float32"))
+            call = relax.call_tir(gv, [x, top], ty_args=[relax.TensorType((h,), "float32")])
             out = bb.emit_output(call)
         bb.emit_func_output(out)
     mod = bb.get()
 
-    target = tvm.target.Target(target_kind, host="llvm")
+    target = tvm_tirx.target.Target(target_kind, host="llvm")
     pipeline = _mlc_llm_pipeline(
         target,
         variable_bounds={"batch_size": 1},

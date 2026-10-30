@@ -5,7 +5,7 @@ import math
 
 import numpy as np
 import pytest
-import tvm
+import tvm_tirx
 from tvm import relax
 from tvm.relax.frontend import nn
 
@@ -36,7 +36,7 @@ from mlc_llm.quantization import QUANTIZATION
 def _build_and_run(module: nn.Module, spec, *inputs):
     mod, named_parameters, _ = module.export_tvm(spec=spec, allow_extern=True)
     executable = relax.build(mod, target="llvm")
-    vm = relax.VirtualMachine(executable, tvm.cpu())
+    vm = relax.VirtualMachine(executable, tvm_tirx.cpu())
     return vm, named_parameters
 
 
@@ -208,8 +208,8 @@ def test_audio_feature_extractor_matches_reference():
         "extractor.mel_filters": generated["audio_preprocessor.mel_filters"],
     }
     actual = vm["forward"](
-        tvm.runtime.tensor(samples),
-        *[tvm.runtime.tensor(parameter_values[name]) for name, _ in named_parameters],
+        tvm_tirx.runtime.tensor(samples),
+        *[tvm_tirx.runtime.tensor(parameter_values[name]) for name, _ in named_parameters],
     ).numpy()
     expected = _reference_log_mel(samples)
     np.testing.assert_allclose(actual, expected, rtol=2e-6, atol=2e-6)
@@ -240,7 +240,9 @@ def test_text_rope_matches_reference(layer_idx, head_dim, active, theta):
         values,
         positions,
     )
-    actual = vm["forward"](tvm.runtime.tensor(values), tvm.runtime.tensor(positions)).numpy()
+    actual = vm["forward"](
+        tvm_tirx.runtime.tensor(values), tvm_tirx.runtime.tensor(positions)
+    ).numpy()
     expected = _reference_rope(values, positions[None, :], theta, active)
     np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-5)
 
@@ -275,8 +277,8 @@ def test_audio_attention_matches_block_reference():
                 0.0, 0.2, tuple(int(dim) for dim in parameter.shape)
             ).astype("float32")
     actual = vm["forward"](
-        tvm.runtime.tensor(hidden_states),
-        *[tvm.runtime.tensor(parameter_values[name]) for name, _ in named_parameters],
+        tvm_tirx.runtime.tensor(hidden_states),
+        *[tvm_tirx.runtime.tensor(parameter_values[name]) for name, _ in named_parameters],
     ).numpy()
     expected = _reference_block_audio_attention(hidden_states, parameter_values, config)
     np.testing.assert_allclose(actual, expected, rtol=3e-5, atol=3e-5)
@@ -306,8 +308,8 @@ def test_audio_positions_use_pad_token_for_per_layer_identity():
     )
     assert not named_parameters
     actual = vm["forward"](
-        tvm.runtime.tensor(token_ids),
-        tvm.runtime.tensor(modality_ids),
+        tvm_tirx.runtime.tensor(token_ids),
+        tvm_tirx.runtime.tensor(modality_ids),
     ).numpy()
     expected = np.array([[11, 0, 12]], dtype="int32")
     np.testing.assert_array_equal(actual, expected)
@@ -362,10 +364,10 @@ def test_audio_embeddings_feed_per_layer_context_projection():
         input_embeds = np.zeros(input_shape, dtype="float32")
         input_embeds[0, 1] = audio_embedding
         return vm["forward"](
-            tvm.runtime.tensor(input_embeds),
-            tvm.runtime.tensor(token_ids),
-            tvm.runtime.tensor(modality_ids),
-            *[tvm.runtime.tensor(parameter_values[name]) for name, _ in named_parameters],
+            tvm_tirx.runtime.tensor(input_embeds),
+            tvm_tirx.runtime.tensor(token_ids),
+            tvm_tirx.runtime.tensor(modality_ids),
+            *[tvm_tirx.runtime.tensor(parameter_values[name]) for name, _ in named_parameters],
         ).numpy()
 
     first = run(np.array([1.0, 0.0, 0.0, 0.0], dtype="float32"))

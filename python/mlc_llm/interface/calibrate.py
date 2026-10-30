@@ -8,7 +8,8 @@ from typing import List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
 import tqdm.asyncio
-import tvm
+import tvm_ffi
+import tvm_tirx
 from tvm.contrib import tvmjs
 
 from mlc_llm.serve.engine import AsyncMLCEngine, EngineConfig
@@ -20,7 +21,7 @@ class CalibrationObserver:
 
     instance: "CalibrationObserver" = None
 
-    params: Mapping[str, tvm.runtime.Tensor] = {}
+    params: Mapping[str, tvm_tirx.runtime.Tensor] = {}
 
     @staticmethod
     def get():
@@ -29,13 +30,13 @@ class CalibrationObserver:
             CalibrationObserver.instance = CalibrationObserver()
         return CalibrationObserver.instance
 
-    @tvm.register_global_func("mlc_llm.calibration_observer")
+    @tvm_ffi.register_global_func("mlc_llm.calibration_observer")
     @staticmethod
     def callback(
         name: str,
         mode: str,
-        value: "tvm.runtime.Tensor",
-        out_value: "tvm.runtime.Tensor",
+        value: "tvm_tirx.runtime.Tensor",
+        out_value: "tvm_tirx.runtime.Tensor",
     ):
         """The callback function to update the saved calibration parameters."""
         instance = CalibrationObserver.get()

@@ -22,6 +22,7 @@ namespace serve {
 
 using namespace tvm::runtime;
 using tvm::ffi::Object;
+using tvm::ffi::Tensor;
 
 /*! \brief Create the engine actions based on engine config. */
 Array<EngineAction> CreateEngineActions(Array<Model> models, EngineConfig engine_config,

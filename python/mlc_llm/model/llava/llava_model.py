@@ -7,11 +7,11 @@ import dataclasses
 import logging
 from typing import Any, Dict, Optional  # noqa: UP035
 
-from tvm import target, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor
 from tvm.relax.frontend.nn.op import permute_dims, reshape, wrap_nested
 from tvm.relax.op import strided_slice
+from tvm_tirx import target, tirx
 
 from mlc_llm import op as op_ext
 from mlc_llm.model.model_preset import MODEL_PRESETS

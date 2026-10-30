@@ -1,15 +1,15 @@
 """Operators for choosing the pivot to cut-off top-p percentile"""
 
-import tvm
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+import tvm_tirx
+from tvm.s_tir import script as Ts
+from tvm_tirx.script import tirx as T
 
 from mlc_llm.support.max_thread_check import get_max_num_threads_per_block
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 
 
-def top_p_pivot(pN, target: tvm.target.Target):
+def top_p_pivot(pN, target: tvm_tirx.target.Target):
     """Top-p pivot function. This function finds the pivot to cut-off top-p percentile.
 
     A valide pivot should satisfy the following conditions:
@@ -44,16 +44,16 @@ def top_p_pivot(pN, target: tvm.target.Target):
     TX = min(TX, max_num_threads_per_block)
 
     def _var(dtype="int32"):
-        return Ts.sblock_alloc_buffer((1,), dtype, scope="local")
+        return Ts.sblock_alloc_tensor((1,), dtype, scope="local")
 
     def valid(lsum, lmin, cmin, top_p):
-        return tvm.tirx.all(lsum >= top_p, top_p > lsum - cmin * lmin)
+        return tvm_tirx.tirx.all(lsum >= top_p, top_p > lsum - cmin * lmin)
 
     B = T.dynamic("B", "int32")
     N = T.dynamic("N", "int32")
 
     # fmt: off
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         prob: T.Tensor((B, N,), "float32"),
         top_p_arr: T.Tensor((B,), "float32"),
@@ -64,35 +64,35 @@ def top_p_pivot(pN, target: tvm.target.Target):
         T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
 
         with Ts.sblock("kernel"):
-            pivot = Ts.sblock_alloc_buffer((pN,), "float32", scope="local")
+            pivot = Ts.sblock_alloc_tensor((pN,), "float32", scope="local")
             top_p = _var("float32")
 
-            L = Ts.sblock_alloc_buffer((1,), "float32", scope="shared")
-            R = Ts.sblock_alloc_buffer((1,), "float32", scope="shared")
+            L = Ts.sblock_alloc_tensor((1,), "float32", scope="shared")
+            R = Ts.sblock_alloc_tensor((1,), "float32", scope="shared")
             L_local = _var("float32")
             R_local = _var("float32")
 
             q = _var("float32")
-            lsum = Ts.sblock_alloc_buffer((pN,), "float32", scope="local")
-            lmin_broadcast = Ts.sblock_alloc_buffer((1), "float32", scope="shared")
+            lsum = Ts.sblock_alloc_tensor((pN,), "float32", scope="local")
+            lmin_broadcast = Ts.sblock_alloc_tensor((1), "float32", scope="shared")
             lmin_broadcast_local = _var("float32")
-            lmin = Ts.sblock_alloc_buffer((pN,), "float32", scope="local")
-            cmin = Ts.sblock_alloc_buffer((pN,), "int32", scope="local")
+            lmin = Ts.sblock_alloc_tensor((pN,), "float32", scope="local")
+            cmin = Ts.sblock_alloc_tensor((pN,), "int32", scope="local")
             total_sum = _var("float32")
 
             it = _var("int32")
             es_local = _var("bool")
-            es = Ts.sblock_alloc_buffer((1,), "bool", scope="shared")
+            es = Ts.sblock_alloc_tensor((1,), "bool", scope="shared")
             find_pivot_local = _var("bool")
-            find_pivot = Ts.sblock_alloc_buffer((1,), "bool", scope="shared")
+            find_pivot = Ts.sblock_alloc_tensor((1,), "bool", scope="shared")
 
             total_sum_reduce = _var("float32")
             lsum_reduce = _var("float32")
             lmin_reduce = _var("float32")
             cmin_reduce = _var("int32")
 
-            for _bx in T.thread_binding(0, B, thread="blockIdx.x"):
-                for _tx in T.thread_binding(0, TX, thread="threadIdx.x"):
+            for _bx in T.parallel(0, B, annotations={"thread_binding": "blockIdx.x"}):
+                for _tx in T.parallel(0, TX, annotations={"thread_binding": "threadIdx.x"}):
                     with Ts.sblock("CTA"):
                         b, tx = Ts.axis.remap("SS", [_bx, _tx])
 
@@ -103,7 +103,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
                             L[0] = 1.0 - top_p[0]
                             R[0] = eps_LR
                             find_pivot[0] = False
-                        T.tvm_storage_sync("shared")
+                        T.gpu_storage_sync("shared")
 
                         L_local[0] = L[0]
                         R_local[0] = R[0]
@@ -118,17 +118,17 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                 final_pivot[b] = 0.0
                             find_pivot_local[0] = True
 
-                        while T.tvm_thread_invariant(
+                        while T.gpu_thread_invariant(
                             L_local[0] - R_local[0] > eps_LR
                             and T.Not(find_pivot_local[0])
                         ):
                             # sync before each iteration
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             ### get lsum, lmin, total_sum
                             for pidx in T.unroll(0, pN):
                                 lsum[pidx] = 0.0
-                                lmin[pidx] = T.max_value("float32")
+                                lmin[pidx] = T.max_value(ty="float32")
                                 cmin[pidx] = 0
                             total_sum[0] = 0.0
                             it[0] = 0
@@ -150,25 +150,29 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                 # early stop every K iterations
                                 if it[0] % K == 0:
                                     # reduce total_sum over tx
-                                    # T.tvm_storage_sync("shared")
+                                    # T.gpu_storage_sync("shared")
                                     with Ts.sblock("block_cross_thread"):
                                         Ts.reads(total_sum[0])
                                         Ts.writes(total_sum_reduce[0])
-                                        T.attr(
-                                            T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                                            "reduce_scope",
-                                            T.int32(0),
+                                        T.gpu_thread_allreduce(
+                                            T.Lambda(
+                                                [T.float32, T.float32], lambda x0, y0: x0 + y0,
+                                            ),
+                                            T.float32(0),
+                                            total_sum[0],
+                                            True,
+                                            total_sum_reduce[0],
+                                            tx,
                                         )
-                                        T.tvm_thread_allreduce(T.uint32(1), total_sum[0], True, total_sum_reduce[0], tx)  # noqa: E501
-                                    # T.tvm_storage_sync("shared")
+                                    # T.gpu_storage_sync("shared")
 
                                     if tx == 0:
                                         # leader thread checks if we can stop early
                                         es[0] = 1 - total_sum_reduce[0] < pivot[pN - 1]
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
                                     es_local[0] = es[0]
 
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             # reduce lsum, lmin, cmin, over tx
                             for pidx in T.serial(0, pN):
@@ -176,28 +180,34 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                 with Ts.sblock("block_cross_thread"):
                                     Ts.reads(lsum[pidx])
                                     Ts.writes(lsum_reduce[0])
-                                    T.attr(
-                                        T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                                        "reduce_scope",
-                                        T.int32(0),
+                                    T.gpu_thread_allreduce(
+                                        T.Lambda([T.float32, T.float32], lambda x0, y0: x0 + y0),
+                                        T.float32(0),
+                                        lsum[pidx],
+                                        True,
+                                        lsum_reduce[0],
+                                        tx,
                                     )
-                                    T.tvm_thread_allreduce(T.uint32(1), lsum[pidx], True, lsum_reduce[0], tx)  # noqa: E501
 
                                 # reduce lmin over tx for pivot[j]
                                 with Ts.sblock("block_cross_thread"):
                                     Ts.reads(lmin[pidx])
                                     Ts.writes(lmin_reduce[0])
-                                    T.attr(
-                                        T.comm_reducer(lambda x0, y0: T.min(x0, y0), [T.float32(0)]),  # noqa: E501
-                                        "reduce_scope",
-                                        T.int32(0),
+                                    T.gpu_thread_allreduce(
+                                        T.Lambda(
+                                            [T.float32, T.float32], lambda x0, y0: T.min(x0, y0),
+                                        ),
+                                        T.float32(0),
+                                        lmin[pidx],
+                                        True,
+                                        lmin_reduce[0],
+                                        tx,
                                     )
-                                    T.tvm_thread_allreduce(T.uint32(1), lmin[pidx], True, lmin_reduce[0], tx)  # noqa: E501
 
                                 if tx == 0:
                                     # broadcast lmin to all threads
                                     lmin_broadcast[0] = lmin_reduce[0]
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
                                 lmin_broadcast_local[0] = lmin_broadcast[0]
                                 if lmin[pidx] > lmin_broadcast_local[0]:
                                     cmin[pidx] = 0
@@ -210,18 +220,20 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                 with Ts.sblock("block_cross_thread"):
                                     Ts.reads(cmin[pidx])
                                     Ts.writes(cmin_reduce[0])
-                                    T.attr(
-                                        T.comm_reducer(lambda x0, y0: x0 + y0, [T.int32(0)]),
-                                        "reduce_scope",
+                                    T.gpu_thread_allreduce(
+                                        T.Lambda([T.int32, T.int32], lambda x0, y0: x0 + y0),
                                         T.int32(0),
+                                        cmin[pidx],
+                                        True,
+                                        cmin_reduce[0],
+                                        tx,
                                     )
-                                    T.tvm_thread_allreduce(T.uint32(1), cmin[pidx], True, cmin_reduce[0], tx)  # noqa: E501
 
                                 if tx == 0:
                                     # only the leader thread updates cmin
                                     cmin[pidx] = cmin_reduce[0]
 
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             if tx == 0:
                                 # leader thread checks if we have found the pivot, or updates L, R
@@ -241,7 +253,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                         L[0] = pivot[pidx]
                                     it[0] += 1
 
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             L_local[0] = L[0]
                             R_local[0] = R[0]
@@ -262,7 +274,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
     return _func
 
 
-def top_p_renorm(target: tvm.target.Target = None):
+def top_p_renorm(target: tvm_tirx.target.Target = None):
     """Top-p renormalization function. This function renormalizes the probability vector.
 
     Given the pivot, the probability vector is renormalized as follows:
@@ -291,13 +303,13 @@ def top_p_renorm(target: tvm.target.Target = None):
         TX = min(TX, max_num_threads_per_block)
 
     def _var(dtype="int32"):
-        return Ts.sblock_alloc_buffer((1,), dtype, scope="local")
+        return Ts.sblock_alloc_tensor((1,), dtype, scope="local")
 
     B = T.dynamic("B", "int32")
     N = T.dynamic("N", "int32")
 
     # fmt: off
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _func(
         prob: T.Tensor((B, N,), "float32"),
         final_pivot: T.Tensor((B,), "float32"),
@@ -311,9 +323,9 @@ def top_p_renorm(target: tvm.target.Target = None):
             lsum = _var("float32")
             BX = T.meta_var(T.ceildiv(CTA_COUNT, B))
 
-            for _by in T.thread_binding(0, B, thread="blockIdx.y"):
-                for _bx in T.thread_binding(0, BX, thread="blockIdx.x"):
-                    for _tx in T.thread_binding(0, TX, thread="threadIdx.x"):
+            for _by in T.parallel(0, B, annotations={"thread_binding": "blockIdx.y"}):
+                for _bx in T.parallel(0, BX, annotations={"thread_binding": "blockIdx.x"}):
+                    for _tx in T.parallel(0, TX, annotations={"thread_binding": "threadIdx.x"}):
                         with Ts.sblock("CTA"):
                             by, bx, tx = Ts.axis.remap("SSS", [_by, _bx, _tx])
 

@@ -1,6 +1,8 @@
 # pylint: disable=invalid-name,missing-docstring
 """Unit tests for Gemma3V vision-language model architecture."""
 
+import tvm_tirx
+
 from mlc_llm.model import MODELS
 from mlc_llm.protocol.artifact_manifest import (
     ImageDecodeProcessor,
@@ -91,7 +93,7 @@ def test_gemma3v_creation():
     for func_name in expected_funcs:
         assert func_name in mod, f"Module should contain '{func_name}' function"
 
-    mod.show(black_format=False)
+    mod.show()
     for name, param in named_params:
         print(name, param.shape, param.dtype)
 
@@ -145,11 +147,9 @@ def test_gemma3v_artifact_points_at_exported_functions():
 
 
 def test_gemma3v_takes_uint32_pixels_on_webgpu():
-    import tvm
-
     entry = MODELS["gemma3_v"]
     config = entry.config.from_dict(SMALL_GEMMA3V_CONFIG)
-    with tvm.target.Target("webgpu"):
+    with tvm_tirx.target.Target("webgpu"):
         model = entry.model(config)
         programs = entry.artifact.programs(config)
     assert model.image_dtype == "uint32"

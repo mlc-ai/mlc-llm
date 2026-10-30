@@ -6,13 +6,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union  # noqa: UP035
 
 import numpy as np
-import tvm
 import tvm_ffi
-from tvm import DataType, relax
+import tvm_tirx
+from tvm import relax
 from tvm.contrib import tvmjs
-from tvm.runtime import Device, Module, Object
 from tvm.runtime.vm import VirtualMachine
-from tvm_ffi import Shape
+from tvm_ffi import Module, Object, Shape
+from tvm_ffi import dtype as DataType
+from tvm_tirx.runtime import Device
 
 from mlc_llm.conversation_template import ConvTemplateRegistry
 from mlc_llm.interface.help import HELP
@@ -25,14 +26,14 @@ from mlc_llm.tokenizers import Tokenizer
 
 
 def _extract_metadata(mod: Module):
-    return json.loads(VirtualMachine(mod, tvm.runtime.device("cpu"))["_metadata"]())
+    return json.loads(VirtualMachine(mod, tvm_ffi.device("cpu"))["_metadata"]())
 
 
 def _load_params(
     model_weight_path: str,
     device: Device,
     model_metadata: Dict[str, Any],  # noqa: UP006
-) -> List[tvm.runtime.Tensor]:  # noqa: UP006
+) -> List[tvm_tirx.runtime.Tensor]:  # noqa: UP006
     params, meta = tvmjs.load_tensor_cache(model_weight_path, device)
     param_names = [param["name"] for param in model_metadata["params"]]
     assert len(param_names) == meta["ParamSize"]
@@ -49,7 +50,7 @@ def _get_tvm_module(
     device: Device,
     instrument: Union[tvm_ffi.Function, None],
 ):
-    ex = tvm.runtime.load_module(lib_path)
+    ex = tvm_ffi.load_module(lib_path)
     vm = relax.VirtualMachine(ex, device)
     if instrument is not None:
         vm.set_instrument(instrument)
@@ -130,7 +131,7 @@ class DefaultDebugInstrument:
         # Save the arguments to npz
         arg_dict = {}
         for i, arg in enumerate(args):
-            if isinstance(arg, tvm.runtime.Tensor):
+            if isinstance(arg, tvm_tirx.runtime.Tensor):
                 if np.prod(arg.shape) * (DataType(arg.dtype).bits // 8) > 2147483648:
                     # We skip dump large tensors
                     arg_dict[f"arg_{i}"] = np.zeros(())
@@ -257,11 +258,13 @@ class DebugChat:
         )
         self.tokenizer = Tokenizer(str(self.model_path))
 
-        self.add_sequence_func = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
-        self.begin_forward_func = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
-        self.end_forward_func = tvm.get_global_func("vm.builtin.kv_state_end_forward")
-        self.nd_view_func = tvm.get_global_func("vm.builtin.reshape")
-        self.sample_topp_from_prob_func = tvm.get_global_func("vm.builtin.sample_top_p_from_prob")
+        self.add_sequence_func = tvm_ffi.get_global_func("vm.builtin.kv_state_add_sequence")
+        self.begin_forward_func = tvm_ffi.get_global_func("vm.builtin.kv_state_begin_forward")
+        self.end_forward_func = tvm_ffi.get_global_func("vm.builtin.kv_state_end_forward")
+        self.nd_view_func = tvm_ffi.get_global_func("vm.builtin.reshape")
+        self.sample_topp_from_prob_func = tvm_ffi.get_global_func(
+            "vm.builtin.sample_top_p_from_prob"
+        )
 
         try:
             self.embed_func = self.mod["embed"]
@@ -325,7 +328,7 @@ class DebugChat:
     def _embed(
         self,
         data_inputs: List[Union[List[int], data.ImageData]],  # noqa: UP006
-    ) -> Tuple[tvm.runtime.Tensor, int]:  # noqa: UP006
+    ) -> Tuple[tvm_tirx.runtime.Tensor, int]:  # noqa: UP006
         # We currently convert to numpy after embedded, concat in numpy, then convert back to
         # tvm tensor; could be more optimized; but may suffice for debug purposes.
         embeddings = []
@@ -339,7 +342,7 @@ class DebugChat:
                 embeddings.append(self.embed_image_func(image_input, self.params).asnumpy())
             else:
                 # Process token data
-                data_input = tvm.runtime.tensor(
+                data_input = tvm_tirx.runtime.tensor(
                     np.array(data_input).astype("int32"), device=self.device
                 )
                 embeddings.append(self.embed_func(data_input, self.params).asnumpy())
@@ -347,7 +350,7 @@ class DebugChat:
         #     print(f"embedding.shape: {embedding.shape}")
 
         # Concatenate
-        concat_embeddings = tvm.runtime.tensor(
+        concat_embeddings = tvm_tirx.runtime.tensor(
             np.concatenate(embeddings, axis=0), device=self.device
         )
         concat_embeddings = self.nd_view_func(
@@ -358,7 +361,7 @@ class DebugChat:
 
         return concat_embeddings, input_len
 
-    def _prefill(self, embedding: tvm.runtime.Tensor, input_len: int):
+    def _prefill(self, embedding: tvm_tirx.runtime.Tensor, input_len: int):
         print("======================= Starts Prefill =======================")
         seq_len_shape = Shape([input_len])
         max_num_sequence = 1
@@ -420,7 +423,7 @@ class DebugChat:
 
     def _sample_token_from_logits(
         self,
-        logits: tvm.runtime.Tensor,
+        logits: tvm_tirx.runtime.Tensor,
         *,
         temperature=1.0,
         top_p=1.0,

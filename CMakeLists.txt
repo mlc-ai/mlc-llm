@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.26)
 project(mlc_llm C CXX)
 
 include(CheckCXXCompilerFlag)
@@ -27,10 +27,6 @@ option(MLC_HIDE_PRIVATE_SYMBOLS "Hide private symbols" ON)
 option(MLC_LLM_BUILD_PYTHON_MODULE "Build Python module with scikit-build-core"
        OFF)
 
-if(MLC_LLM_INSTALL_STATIC_LIB)
-  set(BUILD_STATIC_RUNTIME ON)
-endif()
-
 set(MLC_VISIBILITY_FLAG "")
 if(MLC_HIDE_PRIVATE_SYMBOLS)
   set(HIDE_PRIVATE_SYMBOLS ON)
@@ -43,19 +39,26 @@ endif()
 option(BUILD_CPP_TEST "Build cpp unittests" OFF)
 
 set(CMAKE_CUDA_STANDARD 17)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# tvm runtime config: minimize runtime components
-set(USE_RPC OFF)
-set(USE_MICRO OFF)
-set(USE_GRAPH_EXECUTOR OFF)
-set(USE_GRAPH_EXECUTOR_DEBUG OFF)
-set(USE_AOT_EXECUTOR OFF)
-set(USE_PROFILER OFF)
-set(USE_GTEST OFF)
-set(USE_LIBBACKTRACE OFF)
-set(BUILD_DUMMY_LIBTVM ON)
+# Keep the existing MLC build options when configuring TVM and TIRx.
+foreach(_option LLVM CUDA ROCM METAL VULKAN OPENCL OPENCL_ENABLE_HOST_PTR
+                OPENCL_EXTN_QCOM OPENMP THREADS CUSTOM_LOGGING)
+  if(DEFINED USE_${_option})
+    set(TVM_TIRX_USE_${_option} "${USE_${_option}}")
+  endif()
+endforeach()
+if(NOT DEFINED TVM_TIRX_USE_LLVM)
+  set(TVM_TIRX_USE_LLVM OFF)
+endif()
+foreach(_option CUBLAS CUDNN NCCL RCCL NVSHMEM CUTLASS THRUST CURAND NVTX)
+  if(DEFINED USE_${_option})
+    set(TVM_USE_${_option} "${USE_${_option}}")
+  endif()
+endforeach()
+set(TVM_USE_RPC OFF)
+set(TVM_USE_GTEST OFF)
 if(NOT DEFINED TVM_SOURCE_DIR)
   if(DEFINED ENV{TVM_SOURCE_DIR})
     set(TVM_SOURCE_DIR "$ENV{TVM_SOURCE_DIR}")
@@ -65,20 +68,25 @@ if(NOT DEFINED TVM_SOURCE_DIR)
 endif(NOT DEFINED TVM_SOURCE_DIR)
 message(STATUS "TVM_SOURCE_DIR: ${TVM_SOURCE_DIR}")
 add_subdirectory(${TVM_SOURCE_DIR} tvm EXCLUDE_FROM_ALL)
+get_directory_property(MLC_LLM_RUNTIME_BACKEND_LIBS
+                       DIRECTORY ${TVM_SOURCE_DIR}
+                       DEFINITION TVM_RUNTIME_BACKEND_LIBS)
+if(MLC_LLM_INSTALL_STATIC_LIB)
+  include(cmake/StaticRuntime.cmake)
+endif()
 
 set(MLC_LLM_RUNTIME_LINKER_LIB "")
 set(TOKENZIER_CPP_PATH 3rdparty/tokenizers-cpp)
 add_subdirectory(${TOKENZIER_CPP_PATH} tokenizers EXCLUDE_FROM_ALL)
 
 set(XGRAMMAR_PATH 3rdparty/xgrammar)
-tvm_file_glob(GLOB_RECURSE MLC_LLM_SRCS cpp/*.cc)
-tvm_file_glob(GLOB_RECURSE XGRAMMAR_SRCS ${XGRAMMAR_PATH}/cpp/*.cc)
+file(GLOB_RECURSE MLC_LLM_SRCS CONFIGURE_DEPENDS cpp/*.cc)
+file(GLOB_RECURSE XGRAMMAR_SRCS CONFIGURE_DEPENDS ${XGRAMMAR_PATH}/cpp/*.cc)
 list(FILTER XGRAMMAR_SRCS EXCLUDE REGEX "${XGRAMMAR_PATH}/cpp/pybind/.*\\.cc")
 list(APPEND MLC_LLM_SRCS ${XGRAMMAR_SRCS})
 add_library(mlc_llm_objs OBJECT ${MLC_LLM_SRCS})
 
-set(MLC_LLM_INCLUDES
-    ${TVM_SOURCE_DIR}/include ${TVM_SOURCE_DIR}/3rdparty/dlpack/include)
+set(MLC_LLM_INCLUDES ${TVM_SOURCE_DIR}/include)
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} __STDC_FORMAT_MACROS=1)
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} XGRAMMAR_ENABLE_LOG_DEBUG=0)
 
@@ -91,16 +99,32 @@ target_include_directories(mlc_llm_objs PRIVATE ${XGRAMMAR_PATH}/include)
 # xgrammar still depends on picojson - use its bundled copy
 target_include_directories(mlc_llm_objs
                            PRIVATE ${XGRAMMAR_PATH}/3rdparty/picojson)
-target_link_libraries(mlc_llm_objs PRIVATE tvm_ffi_header)
+target_link_libraries(mlc_llm_objs PRIVATE tvm_tirx::header tvm_ffi::header)
+target_compile_definitions(mlc_llm_objs PRIVATE
+  "$<TARGET_PROPERTY:tvm_runtime,INTERFACE_COMPILE_DEFINITIONS>")
+if(TVM_USE_NVTX)
+  get_directory_property(MLC_CUDA_INCLUDE_DIRS
+                         DIRECTORY ${TVM_SOURCE_DIR}
+                         DEFINITION CUDA_INCLUDE_DIRS)
+  target_include_directories(mlc_llm_objs PRIVATE ${MLC_CUDA_INCLUDE_DIRS})
+  target_compile_definitions(mlc_llm_objs PRIVATE MLC_NVTX_ENABLED=1)
+endif()
 
 add_library(mlc_llm SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
 add_library(mlc_llm_static STATIC $<TARGET_OBJECTS:mlc_llm_objs>)
-add_dependencies(mlc_llm_static tokenizers_cpp sentencepiece-static
-                 tokenizers_c tvm_runtime tvm_runtime_extra)
+add_dependencies(mlc_llm_static tokenizers_cpp sentencepiece-static tokenizers_c)
 set_target_properties(mlc_llm_static PROPERTIES OUTPUT_NAME mlc_llm)
+if(MLC_LLM_INSTALL_STATIC_LIB)
+  add_dependencies(mlc_llm_static mlc_tvm_runtime_static tvm_ffi_static)
+  # FFI registers the enum metadata used by the runtime's static initializers.
+  target_link_libraries(mlc_llm_static INTERFACE
+    "$<LINK_LIBRARY:WHOLE_ARCHIVE,tvm_ffi_static,mlc_tvm_runtime_static>")
+else()
+  add_dependencies(mlc_llm_static tvm_runtime ${MLC_LLM_RUNTIME_BACKEND_LIBS})
+endif()
 
 target_link_libraries(mlc_llm PUBLIC tvm_runtime)
-target_link_libraries(mlc_llm PRIVATE tvm_runtime_extra)
+target_link_libraries(mlc_llm PRIVATE ${MLC_LLM_RUNTIME_BACKEND_LIBS})
 target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
 
 find_library(FLASH_ATTN_LIBRARY flash_attn
@@ -129,7 +153,9 @@ if(BUILD_CPP_TEST)
   add_executable(mlc_llm_cpp_tests ${MLC_LLM_TEST_SRCS})
   target_include_directories(mlc_llm_cpp_tests PRIVATE ${MLC_LLM_INCLUDES})
   target_include_directories(mlc_llm_cpp_tests
-                             PRIVATE ${PROJECT_SOURCE_DIR}/cpp)
+                             PRIVATE ${PROJECT_SOURCE_DIR}/cpp
+                                     ${TOKENZIER_CPP_PATH}/include
+                                     ${XGRAMMAR_PATH}/include)
   target_include_directories(
     mlc_llm_cpp_tests PRIVATE ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
   target_link_libraries(mlc_llm_cpp_tests PUBLIC mlc_llm gtest gtest_main)
@@ -142,7 +168,7 @@ endif()
 
 add_library(mlc_llm_module SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
 target_link_libraries(mlc_llm_module PUBLIC tvm_runtime)
-target_link_libraries(mlc_llm_module PRIVATE tvm_runtime_extra)
+target_link_libraries(mlc_llm_module PRIVATE ${MLC_LLM_RUNTIME_BACKEND_LIBS})
 target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp)
 
 set_property(
@@ -162,9 +188,9 @@ endif()
 
 # when this option is on, we install all static lib deps into lib
 if(MLC_LLM_INSTALL_STATIC_LIB)
-  install(TARGETS mlc_llm_static tokenizers_cpp sentencepiece-static tvm_runtime
-                  tvm_runtime_extra
-          LIBRARY DESTINATION lib${LIB_SUFFIX})
+  install(TARGETS mlc_llm_static tokenizers_cpp sentencepiece-static
+                  mlc_tvm_runtime_static tvm_ffi_static
+          ARCHIVE DESTINATION lib${LIB_SUFFIX})
   # tokenizers need special handling as it builds from rust
   if(MSVC)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/tokenizers/libtokenizers_c.lib
@@ -176,7 +202,7 @@ if(MLC_LLM_INSTALL_STATIC_LIB)
 else()
   install(
     TARGETS tvm_runtime
-            tvm_runtime_extra
+            ${MLC_LLM_RUNTIME_BACKEND_LIBS}
             mlc_llm
             mlc_llm_module
             mlc_llm_static

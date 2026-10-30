@@ -10,11 +10,12 @@ from typing import Any, Dict, List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
 from tvm import relax as R
-from tvm import te, tirx
+from tvm import te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from tvm.s_tir import script as Ts
+from tvm_tirx import tirx
+from tvm_tirx.script import tirx as T
 
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
@@ -245,7 +246,7 @@ def create_gated_delta_net_func(
     batch_size = T.dynamic("batch_size", "int64")
     seq_len = T.dynamic("seq_len", "int64")
 
-    @Ts.prim_func
+    @Ts.function
     def gdn_func(
         # q, k: (batch, seq_len, key_heads, K)
         q_buf: T.Tensor((batch_size, seq_len, num_key_heads, K), dtype),
@@ -265,9 +266,9 @@ def create_gated_delta_net_func(
     ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
 
-        for b_idx in T.thread_binding(batch_size, thread="blockIdx.y"):
-            for h_idx in T.thread_binding(num_value_heads, thread="blockIdx.x"):
-                for col in T.thread_binding(V, thread="threadIdx.x"):
+        for b_idx in T.parallel(batch_size, annotations={"thread_binding": "blockIdx.y"}):
+            for h_idx in T.parallel(num_value_heads, annotations={"thread_binding": "blockIdx.x"}):
+                for col in T.parallel(V, annotations={"thread_binding": "threadIdx.x"}):
                     # Init state from state_in
                     for row in range(K):
                         with Ts.sblock("init_state"):

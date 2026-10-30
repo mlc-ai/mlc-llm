@@ -3,24 +3,26 @@
 import json
 from typing import Any, Dict  # noqa: UP035
 
-import tvm
-from tvm import relax, tirx
-from tvm.ir import IRModule, Op
+import tvm_ffi
+import tvm_tirx
+from tvm import relax
 from tvm.relax.expr_functor import PyExprVisitor, visitor
+from tvm_tirx import ir
+from tvm_tirx.ir import IRModule, Op
 
 from mlc_llm.support import logging
 
 logger = logging.getLogger(__name__)
 
 
-@tvm.transform.module_pass(opt_level=0, name="AttachMetadata")
+@tvm_tirx.transform.module_pass(opt_level=0, name="AttachMetadata")
 class AttachMetadataWithMemoryUsage:
     """Attach a Relax function that returns metadata in a JSON string"""
 
     def __init__(self, metadata: Dict[str, Any]):  # noqa: UP006
         self.metadata = metadata
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
 
         func_name = "_metadata"
@@ -28,7 +30,7 @@ class AttachMetadataWithMemoryUsage:
         def _emit_metadata(metadata):
             bb = relax.BlockBuilder()
             with bb.function(func_name, params=[]):
-                bb.emit_func_output(tvm.ir.StringImm(json.dumps(metadata)))
+                bb.emit_func_output(tvm_tirx.ir.StringImm(json.dumps(metadata)))
             return bb.finalize()[func_name]
 
         self.metadata["memory_usage"] = _MemoryEstimator().run(mod)
@@ -73,15 +75,15 @@ class _MemoryEstimator(PyExprVisitor):
         assert isinstance(shape, relax.ShapeExpr)
         size = 1
         for dim_len in shape.values:
-            if not isinstance(dim_len, tvm.tirx.IntImm):
+            if not isinstance(dim_len, tvm_tirx.ir.IntImm):
                 return
             size *= dim_len.value
-        dtype = tvm.DataType(dtype_str)
+        dtype = tvm_ffi.dtype(dtype_str)
         self.planned_mem_num += 1
         self.planned_alloc_mem += size * ((dtype.bits + 7) // 8) * dtype.lanes
 
     def _storage_alloc(self, size: relax.Expr) -> None:
         assert isinstance(size, relax.ShapeExpr)
-        if isinstance(size.values[0], tirx.IntImm):
+        if isinstance(size.values[0], ir.IntImm):
             self.planned_mem_num += 1
             self.planned_alloc_mem += size.values[0].value

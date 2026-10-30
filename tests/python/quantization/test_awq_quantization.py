@@ -3,10 +3,9 @@ from typing import List  # noqa: UP035
 import numpy as np
 import pytest
 import torch
-import tvm
-import tvm.testing
-from tvm import DataType
+import tvm_tirx.testing
 from tvm.relax.frontend import nn
+from tvm_ffi import dtype as DataType
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.quantization import QUANTIZATION, AWQQuantize
@@ -77,9 +76,9 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):  # no
     mod.linear.qzeros.data = zeros_np
     mod.linear.scales.data = scale_np
     model = mod.jit(spec={"forward": {"x": nn.spec.Tensor((shape[1], shape[1]), dtype)}})
-    out = model["forward"](torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype))))
+    out = model["forward"](torch.eye(shape[1], dtype=getattr(torch, dtype)))
     ref = dequantize_np(config, weight_np, zeros_np, scale_np).T
-    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
+    tvm_tirx.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":

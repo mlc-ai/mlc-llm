@@ -3,8 +3,8 @@
 import os
 import sys
 
-from tvm.runtime import Device
-from tvm.runtime import device as as_device
+from tvm_ffi import device as as_device
+from tvm_tirx.runtime import Device
 
 
 def _check_device(device: Device) -> bool:

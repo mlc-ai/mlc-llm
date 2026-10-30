@@ -3,9 +3,10 @@
 import dataclasses
 from typing import Any, Dict, Optional  # noqa: UP035
 
-from tvm import relax, tirx
+from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm_tirx import tirx
 
 from mlc_llm import op as op_ext
 from mlc_llm.model.gemma.gemma_model import GemmaEmbedding

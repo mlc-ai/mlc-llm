@@ -2,10 +2,11 @@ import numpy as np
 import pytest
 
 tvm = pytest.importorskip("tvm")
+tvm_tirx = pytest.importorskip("tvm_tirx")
 from tvm import relax  # noqa: E402
 from tvm.relax.frontend import nn  # noqa: E402
 from tvm.relax.frontend.nn import spec  # noqa: E402
-from tvm.runtime import tensor as tvm_tensor  # noqa: E402
+from tvm_tirx.runtime import tensor as tvm_tensor  # noqa: E402
 
 from mlc_llm.op import (  # noqa: E402
     MultimodalRotaryEmbedding,
@@ -62,10 +63,10 @@ def _numpy_apply_mrope(
 
 
 def _evaluate_tensor(expr):
-    mod = tvm.IRModule.from_expr(expr)
-    target = tvm.target.Target("llvm")
+    mod = tvm_tirx.IRModule.from_expr(expr)
+    target = tvm_tirx.target.Target("llvm")
     ex = tvm.relax.build(mod, target)
-    vm = tvm.relax.VirtualMachine(ex, tvm.cpu())
+    vm = tvm.relax.VirtualMachine(ex, tvm_tirx.cpu())
     return vm["main"]().numpy()
 
 
@@ -102,10 +103,10 @@ def _run_mlc_mrope(
         },
         allow_extern=True,
     )
-    target = tvm.target.Target("llvm")
+    target = tvm_tirx.target.Target("llvm")
     exec_mod = relax.build(mod, target=target)
-    vm = relax.VirtualMachine(exec_mod, tvm.cpu())
-    device = tvm.cpu()
+    vm = relax.VirtualMachine(exec_mod, tvm_tirx.cpu())
+    device = tvm_tirx.cpu()
     q_nd = tvm_tensor(q_np.astype("float32"), device=device)
     k_nd = tvm_tensor(k_np.astype("float32"), device=device)
     pos_nd = tvm_tensor(position_ids_np.astype("int64"), device=device)

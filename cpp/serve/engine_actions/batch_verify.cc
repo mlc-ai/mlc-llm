@@ -120,9 +120,9 @@ class BatchVerifyActionObj : public EngineActionObj {
         models_[verify_model_id_]->BatchVerify(embeddings, request_internal_ids, verify_lengths,
                                                token_tree_parent_ptr, all_tokens_to_verify);
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify");
-    TVM_FFI_ICHECK_EQ(logits->ndim, 3);
-    TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
-    TVM_FFI_ICHECK_EQ(logits->shape[1], total_verify_length);
+    TVM_FFI_ICHECK_EQ(logits.ndim(), 3);
+    TVM_FFI_ICHECK_EQ(logits.shape()[0], 1);
+    TVM_FFI_ICHECK_EQ(logits.shape()[1], total_verify_length);
 
     // - Update logits.
     std::vector<int> cum_verify_lengths = {0};
@@ -130,7 +130,8 @@ class BatchVerifyActionObj : public EngineActionObj {
     for (int i = 0; i < num_rsentries; ++i) {
       cum_verify_lengths.push_back(cum_verify_lengths.back() + verify_lengths[i]);
     }
-    logits = logits.CreateView({total_verify_length, logits->shape[2]}, logits->dtype);
+    logits =
+        tvm::runtime::CreateView(logits, {total_verify_length, logits.shape()[2]}, logits.dtype());
     logit_processor_->InplaceUpdateLogits(logits, generation_cfg, verify_request_mstates,
                                           request_ids, &cum_verify_lengths, &draft_request_mstates,
                                           &draft_token_indices);
@@ -252,7 +253,7 @@ class BatchVerifyActionObj : public EngineActionObj {
       // - We explicitly synchronize to avoid the input tokens getting overriden in the
       // next runs of BatchDecode.
       // This is because we do not do sample for this round of batch decode.
-      DeviceAPI::Get(logits->device)->StreamSync(logits->device, nullptr);
+      DeviceAPI::Get(logits.device())->StreamSync(logits.device(), nullptr);
     }
 
     // clear the draft model state entries

@@ -3,8 +3,7 @@
 from typing import List, Union  # noqa: UP035
 
 import tvm_ffi
-from tvm.runtime import Object
-from tvm_ffi import Shape
+from tvm_ffi import Object, Shape
 
 from . import _ffi_api
 from .tokenizers import Tokenizer

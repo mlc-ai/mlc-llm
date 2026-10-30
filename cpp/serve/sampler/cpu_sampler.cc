@@ -41,12 +41,13 @@ TokenProbPair SampleTopPFromProb(Tensor prob, int unit_offset, int input_prob_of
   // of the prob array we sample from.
 
   TVM_FFI_ICHECK(prob.IsContiguous());
-  TVM_FFI_ICHECK(prob.DataType() == (DLDataType{kDLFloat, 32, 1}));
-  TVM_FFI_ICHECK_EQ(prob->device.device_type, DLDeviceType::kDLCPU);
+  TVM_FFI_ICHECK(prob.dtype() == (DLDataType{kDLFloat, 32, 1}));
+  TVM_FFI_ICHECK_EQ(prob.device().device_type, DLDeviceType::kDLCPU);
 
-  int64_t ndata = prob->shape[prob->ndim - 1];
+  int64_t ndata = prob.shape()[prob.ndim() - 1];
   const float* __restrict p_prob =
-      static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (input_prob_offset * ndata);
+      static_cast<float*>(__builtin_assume_aligned(prob.data_ptr(), 4)) +
+      (input_prob_offset * ndata);
   constexpr double one = 1.0f - 1e-5f;
 
   if (top_p == 0) {
@@ -176,17 +177,17 @@ void RenormalizeProbByTopP(Tensor prob, int unit_offset, double top_p, double ep
   // We use the `unit_offset` parameter to determine which slice
   // of the prob array we will renormalize.
   TVM_FFI_ICHECK(prob.IsContiguous());
-  TVM_FFI_ICHECK(prob.DataType() == (DLDataType{kDLFloat, 32, 1}));
-  TVM_FFI_ICHECK_EQ(prob->device.device_type, DLDeviceType::kDLCPU);
+  TVM_FFI_ICHECK(prob.dtype() == (DLDataType{kDLFloat, 32, 1}));
+  TVM_FFI_ICHECK_EQ(prob.device().device_type, DLDeviceType::kDLCPU);
 
   if (top_p == 1.0) {
     // No renormalization is needed if top_p is 1.
     return;
   }
 
-  int vocab_size = prob->shape[prob->ndim - 1];
-  float* __restrict p_prob =
-      static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (unit_offset * vocab_size);
+  int vocab_size = prob.shape()[prob.ndim() - 1];
+  float* __restrict p_prob = static_cast<float*>(__builtin_assume_aligned(prob.data_ptr(), 4)) +
+                             (unit_offset * vocab_size);
 
   // We manually choice the cutoff values of "top_p / 256" and "top_p / 8192".
   // In most of the cases, only one round is needed.
@@ -301,10 +302,10 @@ std::vector<TokenProbPair> ComputeTopProbsImpl(const float* p_prob, int ndata) {
 /*! \brief Get the probs of a few number of tokens with top probabilities. */
 inline std::vector<TokenProbPair> ComputeTopProbs(Tensor prob, int unit_offset, int num_top_probs) {
   TVM_FFI_ICHECK_LE(num_top_probs, 5);
-  TVM_FFI_ICHECK_EQ(prob->ndim, 2);
-  int ndata = prob->shape[1];
+  TVM_FFI_ICHECK_EQ(prob.ndim(), 2);
+  int ndata = prob.shape()[1];
   const float* __restrict p_prob =
-      static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (unit_offset * ndata);
+      static_cast<float*>(__builtin_assume_aligned(prob.data_ptr(), 4)) + (unit_offset * ndata);
   switch (num_top_probs) {
     case 0:
       return {};
@@ -334,14 +335,14 @@ class CPUSampler : public SamplerObj {
                                      const Array<String>& request_ids,        //
                                      const Array<GenerationConfig>& generation_cfg) final {
     // probs_on_device: (n, v)
-    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device.ndim(), 2);
     // - Copy probs to CPU
     RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
     Tensor probs_on_host = CopyProbsToCPU(probs_on_device);
     RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
     int num_samples = sample_indices.size();
-    int num_probs = probs_on_device->shape[0];
-    int vocab_size = probs_on_device->shape[1];
+    int num_probs = probs_on_device.shape()[0];
+    int vocab_size = probs_on_device.shape()[1];
     TVM_FFI_ICHECK_EQ(request_ids.size(), num_samples);
     TVM_FFI_ICHECK_EQ(generation_cfg.size(), num_samples);
 
@@ -379,7 +380,7 @@ class CPUSampler : public SamplerObj {
       const Array<GenerationConfig>& generation_cfg,  //
       const std::vector<RandomGenerator*>& rngs) final {
     // probs_on_device: (n, v)
-    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device.ndim(), 2);
     // - Copy probs to CPU
     RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
     Tensor probs_on_host = CopyProbsToCPU(probs_on_device);
@@ -408,19 +409,19 @@ class CPUSampler : public SamplerObj {
       const std::vector<int64_t>& token_tree_parent_ptr, Tensor draft_probs_on_device) final {
     // probs_on_host: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
-    TVM_FFI_ICHECK_EQ(probs_on_host->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_host.ndim(), 2);
 
     int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
     TVM_FFI_ICHECK_EQ(rngs.size(), num_sequence);
     TVM_FFI_ICHECK_EQ(draft_output_tokens.size(), num_sequence);
 
-    Tensor draft_probs_on_host = draft_probs_on_device.CopyTo(DLDevice{kDLCPU, 0});
+    Tensor draft_probs_on_host = tvm::runtime::CopyTo(draft_probs_on_device, DLDevice{kDLCPU, 0});
     std::vector<std::vector<SampleResult>> sample_results;
     sample_results.resize(num_sequence);
 
     float* __restrict global_p_probs =
-        static_cast<float*>(__builtin_assume_aligned(probs_on_host->data, 4));
-    int vocab_size = probs_on_host->shape[1];
+        static_cast<float*>(__builtin_assume_aligned(probs_on_host.data_ptr(), 4));
+    int vocab_size = probs_on_host.shape()[1];
 
     std::vector<int> last_accepted_tree_node(num_sequence, 0);
     tvm::runtime::parallel_for_with_threading_backend(
@@ -461,7 +462,7 @@ class CPUSampler : public SamplerObj {
             // normalize a new probability distribution
             double sum_v = 0.0;
             const float* __restrict p_qdist =
-                static_cast<float*>(__builtin_assume_aligned(draft_probs_on_host->data, 4)) +
+                static_cast<float*>(__builtin_assume_aligned(draft_probs_on_host.data_ptr(), 4)) +
                 (verify_start + cur_token_idx + 1) * vocab_size;
 
             for (int j = 0; j < vocab_size; ++j) {
@@ -511,8 +512,8 @@ class CPUSampler : public SamplerObj {
                                                   bool top_p_applied) {
     // probs_on_host: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
-    TVM_FFI_ICHECK_EQ(probs_on_host->ndim, 2);
-    TVM_FFI_ICHECK_EQ(probs_on_host->device.device_type, DLDeviceType::kDLCPU);
+    TVM_FFI_ICHECK_EQ(probs_on_host.ndim(), 2);
+    TVM_FFI_ICHECK_EQ(probs_on_host.device().device_type, DLDeviceType::kDLCPU);
 
     // - Sample tokens from probabilities.
     int n = request_ids.size();
@@ -545,28 +546,29 @@ class CPUSampler : public SamplerObj {
   /*! \brief Copy prob distributions from device to CPU. */
   Tensor CopyProbsToCPU(Tensor probs_on_device) {
     // probs_on_device: (n, v)
-    if (probs_on_device->device.device_type == kDLCPU) {
+    if (probs_on_device.device().device_type == kDLCPU) {
       return probs_on_device;
     }
 
-    TVM_FFI_ICHECK(probs_on_device->device.device_type != kDLCPU);
+    TVM_FFI_ICHECK(probs_on_device.device().device_type != kDLCPU);
     if (probs_host_.defined()) {
-      TVM_FFI_ICHECK_EQ(probs_host_->shape[1], probs_on_device->shape[1]);
+      TVM_FFI_ICHECK_EQ(probs_host_.shape()[1], probs_on_device.shape()[1]);
     }
 
-    int64_t init_size = probs_host_.defined() ? probs_host_->shape[0] : 32;
-    int64_t num_tokens = probs_on_device->shape[0];
-    int64_t vocab_size = probs_on_device->shape[1];
+    int64_t init_size = probs_host_.defined() ? probs_host_.shape()[0] : 32;
+    int64_t num_tokens = probs_on_device.shape()[0];
+    int64_t vocab_size = probs_on_device.shape()[1];
     while (init_size < num_tokens) {
       init_size *= 2;
     }
-    if (!probs_host_.defined() || init_size != probs_host_->shape[0]) {
-      probs_host_ =
-          Tensor::Empty({init_size, vocab_size}, probs_on_device->dtype, DLDevice{kDLCPU, 0});
+    if (!probs_host_.defined() || init_size != probs_host_.shape()[0]) {
+      probs_host_ = tvm::runtime::Empty({init_size, vocab_size}, probs_on_device.dtype(),
+                                        DLDevice{kDLCPU, 0});
     }
-    TVM_FFI_ICHECK_LE(num_tokens, probs_host_->shape[0]);
-    Tensor view = probs_host_.CreateView({num_tokens, vocab_size}, probs_on_device->dtype);
-    view.CopyFrom(probs_on_device);
+    TVM_FFI_ICHECK_LE(num_tokens, probs_host_.shape()[0]);
+    Tensor view =
+        tvm::runtime::CreateView(probs_host_, {num_tokens, vocab_size}, probs_on_device.dtype());
+    tvm::runtime::CopyFromTo(probs_on_device, view);
     return view;
   }
 

@@ -1,8 +1,9 @@
 """Quantization techniques for FP8"""
 
 import numpy as np
-from tvm import relax, runtime
+from tvm import relax
 from tvm.relax.frontend import nn
+from tvm_tirx import runtime
 
 from mlc_llm.nn import MixtralExperts
 

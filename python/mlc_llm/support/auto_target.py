@@ -4,11 +4,13 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple  # noqa: UP035
 
-from tvm import IRModule, relax
-from tvm.ir.transform import Pass
-from tvm.support import ndk, tar, xcode
-from tvm.target import Target
+from tvm import relax
+from tvm.contrib import emcc
 from tvm_ffi import get_global_func, register_global_func
+from tvm_tirx import IRModule
+from tvm_tirx.ir.transform import Pass
+from tvm_tirx.support import ndk, tar, xcode
+from tvm_tirx.target import Target
 
 from . import logging
 from .auto_device import AUTO_DETECT_DEVICES, detect_device, device2str
@@ -282,6 +284,7 @@ def _build_webgpu():
             system_lib=True,
         ).export_library(
             str(output),
+            fcompile=emcc.create_wasm,
             libs=[bc_path],
         )
 
@@ -364,21 +367,33 @@ def _register_cuda_hook(target: Target):
         logger.info("Generating code for CUDA architecture: %s", multi_arch)
 
     @register_global_func("tvm_callback_cuda_compile", override=True)
-    def tvm_callback_cuda_compile(code):
+    def tvm_callback_cuda_compile(code, config_json):
         """use nvcc to generate fatbin code for better optimization"""
-        from tvm.support import nvcc
+        from tvm_tirx.backend.config import parse_backend_config
+        from tvm_tirx.backend.cuda.backend_config import compiler_options, resolve_backend_config
+        from tvm_tirx.backend.cuda.compiler import compile_source
+        from tvm_tirx.support import nvcc
 
+        config = parse_backend_config(config_json)
+        use_nvshmem = "#include <nvshmem.h>" in code or "#include <nvshmemx.h>" in code
+        target_format = "cubin" if use_nvshmem else "fatbin"
+        config.setdefault("cuda", {}).update(compiler="nvcc", target_format=target_format)
         if multi_arch is None:
-            ptx = nvcc.compile_cuda(code, target_format="fatbin", compiler="nvcc")
-        else:
-            arch = []
-            for compute_version in multi_arch:
-                arch += [
-                    "-gencode",
-                    f"arch=compute_{compute_version},code=sm_{compute_version}",
-                ]
-            ptx = nvcc.compile_cuda(code, target_format="fatbin", arch=arch, compiler="nvcc")
-        return ptx
+            result = compile_source(code, config, target=target)
+            return [bytearray(result.binary), result.target_format]
+
+        arch = []
+        for compute_version in multi_arch:
+            arch += [
+                "-gencode",
+                f"arch=compute_{compute_version},code=sm_{compute_version}",
+            ]
+        # CUDA backend_config only accepts a single architecture.
+        cuda_config = resolve_backend_config(config["cuda"], target)
+        binary, _ = nvcc._compile_cuda_nvcc(  # pylint: disable=protected-access
+            code, target_format, arch, compiler_options(cuda_config), use_nvshmem=use_nvshmem
+        )
+        return [bytearray(binary), target_format]
 
 
 def detect_system_lib_prefix(

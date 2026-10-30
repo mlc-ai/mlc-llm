@@ -6,14 +6,13 @@
 #ifndef MLC_LLM_SUPPORT_UTILS_H_
 #define MLC_LLM_SUPPORT_UTILS_H_
 
+#include <tvm/ffi/extra/base64.h>
+#include <tvm/support/bytes_io.h>
 #include <tvm/support/io.h>
 
 #include <sstream>
 #include <string>
 #include <vector>
-
-#include "../../3rdparty/tvm/src/support/base64.h"
-#include "../../3rdparty/tvm/src/support/bytes_io.h"
 
 namespace mlc {
 namespace llm {
@@ -53,10 +52,8 @@ inline bool StartsWith(const std::string& str, const char* prefix) {
 inline std::string Base64Encode(std::string str) {
   std::string result;
   tvm::support::BytesOutStream m_stream(&result);
-  tvm::support::Base64OutStream b64stream(&m_stream);
-  static_cast<tvm::support::Stream*>(&b64stream)->Write(str);
-  b64stream.Finish();
-  return result;
+  static_cast<tvm::support::Stream*>(&m_stream)->Write(str);
+  return tvm::ffi::Base64Encode(TVMFFIByteArray{result.data(), result.size()});
 }
 
 /*!
@@ -66,10 +63,9 @@ inline std::string Base64Encode(std::string str) {
  */
 inline std::string Base64Decode(std::string str) {
   std::string result;
-  tvm::support::BytesInStream m_stream(str);
-  tvm::support::Base64InStream b64stream(&m_stream);
-  b64stream.InitPosition();
-  static_cast<tvm::support::Stream*>(&b64stream)->Read(&result);
+  auto decoded = tvm::ffi::Base64Decode(tvm::ffi::String(str));
+  tvm::support::BytesInStream m_stream(decoded);
+  static_cast<tvm::support::Stream*>(&m_stream)->Read(&result);
   return result;
 }
 

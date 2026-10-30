@@ -5,10 +5,11 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple  # noqa: UP035
 
-from tvm import IRModule, relax, tirx
-from tvm.ir.transform import Pass, PassContext
+from tvm import relax
 from tvm.relax.frontend import nn
-from tvm.target import Target
+from tvm_tirx import IRModule, tirx
+from tvm_tirx.ir.transform import Pass, PassContext
+from tvm_tirx.target import Target
 
 from mlc_llm import compiler_pass as _  # noqa: F401
 from mlc_llm import op as op_ext
@@ -63,8 +64,8 @@ class CompileArgs:
 def _apply_preproc_to_params_and_check_pipeline(
     named_params: List[Tuple[str, nn.Parameter]],  # noqa: UP006
     model_config,
-) -> Dict[str, tirx.PrimFunc]:  # noqa: UP006
-    extra_tirs: Dict[str, tirx.PrimFunc] = {}  # noqa: UP006
+) -> Dict[str, tirx.Function]:  # noqa: UP006
+    extra_tirs: Dict[str, tirx.Function] = {}  # noqa: UP006
     for name, param in named_params:
         preprocs = param.attrs.get("preprocs", [])
         shard_strategy = param.attrs.get("shard_strategy", None)
@@ -203,11 +204,17 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             metadata["embedding_metadata"] = dataclasses.asdict(args.model.embedding_metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
         if args.model.artifact is not None:
+            required_features = set(args.model.artifact.required_features)
+            if args.target.kind.name == "webgpu":
+                if args.quantization.model_dtype == "float16":
+                    required_features.add("shader-f16")
+                if args.target.attrs.get("supports_subgroups", False):
+                    required_features.add("subgroups")
             metadata["artifact"] = build_compiled_program_artifact(
                 tasks=args.model.artifact.tasks(model_config),
                 programs=args.model.artifact.programs(model_config),
                 named_parameters=named_params,
-                required_features=args.model.artifact.required_features,
+                required_features=required_features,
                 symbolic_sizes={
                     dim.name: getattr(model_config, dim.name)
                     for _, param in named_params

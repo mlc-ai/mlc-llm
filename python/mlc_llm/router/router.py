@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator, Iterable
 from typing import Any, List, Literal, Optional, Tuple  # noqa: UP035
 
 import aiohttp
-import tvm
+import tvm_ffi
 
 from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import EngineConfig, PopenServer
@@ -55,7 +55,7 @@ class Router:
         self.num_running_requests = [0] * self.num_servers
 
         # Call nvshmem_init here to get uid, then pass to env variables to server.start() below
-        f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+        f_init_nvshmem_uid = tvm_ffi.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
         uid = list(f_init_nvshmem_uid())
 
         # Start underlying servers concurrently. Otherwise 1 server cannot start on its own
