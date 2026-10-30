@@ -3,7 +3,7 @@
 import dataclasses
 from typing import Any, Dict, Optional  # noqa: UP035
 
-from tvm import relax
+from tvm import relax, te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm_tirx import tirx
@@ -41,6 +41,7 @@ class Gemma3TextConfig(ConfigBase):
     prefill_chunk_size: int = 0
 
     query_pre_attn_scalar: int = 256
+    rope_local_base_freq: int = 10_000
     sliding_window_size: int = None
     sliding_window_pattern = 6
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)  # noqa: UP006
@@ -128,6 +129,24 @@ class Gemma3Config(ConfigBase):
             if getattr(self, k) <= 0:
                 if hasattr(self.text_config, k):
                     setattr(self, k, getattr(self.text_config, k))
+        apply_layer_sliding_window(self)
+
+
+def apply_layer_sliding_window(config) -> None:
+    """The KV cache applies the sliding window per layer. Keep the model-level
+    sliding_window_size disabled, so runtimes do not slide the whole cache and global layers
+    keep the full context. Clamp prefill_chunk_size to the window: within a chunk the prefill
+    kernel applies only a causal mask, so a longer chunk lets sliding layers attend past it."""
+    config.sliding_window_size = -1
+    window = config.text_config.sliding_window_size
+    if config.prefill_chunk_size > window:
+        logger.info(
+            "Clamping Gemma 3 %s from %d to its sliding window %d",
+            bold("prefill_chunk_size"),
+            config.prefill_chunk_size,
+            window,
+        )
+        config.prefill_chunk_size = window
 
 
 class Gemma3MLP(nn.Module):
@@ -196,8 +215,41 @@ class Gemma3Attention(nn.Module):
         )
         # self.scaling_factor = (self.head_dim / config.text_config.query_pre_attn_scalar) ** 0.5
         self.scaling = config.text_config.query_pre_attn_scalar**-0.5
+        # Sliding layers use the local RoPE base, global layers the global one.
+        self.sliding_window_pattern = config.text_config.sliding_window_pattern
+        self.rope_theta_local = float(config.text_config.rope_local_base_freq)
+        self.rope_theta_global = float(config.text_config.position_embedding_base)
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def _rope(self, qkv: Tensor, positions: Tensor, theta: float) -> Tensor:
+        """RoPE on the q and k heads of the fused qkv, as the KV cache's fused RoPE computes it."""
+        d, num_rotated_heads = self.head_dim, self.num_q_heads + self.num_kv_heads
+
+        def _compute(qkv: te.Tensor, positions: te.Tensor):
+            seq_len = qkv.shape[1]
+
+            def _value(b: tirx.Var, s: tirx.Var, h: tirx.Var, i: tirx.Var):
+                x = qkv[b, s, h, i]
+                freq = positions[b * seq_len + s].astype("float32") / tirx.power(
+                    theta, i * 2 % d / tirx.const(d, "float32")
+                )
+                rotated = tirx.if_then_else(
+                    i < d // 2, -qkv[b, s, h, i + d // 2], qkv[b, s, h, i - d // 2]
+                )
+                cos = tirx.cos(freq) * x.astype("float32")
+                sin = tirx.sin(freq) * rotated.astype("float32")
+                return tirx.if_then_else(h < num_rotated_heads, (cos + sin).astype(qkv.dtype), x)
+
+            return te.compute(qkv.shape, _value, name="gemma3_rope")
+
+        return op.tensor_expr_op(_compute, "gemma3_rope", [qkv, positions])
+
+    def forward(
+        self,
+        hidden_states: Tensor,
+        paged_kv_cache: PagedKVCache,
+        positions: Tensor,
+        layer_id: int,
+    ):
         d, h_q = self.head_dim, self.num_q_heads
         b, s, _ = hidden_states.shape
         # QKV Projection
@@ -209,6 +261,10 @@ class Gemma3Attention(nn.Module):
         k_norm = self.k_norm(k_proj)
 
         qkv = op.concat([q_norm, k_norm, v_proj], dim=2)
+        is_sliding = (layer_id + 1) % self.sliding_window_pattern != 0
+        qkv = self._rope(
+            qkv, positions, self.rope_theta_local if is_sliding else self.rope_theta_global
+        )
 
         # Attention
         output = op.reshape(
@@ -259,8 +315,16 @@ class Gemma3DecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+    def forward(
+        self,
+        hidden_states: Tensor,
+        paged_kv_cache: PagedKVCache,
+        positions: Tensor,
+        layer_id: int,
+    ):
+        out = self.self_attn(
+            self.input_layernorm(hidden_states), paged_kv_cache, positions, layer_id
+        )
         out = self._apply_post_matmul_norm(out, norm=self.post_attention_layernorm)
         hidden_states = out + hidden_states
         # Gemma3 was designed for bfloat16 and its RMSNorm weights can be very large
@@ -307,10 +371,11 @@ class Gemma3TextModel(nn.Module):
         )
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        positions = paged_kv_cache.get_query_positions(input_embed.shape[0] * input_embed.shape[1])
         hidden_states = input_embed
         hidden_states = hidden_states * (self.hidden_size**0.5)
         for layer_id, layer in enumerate(self.layers):
-            hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
+            hidden_states = layer(hidden_states, paged_kv_cache, positions, layer_id)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
@@ -425,10 +490,11 @@ class Gemma3LanguageModel(nn.Module):
             num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
             qk_head_dim=self.head_dim,
             v_head_dim=self.head_dim,
-            rope_mode=RopeMode.NORMAL,
+            rope_mode=RopeMode.NONE,
             rope_scale=1,
             rope_theta=self.rope_theta,
             dtype=self.dtype,
+            layer_sliding_window_size=self.config.text_config.sliding_window_size,
         )
 
     def get_default_spec(self):
@@ -603,10 +669,11 @@ class Gemma3ForCausalLM(nn.Module):
             // self.tensor_parallel_shards,
             qk_head_dim=self.language_model.head_dim,
             v_head_dim=self.language_model.head_dim,
-            rope_mode=RopeMode.NORMAL,
+            rope_mode=RopeMode.NONE,
             rope_scale=1,
             rope_theta=self.language_model.rope_theta,
             dtype=self.dtype,
+            layer_sliding_window_size=self.config.text_config.sliding_window_size,
         )
 
     def get_default_spec(self):
