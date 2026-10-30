@@ -281,7 +281,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--stream",
-        type=bool,
+        type=argparse.boolean,
         default=True,
         help="Whether to benchmark stream responses. "
         "When not enabled, metrics such as time-to-first-token (TTFT) will not be available. "
