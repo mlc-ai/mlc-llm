@@ -1157,6 +1157,8 @@ def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, Non
     Return None for invalid function call string."""
 
     def parse_function_call(call_str: str):
+        if not isinstance(call_str, str):
+            return None
         node = ast.parse(call_str, mode="eval")
         call_node = node.body
         if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Name):
@@ -1167,9 +1169,8 @@ def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, Non
             return {"name": name, "arguments": arguments}
         return None
 
-    if (
-        stringified_calls[0] == "[" and stringified_calls[-1] == "]"
-    ):  # hacky way to check if string list
+    # hacky way to check if string list
+    if stringified_calls.startswith("[") and stringified_calls.endswith("]"):
         calls = ast.literal_eval(stringified_calls)
     else:
         calls = [stringified_calls]
