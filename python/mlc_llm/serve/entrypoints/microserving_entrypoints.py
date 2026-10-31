@@ -11,9 +11,9 @@ from mlc_llm.protocol.microserving_protocol import (
 )
 from mlc_llm.protocol.openai_api_protocol import StreamOptions
 
-from .openai_entrypoints import request_completion
+from .openai_entrypoints import request_completion, verify_api_key
 
-app = fastapi.APIRouter()
+app = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_api_key)])
 
 
 ################ MicroServing Endpoints ################
