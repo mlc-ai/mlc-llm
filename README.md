@@ -11,6 +11,10 @@
 
 [Get Started](https://llm.mlc.ai/docs/get_started/quick_start) | [Documentation](https://llm.mlc.ai/docs) | [Blog](https://blog.mlc.ai/)
 
+<p align="center">
+  <b>English</b> · <a href="https://github.com/mlc-ai/mlc-llm/blob/main/README.zh.md">简体中文</a>
+</p>
+
 </div>
 
 ## About
