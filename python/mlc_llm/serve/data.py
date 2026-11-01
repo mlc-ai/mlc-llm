@@ -92,7 +92,7 @@ class ImageData(Data):
 
         import numpy as np
         import requests
-        from PIL import Image, UnidentifiedImageError
+        from PIL import Image
 
         from ..protocol.error_protocol import BadRequestError
 
@@ -102,7 +102,7 @@ class ImageData(Data):
                 base64_image = url.split(",")[1]
                 image_data = base64.b64decode(base64_image)
                 image_tensor = Image.open(BytesIO(image_data)).convert("RGB")
-            except (IndexError, binascii.Error, UnidentifiedImageError) as e:
+            except (IndexError, binascii.Error, OSError) as e:
                 raise BadRequestError(
                     "Malformed image data URL, expected 'data:image/<format>;base64,<base64 data>'",
                 ) from e
@@ -110,7 +110,7 @@ class ImageData(Data):
             response = requests.get(url, timeout=5)
             try:
                 image_tensor = Image.open(BytesIO(response.content)).convert("RGB")
-            except UnidentifiedImageError as e:
+            except OSError as e:
                 raise BadRequestError(
                     "The image fetched from the URL could not be decoded",
                 ) from e
