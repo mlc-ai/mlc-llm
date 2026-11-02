@@ -41,3 +41,50 @@ def test_llama3_prompt():
 
 if __name__ == "__main__":
     test_llama3_prompt()
+
+
+def test_llama3_2_prompt():
+    """Test that Llama 3.2 template includes Cutting Knowledge Date and dynamic Today Date.
+
+    See https://github.com/mlc-ai/mlc-llm/issues/3002
+    """
+    from datetime import datetime
+
+    conversation = ConvTemplateRegistry.get_conv_template("llama-3_2")
+    assert conversation is not None, "llama-3_2 template should be registered"
+
+    system_msg = "You are a helpful assistant."
+    user_msg = "What is the capital of France?"
+
+    conversation.system_message = system_msg
+    conversation.messages.append(("user", user_msg))
+    conversation.messages.append(("assistant", None))
+    res = conversation.as_prompt()
+
+    today = datetime.now().strftime("%d %b %Y")
+    expected = (
+        "<|start_header_id|>system<|end_header_id|>\n\n"
+        "Cutting Knowledge Date: December 2023\n"
+        f"Today Date: {today}\n\n"
+        "You are a helpful assistant.<|eot_id|>"
+        "<|start_header_id|>user<|end_header_id|>\n\n"
+        "What is the capital of France?<|eot_id|>"
+        "<|start_header_id|>assistant<|end_header_id|>\n\n"
+    )
+
+    assert res[0] == expected
+
+
+def test_llama3_2_has_tool_role():
+    """Test that Llama 3.2 template supports tool/ipython role like 3.1."""
+    conversation = ConvTemplateRegistry.get_conv_template("llama-3_2")
+    assert "tool" in conversation.roles
+    assert conversation.roles["tool"] == "<|start_header_id|>ipython"
+
+
+def test_llama3_2_stop_tokens():
+    """Test that Llama 3.2 has the correct stop token IDs."""
+    conversation = ConvTemplateRegistry.get_conv_template("llama-3_2")
+    assert 128001 in conversation.stop_token_ids  # <|end_of_text|>
+    assert 128008 in conversation.stop_token_ids  # <|eom_id|>
+    assert 128009 in conversation.stop_token_ids  # <|eot_id|>
