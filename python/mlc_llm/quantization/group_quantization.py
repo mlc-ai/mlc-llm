@@ -224,7 +224,7 @@ class GroupQuantize:
             return bb.finalize()
 
         key = (
-            f"({weight.shape}, {weight.dtype}, {device_type}, "
+            f"({weight.shape}, {weight.dtype}, {device_type}:{device.index}, "
             f"axis={axis}, output_transpose={output_transpose})"
         )
         quantize_func = self._quantize_func_cache.get(key, None)
