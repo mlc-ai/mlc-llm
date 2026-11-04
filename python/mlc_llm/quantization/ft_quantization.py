@@ -234,6 +234,7 @@ class FTQuantize:
                         int(weight.shape[1]),
                         weight.dtype,
                         device_type,
+                        device.index,
                     )
                 )
                 quantize_func = self._quantize_func_cache.get(key, None)

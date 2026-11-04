@@ -211,7 +211,7 @@ class PerTensorQuantize:
             )
             return mod
 
-        key = f"({weight.shape}, {weight.dtype}, {device_type}"
+        key = f"({weight.shape}, {weight.dtype}, {device_type}:{device.index})"
         quantize_func = self._quantize_func_cache.get(key, None)
         if quantize_func is None:
             logger.info("Compiling quantize function for key: %s", key)
