@@ -62,6 +62,32 @@ If you want to enable tensor parallelism to run LLMs on multiple GPUs, please sp
 
    mlc_llm serve HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --overrides "tensor_parallel_shards=2"
 
+Serve an Embedding Model
+------------------------
+
+When the model's ``mlc-chat-config.json`` has ``"model_task": "embedding"``, the server
+automatically starts in embedding-only mode. No extra flags are needed besides ``--model-lib``
+(required for embedding models):
+
+.. code:: bash
+
+   mlc_llm serve ./dist/Qwen3-Embedding-0.6B-q0f32-MLC \
+       --model-lib ./dist/libs/Qwen3-Embedding-0.6B-q0f32-metal.dylib
+
+In this mode the server exposes only ``GET /v1/models`` and ``POST /v1/embeddings``
+(OpenAI-compatible):
+
+.. code:: bash
+
+   curl http://127.0.0.1:8000/v1/embeddings \
+       -H "Content-Type: application/json" \
+       -d '{"model": "./dist/Qwen3-Embedding-0.6B-q0f32-MLC", "input": ["hello", "world"]}'
+
+Chat-engine options (``--mode``, ``--additional-models``, speculative decoding, etc.) do not
+apply to embedding models and are ignored. The previous way of serving embeddings alongside a
+chat model (``--embedding-model``/``--embedding-model-lib``) still works but is deprecated in
+favor of serving the embedding model directly.
+
 ------------------------------------------------
 
 
