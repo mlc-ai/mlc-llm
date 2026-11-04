@@ -35,7 +35,7 @@ keywords = ["machine learning"]
 requires-python = ">=3.9"
 
 dependencies = [
-  "apache-tvm-ffi",
+  "apache-tvm-ffi>=0.1.13rc1",
   "datasets",
   "fastapi",
   "flashinfer-python; sys_platform == 'linux'",
