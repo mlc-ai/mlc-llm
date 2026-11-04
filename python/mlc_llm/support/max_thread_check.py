@@ -33,6 +33,9 @@ def check_thread_limits(target: Target, bdx: int, bdy: int, bdz: int, gdz: int):
     )
 
     if target.kind.name == "webgpu":
-        # https://gpuweb.github.io/gpuweb/#dom-supported-limits-maxcomputeworkgroupsizez
+        # https://gpuweb.github.io/gpuweb/#limits
+        # Each dimension is capped separately: maxComputeWorkgroupSizeX/Y default to 256.
+        assert bdx <= 256, f"webgpu's threadIdx.x cannot exceed 256, but got bdx={bdx}"
+        assert bdy <= 256, f"webgpu's threadIdx.y cannot exceed 256, but got bdy={bdy}"
         assert bdz <= 64, f"webgpu's threadIdx.z cannot exceed 64, but got bdz={bdz}"
         assert gdz == 1, f"webgpu's blockIdx.z should be 1, but got gdz={gdz}"
