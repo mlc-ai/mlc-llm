@@ -210,9 +210,14 @@ This step is useful when you want to make modification or obtain a specific vers
     # build mlc_llm libraries
     cmake .. && make -j $(nproc) && cd ..
 
-**Step 3. Install via Python.** We recommend that you install ``mlc_llm`` as a Python package, giving you
-access to ``mlc_llm.compile``, ``mlc_llm.MLCEngine``, and the CLI.
-There are two ways to do so:
+**Step 3. Set up Python environment and install package.** Before using MLC LLM from Python, ensure your environment has all necessary dependencies. The core required package is `apache-tvm-ffi` [citation:8][citation:12]. Additionally, `numpy` is required for tensor operations [citation:4]. You can install them using pip:
+
+.. code-block:: bash
+    :caption: Install Python dependencies
+
+    pip install numpy apache-tvm-ffi
+
+After dependencies are installed, we recommend that you install ``mlc_llm`` as a Python package, giving you access to ``mlc_llm.compile``, ``mlc_llm.MLCEngine``, and the CLI. There are two ways to do so:
 
     .. tabs ::
 
@@ -229,13 +234,31 @@ There are two ways to do so:
           cd /path-to-mlc-llm/python
           pip install -e .
 
-**Step 4. Validate installation.** You may validate if MLC libarires and mlc_llm CLI is compiled successfully using the following command:
+**Step 4. Configure library path.** For the Python package to locate the compiled runtime libraries (e.g., `libtvm_runtime.so` or `libmlc_llm.so`), you need to set the appropriate library path environment variable. The MLC LLM library loading logic searches these paths by default [citation:2]. If the libraries are not found, you must configure the path manually.
+
+.. code-block:: bash
+    :caption: Set library path for runtime
+
+    # On Linux, use LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=$PWD/build/lib:$LD_LIBRARY_PATH
+    # On macOS, use DYLD_LIBRARY_PATH
+    export DYLD_LIBRARY_PATH=$PWD/build/lib:$DYLD_LIBRARY_PATH
+
+.. note::
+    The need to set ``LD_LIBRARY_PATH`` or ``DYLD_LIBRARY_PATH`` can often be avoided by using the `pip install -e .` method from **Step 3**, as it handles library discovery more robustly. Use the environment variable approach primarily for troubleshooting or when using the `PYTHONPATH` method.
+
+**Step 5. Validate installation.** You may validate if MLC libraries and ``mlc_llm`` CLI are compiled successfully and the Python environment is correctly configured using the following commands:
 
 .. code-block:: bash
     :caption: Validate installation
 
     # expected to see `libmlc_llm.so` and `libtvm_runtime.so`
     ls -l ./build/
+
+    # Verify TVM runtime and MLC LLM Python module can be imported
+    python -c "import tvm; print(tvm.__version__)"
+    python -c "from mlc_llm import MLCEngine; print('MLC-LLM imported successfully')"
+
     # expected to see help message
     mlc_llm chat -h
 
