@@ -6,6 +6,8 @@
 
 #include <tvm/ffi/function.h>
 
+#include <map>
+
 #include "../support/nvtx.h"
 
 namespace mlc {
@@ -302,7 +304,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * \brief The map from LRU time stamps to sequence, used to find the sequence with earliest LRU
    * time stamp.
    */
-  std::unordered_map<size_t, int64_t> reversed_recycling_seq_lrus_;
+  std::map<size_t, int64_t> reversed_recycling_seq_lrus_;
   /*!
    * \brief The maximum number of recycling sequences in prefix cache. Set -1 as infinite prefix
    * cache.
