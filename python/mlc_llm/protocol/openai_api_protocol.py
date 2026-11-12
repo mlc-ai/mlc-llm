@@ -347,11 +347,7 @@ class ChatCompletionRequest(BaseModel):
 
     def check_message_validity(self) -> None:
         """Check if the given chat messages are valid. Return error message if invalid."""
-        for i, message in enumerate(self.messages):
-            if message.role == "system" and i != 0:
-                raise BadRequestError(
-                    f"System prompt at position {i} in the message list is invalid."
-                )
+        for message in self.messages:
             if message.tool_call_id is not None:
                 if message.role != "tool":
                     raise BadRequestError("Non-tool message having `tool_call_id` is invalid.")

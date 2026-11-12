@@ -747,14 +747,17 @@ def process_chat_completion_request(
     # - Check for function calling usage and update the conversation template
     request.check_function_call_usage(conv_template)
 
+    system_messages = []
     for message in request.messages:
         role = message.role
         content = message.content
         if role == "system":
             assert isinstance(content, str)
-            conv_template.system_message = content if content is not None else ""
+            system_messages.append(content)
             continue
         conv_template.messages.append((role, content))
+    if system_messages:
+        conv_template.system_message = "".join(system_messages)
     conv_template.messages.append(("assistant", None))
 
     # - Get the prompt from template, and encode to token ids.
