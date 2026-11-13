@@ -22,8 +22,15 @@ def test_smollm3_creation():
     model = model_info.model(config)
     mod, named_params = model.export_tvm(spec=model.get_default_spec())
     assert len(named_params) > 0
-    prefill = mod["batch_prefill"].script(show_meta=False)
-    assert prefill.count("R.call_tir(Module.rope") == sum(config.no_rope_layers) == 27
+    rope_calls = []
+
+    def visit(expr):
+        if isinstance(expr, relax.Call) and getattr(expr.op, "name", None) == "relax.call_tir":
+            if getattr(expr.args[0], "name_hint", "").startswith("rope"):
+                rope_calls.append(expr)
+
+    relax.analysis.post_order_visit(mod["batch_prefill"].body, visit)
+    assert len(rope_calls) == sum(config.no_rope_layers) == 27
     # Every fourth layer (3, 7, ...) skips RoPE, as in HF.
     use_rope = [layer.self_attn.use_rope for layer in model.model.layers]
     assert [i for i, rope in enumerate(use_rope) if not rope] == list(range(3, 36, 4))
