@@ -57,9 +57,10 @@ def test_reference_defaults_and_nullable_head_dim():
 
 
 @pytest.mark.parametrize("fraction,theta", [(0.5, 1000000.0), (1.0, 10000.0)])
-def test_zero_tail_rope_matches_reference(fraction, theta):
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+def test_zero_tail_rope_matches_reference(fraction, theta, dtype):
     import numpy as np
-    import tvm
+    import tvm_tirx
     from tvm import relax
     from tvm.relax.frontend import nn
 
@@ -72,23 +73,55 @@ def test_zero_tail_rope_matches_reference(fraction, theta):
     mod, _ = Rotary().export_tvm(
         spec={
             "forward": {
-                "x": nn.spec.Tensor([3, 2, 128], "float32"),
+                "x": nn.spec.Tensor([3, 2, 128], dtype),
                 "positions": nn.spec.Tensor([3], "int32"),
             }
         }
     )
-    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm.cpu())
-    x = np.random.default_rng(0).standard_normal((3, 2, 128)).astype("float32")
-    positions = np.array([0, 255, 8192], dtype="int32")
+    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm_tirx.cpu())
+    x = np.random.default_rng(0).standard_normal((3, 2, 128)).astype(dtype)
+    positions = np.array([0, 255, 262143], dtype="int32")
     pairs = int(fraction * 128) // 2
     frequencies = np.zeros(64, dtype="float32")
     frequencies[:pairs] = 1.0 / (theta ** (np.arange(0, 2 * pairs, 2, dtype="float32") / 128))
     angles = positions[:, None].astype("float32") * frequencies[None, :]
     angles = np.concatenate([angles, angles], axis=-1)[:, None, :]
     rotated = np.concatenate([-x[..., 64:], x[..., :64]], axis=-1)
-    expected = x * np.cos(angles) + rotated * np.sin(angles)
-    actual = vm["forward"](tvm.runtime.tensor(x), tvm.runtime.tensor(positions)).numpy()
+    cos = np.cos(angles).astype(dtype).astype("float32")
+    sin = np.sin(angles).astype(dtype).astype("float32")
+    expected = (x.astype("float32") * cos + rotated.astype("float32") * sin).astype(dtype)
+    actual = vm["forward"](tvm_tirx.runtime.tensor(x), tvm_tirx.runtime.tensor(positions)).numpy()
     np.testing.assert_allclose(actual, expected, atol=2e-5, rtol=2e-5)
     if fraction < 1:
         np.testing.assert_array_equal(actual[..., pairs:64], x[..., pairs:64])
         np.testing.assert_array_equal(actual[..., 64 + pairs :], x[..., 64 + pairs :])
+
+
+def test_hybrid_export_and_loader_names():
+    from mlc_llm.model.lfm3.lfm3_loader import huggingface
+    from mlc_llm.model.lfm3.lfm3_model import Lfm3ForCausalLM
+    from mlc_llm.quantization import QUANTIZATION
+
+    config = make_config(
+        hidden_size=128,
+        head_dim=64,
+        num_attention_heads=2,
+        num_key_value_heads=1,
+        intermediate_size=256,
+        vocab_size=256,
+    )
+    model = Lfm3ForCausalLM(config)
+    assert model.attn_kind == ["mha", "mha_sliding"]
+    assert model.num_conv_layers == 1
+    mapping = huggingface(config, QUANTIZATION["q0f32"]).param_map
+    for index in (1, 2):
+        prefix = f"model.layers.{index}.self_attn"
+        assert mapping[f"{prefix}.qkv_proj.weight"] == [
+            f"{prefix}.{name}_proj.weight" for name in "qkv"
+        ]
+        assert mapping[f"{prefix}.q_layernorm.weight"] == [f"{prefix}.q_norm.weight"]
+        assert mapping[f"{prefix}.k_layernorm.weight"] == [f"{prefix}.k_norm.weight"]
+        assert mapping[f"{prefix}.out_proj.weight"] == [f"{prefix}.o_proj.weight"]
+        assert mapping[f"{prefix}.gate_proj.weight"] == [f"{prefix}.gate_proj.weight"]
+    assert "model.layers.0.post_operator_norm.weight" in mapping
+    assert "model.layers.0.post_ffn_norm.weight" in mapping

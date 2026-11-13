@@ -28,9 +28,10 @@ def _apply_rope(x: Tensor, positions: Tensor, theta: float, fraction: float) -> 
     def compute(x_in: te.Tensor, pos: te.Tensor):
         def rotate(i, h, d):
             pair = d % (head_dim // 2)
-            angle = pos[i].astype("float32") / tirx.power(
+            inv_freq = tirx.const(1.0, "float32") / tirx.power(
                 tirx.const(theta, "float32"), (2 * pair).astype("float32") / head_dim
             )
+            angle = pos[i].astype("float32") * inv_freq
             partner = tirx.if_then_else(
                 d < head_dim // 2, -x_in[i, h, d + head_dim // 2], x_in[i, h, d - head_dim // 2]
             )
