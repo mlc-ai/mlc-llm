@@ -1,7 +1,5 @@
 """Attention components for the LFM3 architecture."""
 
-import dataclasses
-
 from tvm import te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
@@ -138,16 +136,20 @@ class Lfm3Model(nn.Module):
 
 class Lfm3ForCausalLM(Lfm2ForCausalLM):
     def __init__(self, config: Lfm3Config):
-        # Reuse LFM2's hybrid entry points, parameter metadata and recurrent-state layout.
-        super().__init__(
-            dataclasses.replace(
-                config,
-                layer_types=[
-                    "conv" if t == "conv" else "full_attention" for t in config.layer_types
-                ],
-            )
-        )
+        # Reuse LFM2's hybrid entry points and recurrent-state layout.
         self.model = Lfm3Model(config)
+        self.tie_word_embeddings = config.tie_word_embeddings
+        if not config.tie_word_embeddings:
+            self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.hidden_size = config.hidden_size
+        self.head_dim = config.head_dim
+        self.num_attention_heads = config.num_attention_heads
+        self.num_key_value_heads = config.num_key_value_heads
+        self.num_attention_layers = config.num_attention_layers
+        self.num_conv_layers = config.num_conv_layers
+        self.conv_kernel_size = config.conv_L_cache
+        self.vocab_size = config.vocab_size
+        self.dtype = "float32"
         self.attn_kind = [
             "mha_sliding" if t == "sliding_attention" else "mha"
             for t in config.layer_types

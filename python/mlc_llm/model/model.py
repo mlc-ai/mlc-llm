@@ -28,6 +28,7 @@ from .gpt_neox import gpt_neox_loader, gpt_neox_model
 from .internlm import internlm_loader, internlm_model
 from .internlm2 import internlm2_loader, internlm2_model
 from .lfm2 import lfm2_loader, lfm2_model
+from .lfm3 import lfm3_config, lfm3_loader, lfm3_model
 from .llama import llama_loader, llama_model
 from .llama4 import llama4_loader, llama4_model
 from .llava import llava_loader, llava_model
@@ -827,5 +828,15 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
         quantize=make_quantization_functions(
             lfm2_model.Lfm2ForCausalLM,
         ),
+    ),
+    "lfm3": Model(
+        name="lfm3",
+        model=lfm3_model.Lfm3ForCausalLM,
+        config=lfm3_config.Lfm3Config,
+        source={
+            "huggingface-torch": lfm3_loader.huggingface,
+            "huggingface-safetensor": lfm3_loader.huggingface,
+        },
+        quantize=make_quantization_functions(lfm3_model.Lfm3ForCausalLM),
     ),
 }

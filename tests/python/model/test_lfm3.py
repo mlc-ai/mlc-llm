@@ -1,4 +1,4 @@
-"""Configuration invariants for LFM3 before model registration."""
+"""LFM3 configuration, rotary embedding, loader, and quantization tests."""
 
 import pytest
 
@@ -125,3 +125,52 @@ def test_hybrid_export_and_loader_names():
         assert mapping[f"{prefix}.gate_proj.weight"] == [f"{prefix}.gate_proj.weight"]
     assert "model.layers.0.post_operator_norm.weight" in mapping
     assert "model.layers.0.post_ffn_norm.weight" in mapping
+
+
+@pytest.mark.parametrize("quant_name", ["q0f16", "q4f16_1", "q4f32_1"])
+def test_registered_quantization_exports_hybrid_model(quant_name):
+    import copy
+
+    from mlc_llm.model import MODELS
+    from mlc_llm.quantization import QUANTIZATION
+
+    config = make_config(
+        hidden_size=128,
+        head_dim=64,
+        num_attention_heads=2,
+        num_key_value_heads=1,
+        intermediate_size=256,
+        vocab_size=256,
+    )
+    registered = MODELS["lfm3"]
+    quantization = copy.deepcopy(QUANTIZATION[quant_name])
+    model, mapping = registered.quantize[quantization.kind](config, quantization)
+    _, named_params, _ = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
+    params = dict(named_params)
+    assert model.attn_kind == ["mha", "mha_sliding"]
+    assert model.num_conv_layers == 1
+    assert params["model.layers.0.post_operator_norm.weight"].dtype == quantization.model_dtype
+    if quantization.kind == "no-quant":
+        assert not mapping.param_map
+        assert params["model.layers.1.self_attn.qkv_proj.weight"].dtype == "float16"
+    else:
+        for layer in (1, 2):
+            name = f"model.layers.{layer}.self_attn.qkv_proj.weight"
+            assert name not in params
+            assert len(mapping.param_map[name]) == 2
+            assert all(target in params for target in mapping.param_map[name])
+        assert "model.layers.0.post_operator_norm.weight" not in mapping.param_map
+
+
+def test_sliding_attention_without_full_attention_rope():
+    from mlc_llm.model.lfm3.lfm3_model import Lfm3ForCausalLM
+
+    config = make_config(
+        num_hidden_layers=2,
+        layer_types=["conv", "sliding_attention"],
+        rope_parameters={"sliding_attention": {"rope_type": "default", "rope_theta": 10000.0}},
+    )
+    model = Lfm3ForCausalLM(config)
+    assert model.attn_kind == ["mha_sliding"]
+    assert model.num_attention_layers == 1
+    assert model.num_conv_layers == 1
