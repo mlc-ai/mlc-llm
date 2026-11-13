@@ -5,10 +5,11 @@ Implementation for the SmolLM3 architecture: Llama with RoPE skipped in some lay
 import dataclasses
 from typing import List, Optional  # noqa: UP035
 
-from tvm import te, tirx
+from tvm import te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.relax.frontend.nn.llm import position_embedding
+from tvm_tirx import tirx
 
 from mlc_llm import op as op_ext
 from mlc_llm.model.llama.llama_model import (
