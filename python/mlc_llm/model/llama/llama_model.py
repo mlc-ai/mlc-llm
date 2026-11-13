@@ -37,6 +37,8 @@ class LlamaConfig(ConfigBase):
     prefill_chunk_size: int = 0
     num_key_value_heads: int = 0
     head_dim: int = 0
+    attention_bias: bool = False
+    mlp_bias: bool = False
     tensor_parallel_shards: int = 1
     pipeline_parallel_stages: int = 1
     max_batch_size: int = 1
@@ -115,9 +117,11 @@ class LlamaFFN(nn.Module):
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=2 * self.intermediate_size,
-            bias=False,
+            bias=config.mlp_bias,
         )
-        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
+        self.down_proj = nn.Linear(
+            self.intermediate_size, config.hidden_size, bias=config.mlp_bias
+        )
 
     def forward(self, x: Tensor):
         concat_x1_x2 = self.gate_up_proj(x)
@@ -150,9 +154,11 @@ class LlamaAttention(nn.Module):
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
-            bias=False,
+            bias=config.attention_bias,
         )
-        self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
+        self.o_proj = nn.Linear(
+            self.num_q_heads * self.head_dim, config.hidden_size, bias=config.attention_bias
+        )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
@@ -182,6 +188,14 @@ class LlamaDecoderLayer(nn.Module):
             def _set(layer, hint):
                 layer.weight.attrs["shard_strategy"] = hint
 
+            def _set_bias(layer, hint):
+                # Column-parallel layers (qkv_proj, gate_up_proj) shard their bias along the
+                # same dim as the weight's output dim. Row-parallel layers (o_proj, down_proj)
+                # keep a full (unsharded) bias and instead divide it by the shard count at
+                # forward time via tp.shard_bias, so the subsequent allreduce(sum) restores
+                # the original value — they don't get a shard_strategy here.
+                layer.bias.attrs["shard_strategy"] = hint
+
             hd = config.head_dim
             q = self.self_attn.num_q_heads * hd
             k = self.self_attn.num_kv_heads * hd
@@ -197,14 +211,29 @@ class LlamaDecoderLayer(nn.Module):
                 tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
             )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+            if config.attention_bias:
+                _set_bias(
+                    self.self_attn.qkv_proj,
+                    tp.ShardSingleDim("_shard_qkv_bias", segs=[q, k, v], dim=0),
+                )
+            if config.mlp_bias:
+                _set_bias(
+                    self.mlp.gate_up_proj,
+                    tp.ShardSingleDim("_shard_mlp_up_bias", segs=[i, i], dim=0),
+                )
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+        # o_proj and down_proj are row-parallel: their bias must be divided by the shard
+        # count so the following ccl_allreduce(sum) in _apply_residual restores it (no-op
+        # when there is no bias or on a single device).
+        with tp.shard_bias(self.self_attn.o_proj, self.tensor_parallel_shards):
+            out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(out, residual=hidden_states)
-        out = self.mlp(self.post_attention_layernorm(hidden_states))
+        with tp.shard_bias(self.mlp.down_proj, self.tensor_parallel_shards):
+            out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
 
