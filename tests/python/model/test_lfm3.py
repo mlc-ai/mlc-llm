@@ -54,3 +54,41 @@ def test_invalid_config(overrides, match):
 def test_reference_defaults_and_nullable_head_dim():
     assert Lfm3Config.__dataclass_fields__["intermediate_size"].default == 7680
     assert make_config(head_dim=None).head_dim == 128
+
+
+@pytest.mark.parametrize("fraction,theta", [(0.5, 1000000.0), (1.0, 10000.0)])
+def test_zero_tail_rope_matches_reference(fraction, theta):
+    import numpy as np
+    import tvm
+    from tvm import relax
+    from tvm.relax.frontend import nn
+
+    from mlc_llm.model.lfm3.lfm3_model import _apply_rope
+
+    class Rotary(nn.Module):
+        def forward(self, x, positions):
+            return _apply_rope(x, positions, theta, fraction)
+
+    mod, _ = Rotary().export_tvm(
+        spec={
+            "forward": {
+                "x": nn.spec.Tensor([3, 2, 128], "float32"),
+                "positions": nn.spec.Tensor([3], "int32"),
+            }
+        }
+    )
+    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm.cpu())
+    x = np.random.default_rng(0).standard_normal((3, 2, 128)).astype("float32")
+    positions = np.array([0, 255, 8192], dtype="int32")
+    pairs = int(fraction * 128) // 2
+    frequencies = np.zeros(64, dtype="float32")
+    frequencies[:pairs] = 1.0 / (theta ** (np.arange(0, 2 * pairs, 2, dtype="float32") / 128))
+    angles = positions[:, None].astype("float32") * frequencies[None, :]
+    angles = np.concatenate([angles, angles], axis=-1)[:, None, :]
+    rotated = np.concatenate([-x[..., 64:], x[..., :64]], axis=-1)
+    expected = x * np.cos(angles) + rotated * np.sin(angles)
+    actual = vm["forward"](tvm.runtime.tensor(x), tvm.runtime.tensor(positions)).numpy()
+    np.testing.assert_allclose(actual, expected, atol=2e-5, rtol=2e-5)
+    if fraction < 1:
+        np.testing.assert_array_equal(actual[..., pairs:64], x[..., pairs:64])
+        np.testing.assert_array_equal(actual[..., 64 + pairs :], x[..., 64 + pairs :])

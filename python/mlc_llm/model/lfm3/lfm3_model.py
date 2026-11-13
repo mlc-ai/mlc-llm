@@ -1,12 +1,21 @@
 """Attention components for the LFM3 architecture."""
 
+import dataclasses
+
 from tvm import te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm_tirx import tirx
 
-from mlc_llm.model.lfm2.lfm2_model import Lfm2Attention
-from mlc_llm.nn import PagedKVCache
+from mlc_llm.model.lfm2.lfm2_model import (
+    Lfm2Attention,
+    Lfm2Embedding,
+    Lfm2ForCausalLM,
+    Lfm2MLP,
+    Lfm2ShortConv,
+)
+from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.nn.rnn_state import RNNState
 
 from .lfm3_config import Lfm3Config
 
@@ -26,10 +35,14 @@ def _apply_rope(x: Tensor, positions: Tensor, theta: float, fraction: float) -> 
                 d < head_dim // 2, -x_in[i, h, d + head_dim // 2], x_in[i, h, d - head_dim // 2]
             )
             # HF casts cos/sin to the activation dtype before applying the rotation.
-            cos = tirx.cos(angle).astype(x_in.dtype)
-            sin = tirx.sin(angle).astype(x_in.dtype)
+            cos = tirx.cos(angle).astype(x_in.dtype).astype("float32")
+            sin = tirx.sin(angle).astype(x_in.dtype).astype("float32")
             return tirx.if_then_else(
-                pair < rotated_pairs, x_in[i, h, d] * cos + partner * sin, x_in[i, h, d]
+                pair < rotated_pairs,
+                (x_in[i, h, d].astype("float32") * cos + partner.astype("float32") * sin).astype(
+                    x_in.dtype
+                ),
+                x_in[i, h, d],
             )
 
         return te.compute(x_in.shape, rotate, name="lfm3_rope")
@@ -67,3 +80,103 @@ class Lfm3Attention(Lfm2Attention):
         output = paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, h_q, sm_scale=d**-0.5)
         gate = op.reshape(op.sigmoid(self.gate_proj(hidden_states)), (b, s, h_q, 1))
         return self.out_proj(op.reshape(output * gate, (b, s, h_q * d)))
+
+
+class Lfm3DecoderLayer(nn.Module):
+    def __init__(self, config: Lfm3Config, layer_type: str, category_id: int):
+        self.is_attention_layer = layer_type != "conv"
+        self.category_id = category_id
+        self.use_sandwich_norm = config.use_sandwich_norm
+        if self.is_attention_layer:
+            self.self_attn = Lfm3Attention(config, layer_type)
+        else:
+            self.conv = Lfm2ShortConv(config, category_id)
+        self.feed_forward = Lfm2MLP(config)
+        self.operator_norm = nn.RMSNorm(config.hidden_size, -1, config.norm_eps, bias=False)
+        self.ffn_norm = nn.RMSNorm(config.hidden_size, -1, config.norm_eps, bias=False)
+        if self.use_sandwich_norm:
+            self.post_operator_norm = nn.RMSNorm(
+                config.hidden_size, -1, config.norm_eps, bias=False
+            )
+            self.post_ffn_norm = nn.RMSNorm(config.hidden_size, -1, config.norm_eps, bias=False)
+
+    def forward(self, hidden_states, paged_kv_cache, state, positions):
+        out = self.operator_norm(hidden_states)
+        if self.is_attention_layer:
+            out = self.self_attn(out, paged_kv_cache, self.category_id, positions)
+        else:
+            out, state = self.conv(out, state)
+        if self.use_sandwich_norm:
+            out = self.post_operator_norm(out)
+        hidden_states = hidden_states + out
+        out = self.feed_forward(self.ffn_norm(hidden_states))
+        if self.use_sandwich_norm:
+            out = self.post_ffn_norm(out)
+        return hidden_states + out, state
+
+
+class Lfm3Model(nn.Module):
+    def __init__(self, config: Lfm3Config):
+        self.embed_tokens = Lfm2Embedding(config.vocab_size, config.hidden_size)
+        layers = []
+        counts = {"attention": 0, "conv": 0}
+        for layer_type in config.layer_types:
+            category = "conv" if layer_type == "conv" else "attention"
+            layers.append(Lfm3DecoderLayer(config, layer_type, counts[category]))
+            counts[category] += 1
+        self.layers = nn.ModuleList(layers)
+        self.embedding_norm = nn.RMSNorm(config.hidden_size, -1, config.norm_eps, bias=False)
+
+    def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache, state: RNNState):
+        positions = paged_kv_cache.get_query_positions(inputs.shape[0] * inputs.shape[1])
+        hidden_states = inputs
+        for layer in self.layers:
+            hidden_states, state = layer(hidden_states, paged_kv_cache, state, positions)
+        return self.embedding_norm(hidden_states), state
+
+
+class Lfm3ForCausalLM(Lfm2ForCausalLM):
+    def __init__(self, config: Lfm3Config):
+        # Reuse LFM2's hybrid entry points, parameter metadata and recurrent-state layout.
+        super().__init__(
+            dataclasses.replace(
+                config,
+                layer_types=[
+                    "conv" if t == "conv" else "full_attention" for t in config.layer_types
+                ],
+            )
+        )
+        self.model = Lfm3Model(config)
+        self.attn_kind = [
+            "mha_sliding" if t == "sliding_attention" else "mha"
+            for t in config.layer_types
+            if t != "conv"
+        ]
+        self.sliding_window = config.sliding_window
+
+    def create_paged_kv_cache(
+        self,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
+    ) -> PagedKVCache:
+        return PagedKVCache.create_generic(
+            attn_kind=self.attn_kind,
+            max_batch_size=max_batch_size,
+            max_total_seq_len=max_total_seq_len,
+            prefill_chunk_size=prefill_chunk_size,
+            page_size=page_size,
+            support_sliding_window=support_sliding_window,
+            layer_sliding_window_size=self.sliding_window,
+            num_hidden_layers=self.num_attention_layers,
+            num_attention_heads=self.num_attention_heads,
+            num_key_value_heads=self.num_key_value_heads,
+            qk_head_dim=self.head_dim,
+            v_head_dim=self.head_dim,
+            rope_mode=RopeMode.NONE,
+            rope_scale=1,
+            rope_theta=1,
+            dtype=self.dtype,
+        )
