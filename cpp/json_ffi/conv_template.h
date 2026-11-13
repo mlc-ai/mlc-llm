@@ -80,6 +80,7 @@ struct Conversation {
 
   // The content of the system prompt (without the template format).
   std::string system_message;
+  bool render_empty_system_message = true;
 
   // The system token ids to be prepended at the beginning of tokenized
   // generated prompt.
@@ -123,6 +124,7 @@ struct Conversation {
   // Qwen3's official HF chat template. Only assistant messages that appear
   // before the last user message are affected.
   bool strip_reasoning_in_history = false;
+  std::string reasoning_history_style = "default";
 
   Conversation();
 
