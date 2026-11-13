@@ -49,3 +49,8 @@ def test_mixed_attention_counts_and_unadjusted_ffn():
 def test_invalid_config(overrides, match):
     with pytest.raises(ValueError, match=match):
         make_config(**overrides)
+
+
+def test_reference_defaults_and_nullable_head_dim():
+    assert Lfm3Config.__dataclass_fields__["intermediate_size"].default == 7680
+    assert make_config(head_dim=None).head_dim == 128

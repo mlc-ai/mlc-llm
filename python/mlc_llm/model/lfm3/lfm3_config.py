@@ -10,6 +10,7 @@ from mlc_llm.model.lfm2.lfm2_model import Lfm2Config
 class Lfm3Config(Lfm2Config):
     """LFM3 uses unadjusted FFN widths and separate RoPE settings per attention type."""
 
+    intermediate_size: int = 7680
     block_auto_adjust_ff_dim: bool = False
     conv_L_cache: int = 7
     sliding_window: int = 256
@@ -27,6 +28,8 @@ class Lfm3Config(Lfm2Config):
             raise ValueError("LFM3 uses the configured intermediate_size without adjustment")
         if self.sliding_window <= 0:
             raise ValueError("LFM3 sliding_window must be positive")
+        if self.head_dim is None:
+            self.head_dim = 0
         super().__post_init__()
         if self.head_dim % 2:
             raise ValueError("LFM3 RoPE requires an even head_dim")
