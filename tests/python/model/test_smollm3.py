@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-import tvm
+import tvm_tirx
 from tvm import relax
 from tvm.relax.frontend import nn
 
@@ -80,11 +80,11 @@ def test_smollm3_rope_matches_reference():
             }
         }
     )
-    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm.cpu())
+    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm_tirx.cpu())
     rng = np.random.default_rng(0)
     x = rng.standard_normal((num_tokens, num_heads, head_dim)).astype("float32")
     positions = np.array([0, 1, 7, 100, 4095], dtype="int32")
-    out = vm["forward"](tvm.runtime.tensor(x), tvm.runtime.tensor(positions)).numpy()
+    out = vm["forward"](tvm_tirx.runtime.tensor(x), tvm_tirx.runtime.tensor(positions)).numpy()
 
     half = head_dim // 2
     inv_freq = theta ** (-np.arange(half, dtype="float64") * 2 / head_dim)
