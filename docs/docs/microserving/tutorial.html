@@ -310,16 +310,16 @@ function takes in a request and a unique identifier of the request
 (<code class="docutils literal notranslate"><span class="pre">request_id</span></code>), and returns an AsyncGenerator of response. We launch
 the CustomRouter and 2 engines, each of which has tensor parallel degree
 2. Engine 0 is prefill engine and engine 1 is decode engine.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm.router</span> <span class="kn">import</span> <span class="n">Router</span>
-<span class="kn">from</span> <span class="nn">mlc_llm.protocol</span> <span class="kn">import</span> <span class="n">openai_api_protocol</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">AsyncGenerator</span>
-<span class="kn">from</span> <span class="nn">mlc_llm.serve.entrypoints</span> <span class="kn">import</span> <span class="n">microserving_entrypoints</span>
-<span class="kn">from</span> <span class="nn">mlc_llm.interface.router</span> <span class="kn">import</span> <span class="n">serve</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mlc_llm.router</span><span class="w"> </span><span class="kn">import</span> <span class="n">Router</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlc_llm.protocol</span><span class="w"> </span><span class="kn">import</span> <span class="n">openai_api_protocol</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">AsyncGenerator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlc_llm.serve.entrypoints</span><span class="w"> </span><span class="kn">import</span> <span class="n">microserving_entrypoints</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlc_llm.interface.router</span><span class="w"> </span><span class="kn">import</span> <span class="n">serve</span>
 
-<span class="kn">import</span> <span class="nn">aiohttp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">aiohttp</span>
 
-<span class="k">class</span> <span class="nc">CustomRouter</span><span class="p">(</span><span class="n">Router</span><span class="p">):</span>
-    <span class="k">async</span> <span class="k">def</span> <span class="nf">translate_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionRequest</span><span class="p">,</span> <span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionResponse</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CustomRouter</span><span class="p">(</span><span class="n">Router</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">translate_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionRequest</span><span class="p">,</span> <span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionResponse</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
         <span class="k">pass</span>
 
 
@@ -409,15 +409,15 @@ router will rerun the <code class="docutils literal notranslate"><span class="pr
 </pre></div>
 </div>
 <p>Bringing everything together, the complete code is as below:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm.router</span> <span class="kn">import</span> <span class="n">Router</span>
-<span class="kn">from</span> <span class="nn">mlc_llm.protocol</span> <span class="kn">import</span> <span class="n">openai_api_protocol</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">AsyncGenerator</span>
-<span class="kn">from</span> <span class="nn">mlc_llm.serve.entrypoints</span> <span class="kn">import</span> <span class="n">microserving_entrypoints</span>
-<span class="kn">from</span> <span class="nn">mlc_llm.interface.router</span> <span class="kn">import</span> <span class="n">serve</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mlc_llm.router</span><span class="w"> </span><span class="kn">import</span> <span class="n">Router</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlc_llm.protocol</span><span class="w"> </span><span class="kn">import</span> <span class="n">openai_api_protocol</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">AsyncGenerator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlc_llm.serve.entrypoints</span><span class="w"> </span><span class="kn">import</span> <span class="n">microserving_entrypoints</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mlc_llm.interface.router</span><span class="w"> </span><span class="kn">import</span> <span class="n">serve</span>
 
-<span class="kn">import</span> <span class="nn">aiohttp</span>
-<span class="k">class</span> <span class="nc">CustomRouter</span><span class="p">(</span><span class="n">Router</span><span class="p">):</span>
-    <span class="k">async</span> <span class="k">def</span> <span class="nf">translate_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionRequest</span><span class="p">,</span> <span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionResponse</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">aiohttp</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CustomRouter</span><span class="p">(</span><span class="n">Router</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">translate_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionRequest</span><span class="p">,</span> <span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionResponse</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
         <span class="c1"># we will pass request_id as an argument in microserving API calls</span>
         <span class="n">request</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="n">request_id</span>
 

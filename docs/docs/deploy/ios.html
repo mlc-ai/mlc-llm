@@ -636,26 +636,26 @@ and add local package that points to <code class="docutils literal notranslate">
 </ul>
 <p>You can then import the <cite>MLCSwift</cite> package into your app.
 The following code shows an illustrative example of how to use the chat module.</p>
-<div class="highlight-swift notranslate"><div class="highlight"><pre><span></span><span class="kd">import</span> <span class="nc">MLCSwift</span>
+<div class="highlight-swift notranslate"><div class="highlight"><pre><span></span><span class="kd">import</span><span class="w"> </span><span class="nc">MLCSwift</span>
 
-<span class="kd">func</span> <span class="nf">runExample</span><span class="p">()</span> <span class="k">async</span> <span class="p">{</span>
-   <span class="kd">let</span> <span class="nv">engine</span> <span class="p">=</span> <span class="n">MLCEngine</span><span class="p">()</span>
-   <span class="kd">let</span> <span class="nv">modelPath</span> <span class="p">=</span> <span class="s">&quot;/path/to/model/weights&quot;</span>
-   <span class="kd">let</span> <span class="nv">modelLib</span> <span class="p">=</span> <span class="s">&quot;model-lib-name&quot;</span>
+<span class="kd">func</span><span class="w"> </span><span class="nf">runExample</span><span class="p">()</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">{</span>
+<span class="w">   </span><span class="kd">let</span><span class="w"> </span><span class="nv">engine</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">MLCEngine</span><span class="p">()</span>
+<span class="w">   </span><span class="kd">let</span><span class="w"> </span><span class="nv">modelPath</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;/path/to/model/weights&quot;</span>
+<span class="w">   </span><span class="kd">let</span><span class="w"> </span><span class="nv">modelLib</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&quot;model-lib-name&quot;</span>
 
-   <span class="k">await</span> <span class="n">engine</span><span class="p">.</span><span class="n">reload</span><span class="p">(</span><span class="n">modelPath</span><span class="p">:</span> <span class="n">modelPath</span><span class="p">,</span> <span class="n">modelLib</span><span class="p">:</span> <span class="n">modelLib</span><span class="p">)</span>
+<span class="w">   </span><span class="k">await</span><span class="w"> </span><span class="n">engine</span><span class="p">.</span><span class="n">reload</span><span class="p">(</span><span class="n">modelPath</span><span class="p">:</span><span class="w"> </span><span class="n">modelPath</span><span class="p">,</span><span class="w"> </span><span class="n">modelLib</span><span class="p">:</span><span class="w"> </span><span class="n">modelLib</span><span class="p">)</span>
 
-   <span class="c1">// run chat completion as in OpenAI API style</span>
-   <span class="k">for</span> <span class="k">await</span> <span class="n">res</span> <span class="k">in</span> <span class="k">await</span> <span class="n">engine</span><span class="p">.</span><span class="n">chat</span><span class="p">.</span><span class="n">completions</span><span class="p">.</span><span class="n">create</span><span class="p">(</span>
-         <span class="n">messages</span><span class="p">:</span> <span class="p">[</span>
-            <span class="n">ChatCompletionMessage</span><span class="p">(</span>
-               <span class="n">role</span><span class="p">:</span> <span class="p">.</span><span class="n">user</span><span class="p">,</span>
-               <span class="n">content</span><span class="p">:</span> <span class="s">&quot;What is the meaning of life?&quot;</span>
-            <span class="p">)</span>
-         <span class="p">]</span>
-   <span class="p">)</span> <span class="p">{</span>
-      <span class="bp">print</span><span class="p">(</span><span class="n">res</span><span class="p">.</span><span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">delta</span><span class="p">.</span><span class="n">content</span><span class="p">!.</span><span class="n">asText</span><span class="p">())</span>
-   <span class="p">}</span>
+<span class="w">   </span><span class="c1">// run chat completion as in OpenAI API style</span>
+<span class="w">   </span><span class="k">for</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="n">engine</span><span class="p">.</span><span class="n">chat</span><span class="p">.</span><span class="n">completions</span><span class="p">.</span><span class="n">create</span><span class="p">(</span>
+<span class="w">         </span><span class="n">messages</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">            </span><span class="n">ChatCompletionMessage</span><span class="p">(</span>
+<span class="w">               </span><span class="n">role</span><span class="p">:</span><span class="w"> </span><span class="p">.</span><span class="n">user</span><span class="p">,</span>
+<span class="w">               </span><span class="n">content</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;What is the meaning of life?&quot;</span>
+<span class="w">            </span><span class="p">)</span>
+<span class="w">         </span><span class="p">]</span>
+<span class="w">   </span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="bp">print</span><span class="p">(</span><span class="n">res</span><span class="p">.</span><span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">delta</span><span class="p">.</span><span class="n">content</span><span class="p">!.</span><span class="n">asText</span><span class="p">())</span>
+<span class="w">   </span><span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
 </div>
