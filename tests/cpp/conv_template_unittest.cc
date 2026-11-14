@@ -121,8 +121,60 @@ void _TestConvTemplateLoadJSONPartsContent() {
   ASSERT_EQ(conv.stop_token_ids.at(0), 50256);
 }
 
+std::string _RenderUserPrompt(const std::string& render_empty_system_field,
+                              const std::string& request_messages) {
+  std::string conv_template =
+      "{\n"
+      "    \"name\": \"test\",\n"
+      "    \"system_template\": \"<|im_start|>system\\n{system_message}<|im_end|>\\n\",\n"
+      "    \"system_message\": \"\",\n" +
+      render_empty_system_field +
+      "    \"roles\": {\"user\": \"<|im_start|>user\", \"assistant\": \"<|im_start|>assistant\"},\n"
+      "    \"role_templates\": {\"user\": \"{user_message}\", \"assistant\": "
+      "\"{assistant_message}\"},\n"
+      "    \"messages\": [],\n"
+      "    \"seps\": [\"<|im_end|>\\n\"],\n"
+      "    \"role_content_sep\": \"\\n\",\n"
+      "    \"role_empty_sep\": \"\\n\",\n"
+      "    \"stop_str\": [],\n"
+      "    \"add_role_after_system_message\": true,\n"
+      "    \"stop_token_ids\": [2]\n"
+      "}";
+  Conversation conv = Conversation::FromJSON(conv_template).Unwrap();
+  ChatCompletionRequest request =
+      ChatCompletionRequest::FromJSON("{\"messages\": " + request_messages + "}").Unwrap();
+  std::vector<serve::Data> prompt =
+      CreatePrompt(conv, request, ModelConfig(), DLDevice{kDLCPU, 0}).Unwrap();
+  std::string text;
+  for (const serve::Data& data : prompt) {
+    const auto* text_data = data.as<serve::TextDataNode>();
+    EXPECT_NE(text_data, nullptr);
+    if (text_data != nullptr) text += text_data->text;
+  }
+  return text;
+}
+
+void _TestConvTemplateRenderEmptySystemMessage() {
+  const std::string user_only = "[{\"role\": \"user\", \"content\": \"Hi\"}]";
+  const std::string with_system =
+      "[{\"role\": \"system\", \"content\": \"Be brief.\"}, {\"role\": \"user\", \"content\": "
+      "\"Hi\"}]";
+  const std::string empty_system_turn = "<|im_start|>system\n<|im_end|>\n";
+  const std::string user_turn = "<|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\n";
+  // Unset defaults to true: the empty system turn is rendered, as before.
+  ASSERT_EQ(_RenderUserPrompt("", user_only), empty_system_turn + user_turn);
+  ASSERT_EQ(_RenderUserPrompt("    \"render_empty_system_message\": true,\n", user_only),
+            empty_system_turn + user_turn);
+  // False skips the system template only when the system message is empty.
+  ASSERT_EQ(_RenderUserPrompt("    \"render_empty_system_message\": false,\n", user_only),
+            user_turn);
+  ASSERT_EQ(_RenderUserPrompt("    \"render_empty_system_message\": false,\n", with_system),
+            "<|im_start|>system\nBe brief.<|im_end|>\n" + user_turn);
+}
+
 TEST(JsonFFIConvTest, LoadJSONTextContentTest) { _TestConvTemplateLoadJSONTextContent(); }
 TEST(JsonFFIConvTest, LoadJSONPartsContentTest) { _TestConvTemplateLoadJSONPartsContent(); }
+TEST(JsonFFIConvTest, RenderEmptySystemMessageTest) { _TestConvTemplateRenderEmptySystemMessage(); }
 
 }  // namespace json_ffi
 }  // namespace llm
