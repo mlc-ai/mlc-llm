@@ -171,6 +171,8 @@ Result<ChatCompletionMessage> ChatCompletionMessage::FromJSON(
     const tvm::ffi::json::Object& json_obj) {
   using TResult = Result<ChatCompletionMessage>;
   ChatCompletionMessage message;
+  message.has_unsupported_template_fields =
+      json_obj.count("name") || json_obj.count("tool_calls") || json_obj.count("tool_call_id");
   ChatCompletionMessageContent content;
 
   // content
@@ -205,6 +207,14 @@ Result<ChatCompletionMessage> ChatCompletionMessage::FromJSON(
     content = parts;
   }
   message.content = content;
+  if (json_obj.count("reasoning_content")) {
+    auto reasoning = json::LookupWithResultReturn<std::string>(json_obj, "reasoning_content");
+    if (reasoning.IsErr()) {
+      message.has_invalid_reasoning_content = true;
+    } else {
+      message.reasoning_content = reasoning.Unwrap();
+    }
+  }
 
   // role
   Result<std::string> role_str_res = json::LookupWithResultReturn<std::string>(json_obj, "role");
@@ -268,6 +278,19 @@ Result<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const std::string&
   }
   tvm::ffi::json::Object json_obj = json_obj_res.Unwrap();
   ChatCompletionRequest request;
+  for (const char* option : {"enable_thinking", "reasoning_effort", "preserve_thinking"}) {
+    request.has_template_options |= json_obj.count(option) != 0;
+  }
+  if (json_obj.count("extra_body") && json_obj.at("extra_body") != nullptr) {
+    auto extra = json_obj.at("extra_body").try_cast<tvm::ffi::json::Object>();
+    if (!extra.has_value()) {
+      request.has_template_options = true;
+    } else {
+      for (const char* option : {"enable_thinking", "reasoning_effort", "preserve_thinking"}) {
+        request.has_template_options |= extra->count(option) != 0;
+      }
+    }
+  }
 
   // messages
   Result<tvm::ffi::json::Array> messages_arr_res =
@@ -365,6 +388,9 @@ Result<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const std::string&
     request.stop = std::move(stop);
   }
 
+  request.has_template_options |=
+      json_obj.count("tool_choice") && json_obj.at("tool_choice") != nullptr;
+
   // tool_choice
   Result<std::string> tool_choice_res =
       json::LookupOrDefaultWithResultReturn<std::string>(json_obj, "tool_choice", "auto");
@@ -429,6 +455,7 @@ Result<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const std::string&
 
 tvm::ffi::json::Object ChatCompletionMessage::AsJSON() const {
   tvm::ffi::json::Object obj;
+  if (reasoning_content.has_value()) obj.Set("reasoning_content", reasoning_content.value());
 
   if (this->content.IsText()) {
     obj.Set("content", this->content.Text());

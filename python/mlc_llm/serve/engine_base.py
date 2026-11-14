@@ -747,6 +747,27 @@ def process_chat_completion_request(
     # - Check for function calling usage and update the conversation template
     request.check_function_call_usage(conv_template)
 
+    if conv_template.reasoning_history_style == "qwen3_8":
+        options = {"enable_thinking", "reasoning_effort", "preserve_thinking"}
+        if options & request.model_fields_set or options & (request.extra_body or {}).keys():
+            raise ValueError("Qwen3.8 thinking options must be selected with a static template")
+        if (
+            request.tools is not None
+            or request.tool_choice is not None
+            or any(
+                bool({"tool_calls", "name", "tool_call_id"} & message.model_fields_set)
+                or (
+                    "reasoning_content" in message.model_fields_set
+                    and (
+                        message.role != "assistant"
+                        or not isinstance(message.reasoning_content, str)
+                    )
+                )
+                for message in request.messages
+            )
+        ):
+            raise ValueError("Qwen3.8 templates support plain text chat only")
+
     for message in request.messages:
         role = message.role
         content = message.content
@@ -754,6 +775,10 @@ def process_chat_completion_request(
             assert isinstance(content, str)
             conv_template.system_message = content if content is not None else ""
             continue
+        if message.reasoning_content is not None:
+            conv_template.reasoning_contents[len(conv_template.messages)] = (
+                message.reasoning_content
+            )
         conv_template.messages.append((role, content))
     conv_template.messages.append(("assistant", None))
 
