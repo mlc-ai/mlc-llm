@@ -11,6 +11,7 @@ from mlc_llm.model.lfm2.lfm2_model import (
     Lfm2ForCausalLM,
     Lfm2MLP,
     Lfm2ShortConv,
+    _causal_depthwise_conv1d,
 )
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.nn.rnn_state import RNNState
@@ -54,7 +55,11 @@ class Lfm3Attention(Lfm2Attention):
 
     def __init__(self, config: Lfm3Config, layer_type: str):
         super().__init__(config)
-        self.gate_proj = nn.Linear(config.hidden_size, config.num_attention_heads, bias=False)
+        self.qkv_proj.out_dtype = "float32"
+        self.out_proj.out_dtype = "float32"
+        self.gate_proj = nn.Linear(
+            config.hidden_size, config.num_attention_heads, bias=False, out_dtype="float32"
+        )
         rope = config.rope_parameters[layer_type]
         self.rope_theta = rope["rope_theta"]
         self.partial_rotary_factor = rope.get("partial_rotary_factor", 1.0)
@@ -68,7 +73,9 @@ class Lfm3Attention(Lfm2Attention):
     ):
         d, h_q, h_kv = self.head_dim, self.num_attention_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
-        qkv = op.reshape(self.qkv_proj(hidden_states), (b, s, h_q + 2 * h_kv, d))
+        qkv = op.reshape(
+            self.qkv_proj(hidden_states).astype(hidden_states.dtype), (b, s, h_q + 2 * h_kv, d)
+        )
         q, k, v = op.split(qkv, [h_q, h_q + h_kv], axis=2)
         qk = op.reshape(
             op.concat([self.q_layernorm(q), self.k_layernorm(k)], dim=2),
@@ -77,8 +84,42 @@ class Lfm3Attention(Lfm2Attention):
         qk = _apply_rope(qk, query_positions, self.rope_theta, self.partial_rotary_factor)
         qkv = op.concat([op.reshape(qk, (b, s, h_q + h_kv, d)), v], dim=2)
         output = paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, h_q, sm_scale=d**-0.5)
-        gate = op.reshape(op.sigmoid(self.gate_proj(hidden_states)), (b, s, h_q, 1))
-        return self.out_proj(op.reshape(output * gate, (b, s, h_q * d)))
+        gate = op.reshape(
+            op.sigmoid(self.gate_proj(hidden_states).astype(hidden_states.dtype)), (b, s, h_q, 1)
+        )
+        return self.out_proj(op.reshape(output * gate, (b, s, h_q * d))).astype(hidden_states.dtype)
+
+
+class Lfm3MLP(Lfm2MLP):
+    """Accumulate projections in float32 while retaining the activation dtype."""
+
+    def __init__(self, config: Lfm3Config):
+        super().__init__(config)
+        self.gate_up_proj.out_dtype = "float32"
+        self.down_proj.out_dtype = "float32"
+
+    def forward(self, x: Tensor):
+        gate, up = op.split(self.gate_up_proj(x).astype(x.dtype), 2, axis=-1)
+        return self.down_proj(op.silu(gate) * up).astype(x.dtype)
+
+
+class Lfm3ShortConv(Lfm2ShortConv):
+    """LFM2 convolution with float32 projection accumulation."""
+
+    def __init__(self, config: Lfm3Config, layer_id: int):
+        super().__init__(config, layer_id)
+        self.in_proj.out_dtype = "float32"
+        self.out_proj.out_dtype = "float32"
+
+    def forward(self, hidden_states: Tensor, state: RNNState):
+        b, _, d = hidden_states.shape
+        gate_b, gate_c, x = op.split(
+            self.in_proj(hidden_states).astype(hidden_states.dtype), 3, axis=-1
+        )
+        conv_state = state.get(self.conv_layer_id, 0, (b, self.kernel_size - 1, d), self.dtype)
+        conv_out, conv_state = _causal_depthwise_conv1d(gate_b * x, conv_state, self.conv.weight)
+        state = state.set(self.conv_layer_id, 0, conv_state)
+        return self.out_proj(gate_c * conv_out).astype(hidden_states.dtype), state
 
 
 class Lfm3DecoderLayer(nn.Module):
@@ -89,8 +130,8 @@ class Lfm3DecoderLayer(nn.Module):
         if self.is_attention_layer:
             self.self_attn = Lfm3Attention(config, layer_type)
         else:
-            self.conv = Lfm2ShortConv(config, category_id)
-        self.feed_forward = Lfm2MLP(config)
+            self.conv = Lfm3ShortConv(config, category_id)
+        self.feed_forward = Lfm3MLP(config)
         self.operator_norm = nn.RMSNorm(config.hidden_size, -1, config.norm_eps, bias=False)
         self.ffn_norm = nn.RMSNorm(config.hidden_size, -1, config.norm_eps, bias=False)
         if self.use_sandwich_norm:
