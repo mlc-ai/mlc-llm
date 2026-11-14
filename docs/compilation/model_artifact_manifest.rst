@@ -198,3 +198,62 @@ Version 1 covers text and audio input for ``google/gemma-4-E2B-it``, text
 and fixed-size image input for LLaVA, Gemma 3 and Qwen3.5, and text output.
 Dynamic resolution image input, video, compressed or remote audio, audio
 through the native server, and speech-only pipelines are not included.
+
+Multi-component contracts (schema version 2)
+-------------------------------------------
+
+Version 2 describes a graph of components with named inputs and outputs.  It is
+an experimental validation and planning contract: the compiler does not yet
+emit executable graphs, and WebLLM rejects graph execution before loading model
+configurations, libraries or weights.  Parsing a manifest does not establish
+support for a model or a media format.  Version 1 manifests and their interface
+hashes retain their existing interpretation.
+
+A package declares ``components`` and ``tasks`` instead of a single global
+weight set and executor.  Each component has a versioned ``contract``, typed
+input and output ports, its own weight-manifest and parameter-schema reference
+(or explicit ``null`` for a parameterless component), and request-local state.
+Component kinds describe behavior: ``encoder``, ``autoregressive``,
+``code_predictor``, ``waveform_decoder`` and ``transform``.  They do not select
+model-specific runtime implementations.
+
+Task inputs and outputs are named maps.  Text, audio, image and video inputs can
+therefore coexist in one task, with both text and audio outputs.  A public input
+binds to one or more component input ports; a public output binds to a component
+output port.  Explicit edges connect component outputs to inputs.  A port
+specifies its versioned semantic contract, dtype, shape and whether delivery is
+a value or a stream.  Position grids, timestamps, valid lengths and conditioning
+must have their own typed ports when the model requires them.  Declaring a PCM
+port alone does not implement feature extraction or audio/video alignment.
+
+Port compatibility requires exact agreement, including symbolic dimension
+names.  Every active component input must be bound exactly once.  Graphs reject
+missing endpoints, duplicate destinations, dead branches and cycles.  Recurrent
+transitions remain inside a component's state rather than becoming graph edges.
+A component output may feed both a public output and another component, allowing
+text generation and speech conditioning to share the same producer.
+
+Outputs declare whether they are optional.  The planning helper computes the
+reverse dependency closure of the selected outputs and returns components in
+topological order.  With a text producer feeding an optional speech branch,
+selecting only text omits the speech components.  Selecting text and audio keeps
+both branches.  Required outputs cannot be silently dropped.  This plan does
+not allocate resources, schedule kernels or implement stream cancellation,
+backpressure or final flushing.
+
+The compiled contract repeats each component specification and adds a module
+path, export-role mapping and resource requirements.  Package and compiled
+component specifications must match exactly.  Each component declares a
+``run`` export; stateful components also declare ``create_state`` and
+``reset_state``.  This validates declarations, not the existence or ABI of an
+export in a binary.  Multiple components may name one module.  Per-component
+memory estimates do not establish peak simultaneous residency.
+
+Version 2's ``interface_id`` hashes the complete normalized package except the
+``interface_id`` field itself, including weight-manifest paths.  Object keys are
+sorted recursively, arrays preserve order, and JSON uses compact separators.
+The contract restricts identifiers and paths to ASCII and numbers to safe
+integers so Python and JavaScript produce the same bytes.  Relocating a declared
+weight path changes this identity.  Unknown fields and unsafe relative paths
+are rejected rather than ignored.  The separate version 1 tasks-only hash is
+unchanged.

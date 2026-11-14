@@ -1,0 +1,303 @@
+{
+  "schema": "mlc.model-package",
+  "schema_version": 2,
+  "components": {
+    "audio_encoder": {
+      "kind": "encoder",
+      "contract": "example.encoder.v1",
+      "inputs": {
+        "audio": {
+          "semantic": "mlc.pcm.v1",
+          "dtype": "float32",
+          "shape": ["samples"],
+          "delivery": "stream"
+        }
+      },
+      "outputs": {
+        "features": {
+          "semantic": "mlc.embeddings.v1",
+          "dtype": "float32",
+          "shape": ["tokens", 128],
+          "delivery": "value"
+        }
+      },
+      "weights": {
+        "manifest": "encoder/tensor-cache.json",
+        "parameter_schema_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "state": {
+        "kind": "none",
+        "scope": "request"
+      }
+    },
+    "vision_encoder": {
+      "kind": "encoder",
+      "contract": "example.encoder.v1",
+      "inputs": {
+        "image": {
+          "semantic": "mlc.rgb.v1",
+          "dtype": "uint8",
+          "shape": ["height", "width", 3],
+          "delivery": "value"
+        },
+        "video": {
+          "semantic": "mlc.video.v1",
+          "dtype": "uint8",
+          "shape": ["frames", "height", "width", 3],
+          "delivery": "value"
+        }
+      },
+      "outputs": {
+        "features": {
+          "semantic": "mlc.embeddings.v1",
+          "dtype": "float32",
+          "shape": ["tokens", 128],
+          "delivery": "value"
+        }
+      },
+      "weights": {
+        "manifest": "encoder/tensor-cache.json",
+        "parameter_schema_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "state": {
+        "kind": "none",
+        "scope": "request"
+      }
+    },
+    "thinker": {
+      "kind": "autoregressive",
+      "contract": "example.autoregressive.v1",
+      "inputs": {
+        "text": {
+          "semantic": "mlc.tokens.v1",
+          "dtype": "int32",
+          "shape": ["tokens"],
+          "delivery": "stream"
+        },
+        "audio": {
+          "semantic": "mlc.embeddings.v1",
+          "dtype": "float32",
+          "shape": ["tokens", 128],
+          "delivery": "value"
+        },
+        "vision": {
+          "semantic": "mlc.embeddings.v1",
+          "dtype": "float32",
+          "shape": ["tokens", 128],
+          "delivery": "value"
+        }
+      },
+      "outputs": {
+        "text": {
+          "semantic": "mlc.tokens.v1",
+          "dtype": "int32",
+          "shape": ["tokens"],
+          "delivery": "stream"
+        },
+        "hidden": {
+          "semantic": "mlc.embeddings.v1",
+          "dtype": "float32",
+          "shape": ["tokens", 128],
+          "delivery": "value"
+        }
+      },
+      "weights": {
+        "manifest": "autoregressive/tensor-cache.json",
+        "parameter_schema_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "state": {
+        "kind": "kv_cache",
+        "scope": "request"
+      }
+    },
+    "talker": {
+      "kind": "code_predictor",
+      "contract": "example.code_predictor.v1",
+      "inputs": {
+        "hidden": {
+          "semantic": "mlc.embeddings.v1",
+          "dtype": "float32",
+          "shape": ["tokens", 128],
+          "delivery": "value"
+        }
+      },
+      "outputs": {
+        "codes": {
+          "semantic": "mlc.audio_codes.v1",
+          "dtype": "int32",
+          "shape": ["frames", 8],
+          "delivery": "stream"
+        }
+      },
+      "weights": {
+        "manifest": "code_predictor/tensor-cache.json",
+        "parameter_schema_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "state": {
+        "kind": "recurrent",
+        "scope": "request"
+      }
+    },
+    "vocoder": {
+      "kind": "waveform_decoder",
+      "contract": "example.waveform_decoder.v1",
+      "inputs": {
+        "codes": {
+          "semantic": "mlc.audio_codes.v1",
+          "dtype": "int32",
+          "shape": ["frames", 8],
+          "delivery": "stream"
+        }
+      },
+      "outputs": {
+        "audio": {
+          "semantic": "mlc.pcm.v1",
+          "dtype": "float32",
+          "shape": ["samples"],
+          "delivery": "stream"
+        }
+      },
+      "weights": {
+        "manifest": "waveform_decoder/tensor-cache.json",
+        "parameter_schema_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "state": {
+        "kind": "none",
+        "scope": "request"
+      }
+    }
+  },
+  "tasks": {
+    "chat.completions": {
+      "inputs": {
+        "text": {
+          "spec": {
+            "semantic": "mlc.tokens.v1",
+            "dtype": "int32",
+            "shape": ["tokens"],
+            "delivery": "stream"
+          },
+          "targets": [
+            {
+              "component": "thinker",
+              "port": "text"
+            }
+          ]
+        },
+        "audio": {
+          "spec": {
+            "semantic": "mlc.pcm.v1",
+            "dtype": "float32",
+            "shape": ["samples"],
+            "delivery": "stream"
+          },
+          "targets": [
+            {
+              "component": "audio_encoder",
+              "port": "audio"
+            }
+          ]
+        },
+        "image": {
+          "spec": {
+            "semantic": "mlc.rgb.v1",
+            "dtype": "uint8",
+            "shape": ["height", "width", 3],
+            "delivery": "value"
+          },
+          "targets": [
+            {
+              "component": "vision_encoder",
+              "port": "image"
+            }
+          ]
+        },
+        "video": {
+          "spec": {
+            "semantic": "mlc.video.v1",
+            "dtype": "uint8",
+            "shape": ["frames", "height", "width", 3],
+            "delivery": "value"
+          },
+          "targets": [
+            {
+              "component": "vision_encoder",
+              "port": "video"
+            }
+          ]
+        }
+      },
+      "outputs": {
+        "text": {
+          "spec": {
+            "semantic": "mlc.tokens.v1",
+            "dtype": "int32",
+            "shape": ["tokens"],
+            "delivery": "stream"
+          },
+          "source": {
+            "component": "thinker",
+            "port": "text"
+          },
+          "optional": false
+        },
+        "audio": {
+          "spec": {
+            "semantic": "mlc.pcm.v1",
+            "dtype": "float32",
+            "shape": ["samples"],
+            "delivery": "stream"
+          },
+          "source": {
+            "component": "vocoder",
+            "port": "audio"
+          },
+          "optional": true
+        }
+      },
+      "edges": [
+        {
+          "source": {
+            "component": "audio_encoder",
+            "port": "features"
+          },
+          "target": {
+            "component": "thinker",
+            "port": "audio"
+          }
+        },
+        {
+          "source": {
+            "component": "vision_encoder",
+            "port": "features"
+          },
+          "target": {
+            "component": "thinker",
+            "port": "vision"
+          }
+        },
+        {
+          "source": {
+            "component": "thinker",
+            "port": "hidden"
+          },
+          "target": {
+            "component": "talker",
+            "port": "hidden"
+          }
+        },
+        {
+          "source": {
+            "component": "talker",
+            "port": "codes"
+          },
+          "target": {
+            "component": "vocoder",
+            "port": "codes"
+          }
+        }
+      ]
+    }
+  },
+  "interface_id": "sha256:92a98e6e01299fadaf50536d28bb8339f6af32b170f3c5d6361fa62a42f930fb"
+}
