@@ -204,8 +204,10 @@ Multi-component contracts (schema version 2)
 
 Version 2 describes a graph of components with named inputs and outputs.  It is
 an experimental validation and planning contract: the compiler does not yet
-emit executable graphs, and WebLLM rejects graph execution before loading model
-configurations, libraries or weights.  Parsing a manifest does not establish
+emit executable graphs, and normal WebLLM model loading rejects graphs before loading model
+configurations, libraries or weights.  WebLLM also provides an experimental host
+scheduler with caller-supplied component backends; this does not supply real
+model kernels or make these packages loadable through MLCEngine.  Parsing a manifest does not establish
 support for a model or a media format.  Version 1 manifests and their interface
 hashes retain their existing interpretation.
 
