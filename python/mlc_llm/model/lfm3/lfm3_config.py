@@ -31,6 +31,11 @@ class Lfm3Config(Lfm2Config):
         if self.head_dim is None:
             self.head_dim = 0
         super().__post_init__()
+        # The runtime's ragged prefill kernel applies only a causal mask within
+        # each chunk. Keep that span inside the sliding window; the paged cache
+        # applies the window mask when attending to tokens from previous chunks.
+        if "sliding_attention" in self.layer_types:
+            self.prefill_chunk_size = min(self.prefill_chunk_size, self.sliding_window)
         if self.head_dim % 2:
             raise ValueError("LFM3 RoPE requires an even head_dim")
         for layer_type in set(self.layer_types) - {"conv"}:

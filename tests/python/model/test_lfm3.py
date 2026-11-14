@@ -174,3 +174,21 @@ def test_sliding_attention_without_full_attention_rope():
     assert model.attn_kind == ["mha_sliding"]
     assert model.num_attention_layers == 1
     assert model.num_conv_layers == 1
+
+
+def test_prefill_chunks_stay_inside_sliding_window():
+    from mlc_llm.interface.compile import ModelConfigOverride
+
+    config = make_config(prefill_chunk_size=1024)
+    assert config.prefill_chunk_size == 256
+    assert config.context_window_size == 262144
+    assert ModelConfigOverride(prefill_chunk_size=8192).apply(config).prefill_chunk_size == 256
+    assert make_config(prefill_chunk_size=128).prefill_chunk_size == 128
+    assert (
+        make_config(
+            num_hidden_layers=2,
+            layer_types=["conv", "full_attention"],
+            prefill_chunk_size=1024,
+        ).prefill_chunk_size
+        == 1024
+    )
