@@ -167,3 +167,13 @@ def test_compiled_text_audio_prefill_decode(thinker_fixture, tmp_path):
         end(cache)
         np.testing.assert_allclose(prefill[0, -1], expected[0, 3], atol=2e-5, rtol=2e-5)
         np.testing.assert_allclose(decode[0, -1], expected[0, 4], atol=2e-5, rtol=2e-5)
+
+        # Reset must clear sequence membership and positions, not merely return an alias.
+        vm["reset_state"](cache)
+        add(cache, 0)
+        begin(cache, Shape([0]), Shape([5]))
+        replay = vm["prefill"](
+            tvm_tirx.runtime.tensor(embeds.numpy(), device=device), cache, packed
+        )[0].numpy()
+        end(cache)
+        np.testing.assert_allclose(replay[0, -1], expected[0, 4], atol=2e-5, rtol=2e-5)

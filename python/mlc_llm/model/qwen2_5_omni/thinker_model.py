@@ -7,6 +7,8 @@ and video positions are not supported by this component.
 
 import dataclasses
 
+from tvm import relax
+
 from mlc_llm.model.qwen2.qwen2_model import QWen2Config, QWen2LMHeadModel
 
 
@@ -63,3 +65,20 @@ class Qwen25OmniThinker(QWen2LMHeadModel):
     The caller must replace audio placeholder embeddings before prefill. This is
     not a full Omni model: it provides no media processing or Talker exports.
     """
+
+    def export_tvm(self, spec, debug=False, allow_extern=False):
+        """Add a real impure state-reset export alongside the generation methods."""
+        exported = list(super().export_tvm(spec, debug=debug, allow_extern=allow_extern))
+        builder = relax.BlockBuilder(exported[0])
+        state = relax.Var("state", relax.AnyType())
+        with builder.function("reset_state", [state], pure=False):
+            builder.emit(
+                relax.Call(
+                    relax.ExternFunc("vm.builtin.kv_state_clear"),
+                    [state],
+                    ty_args=[relax.TupleType([])],
+                )
+            )
+            builder.emit_func_output(relax.Tuple([]))
+        exported[0] = builder.finalize()
+        return tuple(exported)
