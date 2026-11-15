@@ -429,8 +429,7 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
   const std::vector<ChatCompletionMessage>* request_messages_ptr = &request.messages;
   std::vector<ChatCompletionMessage> stripped_conv_messages;
   std::vector<ChatCompletionMessage> stripped_request_messages;
-  if (conv.strip_reasoning_in_history ||
-      conv.reasoning_history_style == "qwen3_8") {
+  if (conv.strip_reasoning_in_history || conv.reasoning_history_style == "qwen3_8") {
     const size_t conv_size = conv.messages.size();
     int64_t last_user_idx = -1;
     for (size_t i = 0; i < conv_size; ++i) {
@@ -609,7 +608,8 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
         }
         std::unordered_map<std::string, std::string> item_map;
         for (const auto& [key, value] : item.cast<tvm::ffi::json::Object>()) {
-          item_map[key.cast<tvm::ffi::String>()] = tvm::ffi::json::Stringify(value);
+          item_map[key.cast<tvm::ffi::String>()] =
+              value.try_cast<std::string>().value_or(tvm::ffi::json::Stringify(value));
         }
         content.push_back(std::move(item_map));
       }
@@ -692,8 +692,7 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
       json::LookupOptionalWithResultReturn<bool>(json_obj, "render_empty_system_message");
   if (render_empty.IsErr()) return TResult::Error(render_empty.UnwrapErr());
   conv.render_empty_system_message = render_empty.Unwrap().value_or(true);
-  if (conv.reasoning_history_style != "default" &&
-      conv.reasoning_history_style != "qwen3_8") {
+  if (conv.reasoning_history_style != "default" && conv.reasoning_history_style != "qwen3_8") {
     return TResult::Error("Unsupported reasoning_history_style");
   }
   auto effort =
