@@ -1,0 +1,1905 @@
+{
+  "source": "Qwen/Qwen3.6-27B",
+  "revision": "8f33b98937c6031bb49e713dee3e8e185aafd26f",
+  "source_sha256": {
+    "chat_template.jinja": "1b8361565cc35d47551d342214cff341c0f1a9685ce529c7ce31de0ed3616248",
+    "tokenizer.json": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+    "tokenizer_config.json": "a39230de929388c748904265340616449f3bdeeb324d99385c6243d0577f98ed"
+  },
+  "stop_token_ids": [
+    248046,
+    248044
+  ],
+  "cases": [
+    {
+      "name": "user_only",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        220,
+        17,
+        478,
+        220,
+        18,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "system",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Be concise."
+        },
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\nBe concise.<|im_end|>\n<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        3320,
+        61446,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        220,
+        17,
+        478,
+        220,
+        18,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "empty_system",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        220,
+        17,
+        478,
+        220,
+        18,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "whitespace_system",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": " \n\t\u0085\u001c"
+        },
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        220,
+        17,
+        478,
+        220,
+        18,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "unicode_trim",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": "\u0085\u001cBe concise.\u001f"
+        },
+        {
+          "role": "user",
+          "content": "\u2003\u0085 Hello. \u001c"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\nBe concise.<|im_end|>\n<|im_start|>user\nHello.<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        3320,
+        61446,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        9419,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "bom_preserved",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": "\ufeffBe concise.\ufeff"
+        },
+        {
+          "role": "user",
+          "content": "\ufeffHello.\ufeff"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\n\ufeffBe concise.\ufeff<|im_end|>\n<|im_start|>user\n\ufeffHello.\ufeff<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        3121,
+        3320,
+        61446,
+        13,
+        3121,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3121,
+        9419,
+        13,
+        3121,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "plain_history",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "Noted."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        2536,
+        290,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "inline_thinking_history",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "<think>Remember the code.</think>\n\nNoted."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        2536,
+        290,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "structured_history",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "Noted.",
+          "reasoning_content": "Remember the code."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        2536,
+        290,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "trimmed_structured_history",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": " \nNoted.\u0085",
+          "reasoning_content": "\u001cThink.\u2003"
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        2536,
+        290,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "empty_assistant_history",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning_content": ""
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "literal_placeholders",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Literal {system_message} {function_string} $& $` $' $$"
+        },
+        {
+          "role": "user",
+          "content": "First {user_message} {tool_message} $&"
+        },
+        {
+          "role": "assistant",
+          "content": "{assistant_message} {function_string} $` $' $$",
+          "reasoning_content": "Reason {function_string} {system_message} $&"
+        },
+        {
+          "role": "user",
+          "content": "Next {function_string} {user_message} {tool_message} $&"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\nLiteral {system_message} {function_string} $& $` $' $$<|im_end|>\n<|im_start|>user\nFirst {user_message} {tool_message} $&<|im_end|>\n<|im_start|>assistant\n{assistant_message} {function_string} $` $' $$<|im_end|>\n<|im_start|>user\nNext {function_string} {user_message} {tool_message} $&<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        16839,
+        313,
+        8678,
+        6260,
+        92,
+        313,
+        1628,
+        3773,
+        92,
+        393,
+        5,
+        393,
+        63,
+        393,
+        6,
+        25273,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        5170,
+        313,
+        846,
+        6260,
+        92,
+        313,
+        13766,
+        6260,
+        92,
+        393,
+        5,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        90,
+        74455,
+        6260,
+        92,
+        313,
+        1628,
+        3773,
+        92,
+        393,
+        63,
+        393,
+        6,
+        25273,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        5666,
+        313,
+        1628,
+        3773,
+        92,
+        313,
+        846,
+        6260,
+        92,
+        313,
+        13766,
+        6260,
+        92,
+        393,
+        5,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "multiple_turns",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "Noted.",
+          "reasoning_content": "Keep it."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        },
+        {
+          "role": "assistant",
+          "content": "amber-42",
+          "reasoning_content": "Recall it."
+        },
+        {
+          "role": "user",
+          "content": "Confirm it again."
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\namber-42<|im_end|>\n<|im_start|>user\nConfirm it again.<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        2536,
+        290,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        14778,
+        12,
+        19,
+        17,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        16237,
+        424,
+        1495,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "structured_overrides_inline",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "<think>literal</think>\n\nAnswer",
+          "reasoning_content": ""
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n<think>literal</think>\n\nAnswer<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        34600,
+        248069,
+        271,
+        15666,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "multiple_inline_closures",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "a</think>b</think>\n  final\u0085"
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n  final<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        220,
+        1534,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "space_after_close",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "<think>x</think>\n\n  keep indentation"
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n  keep indentation<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        220,
+        2426,
+        67234,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ]
+    },
+    {
+      "name": "user_only",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        220,
+        17,
+        478,
+        220,
+        18,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "system",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Be concise."
+        },
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>system\nBe concise.<|im_end|>\n<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        3320,
+        61446,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        220,
+        17,
+        478,
+        220,
+        18,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "empty_system",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "system",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        220,
+        17,
+        478,
+        220,
+        18,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "whitespace_system",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "system",
+          "content": " \n\t\u0085\u001c"
+        },
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        220,
+        17,
+        478,
+        220,
+        18,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "unicode_trim",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "system",
+          "content": "\u0085\u001cBe concise.\u001f"
+        },
+        {
+          "role": "user",
+          "content": "\u2003\u0085 Hello. \u001c"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>system\nBe concise.<|im_end|>\n<|im_start|>user\nHello.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        3320,
+        61446,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        9419,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "bom_preserved",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "system",
+          "content": "\ufeffBe concise.\ufeff"
+        },
+        {
+          "role": "user",
+          "content": "\ufeffHello.\ufeff"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>system\n\ufeffBe concise.\ufeff<|im_end|>\n<|im_start|>user\n\ufeffHello.\ufeff<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        3121,
+        3320,
+        61446,
+        13,
+        3121,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3121,
+        9419,
+        13,
+        3121,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "plain_history",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "Noted."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        2536,
+        290,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "inline_thinking_history",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "<think>Remember the code.</think>\n\nNoted."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        2536,
+        290,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "structured_history",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "Noted.",
+          "reasoning_content": "Remember the code."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        2536,
+        290,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "trimmed_structured_history",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": " \nNoted.\u0085",
+          "reasoning_content": "\u001cThink.\u2003"
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        2536,
+        290,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "empty_assistant_history",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning_content": ""
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "literal_placeholders",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Literal {system_message} {function_string} $& $` $' $$"
+        },
+        {
+          "role": "user",
+          "content": "First {user_message} {tool_message} $&"
+        },
+        {
+          "role": "assistant",
+          "content": "{assistant_message} {function_string} $` $' $$",
+          "reasoning_content": "Reason {function_string} {system_message} $&"
+        },
+        {
+          "role": "user",
+          "content": "Next {function_string} {user_message} {tool_message} $&"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>system\nLiteral {system_message} {function_string} $& $` $' $$<|im_end|>\n<|im_start|>user\nFirst {user_message} {tool_message} $&<|im_end|>\n<|im_start|>assistant\n{assistant_message} {function_string} $` $' $$<|im_end|>\n<|im_start|>user\nNext {function_string} {user_message} {tool_message} $&<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        8678,
+        198,
+        16839,
+        313,
+        8678,
+        6260,
+        92,
+        313,
+        1628,
+        3773,
+        92,
+        393,
+        5,
+        393,
+        63,
+        393,
+        6,
+        25273,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        5170,
+        313,
+        846,
+        6260,
+        92,
+        313,
+        13766,
+        6260,
+        92,
+        393,
+        5,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        90,
+        74455,
+        6260,
+        92,
+        313,
+        1628,
+        3773,
+        92,
+        393,
+        63,
+        393,
+        6,
+        25273,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        5666,
+        313,
+        1628,
+        3773,
+        92,
+        313,
+        846,
+        6260,
+        92,
+        313,
+        13766,
+        6260,
+        92,
+        393,
+        5,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "multiple_turns",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "Noted.",
+          "reasoning_content": "Keep it."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        },
+        {
+          "role": "assistant",
+          "content": "amber-42",
+          "reasoning_content": "Recall it."
+        },
+        {
+          "role": "user",
+          "content": "Confirm it again."
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\namber-42<|im_end|>\n<|im_start|>user\nConfirm it again.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        2536,
+        290,
+        13,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        14778,
+        12,
+        19,
+        17,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        16237,
+        424,
+        1495,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "structured_overrides_inline",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "<think>literal</think>\n\nAnswer",
+          "reasoning_content": ""
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n<think>literal</think>\n\nAnswer<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        34600,
+        248069,
+        271,
+        15666,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "multiple_inline_closures",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "a</think>b</think>\n  final\u0085"
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n  final<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        220,
+        1534,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    },
+    {
+      "name": "space_after_close",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "<think>x</think>\n\n  keep indentation"
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n  keep indentation<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "token_ids": [
+        248045,
+        846,
+        198,
+        4888,
+        1970,
+        369,
+        65326,
+        12,
+        19,
+        17,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        220,
+        2426,
+        67234,
+        248046,
+        198,
+        248045,
+        846,
+        198,
+        3710,
+        369,
+        821,
+        1970,
+        30,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        271,
+        248069,
+        271
+      ]
+    }
+  ]
+}

@@ -134,7 +134,7 @@ struct Conversation {
    * \param system_msg The system prompt message.
    * \return The created system text.
    */
-  std::string GetSystemText(const std::string& system_msg) const;
+  std::string GetSystemText(const std::string& system_msg, bool force_render_empty = false) const;
 
   /*!
    * \brief replace the content from role by the correct role text in template

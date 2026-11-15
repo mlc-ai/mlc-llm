@@ -29,6 +29,7 @@ from . import (
     qwen2,
     qwen3,
     qwen3_5,
+    qwen3_6,
     qwen3_8,
     redpajama,
     rwkv,

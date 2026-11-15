@@ -199,11 +199,13 @@ std::string Qwen38SystemMessage(const std::string& message, const std::string& e
 
 }  // namespace
 
-std::string Conversation::GetSystemText(const std::string& system_msg) const {
-  const std::string content = reasoning_history_style == "qwen3_8"
-                                  ? Qwen38SystemMessage(system_msg, qwen3_8_reasoning_effort)
-                                  : system_msg;
-  if (content.empty() && !render_empty_system_message) return "";
+std::string Conversation::GetSystemText(const std::string& system_msg,
+                                        bool force_render_empty) const {
+  const std::string content =
+      reasoning_history_style == "qwen3_8"
+          ? Qwen38SystemMessage(system_msg, qwen3_8_reasoning_effort)
+          : (reasoning_history_style == "qwen3_6" ? TrimPythonWhitespace(system_msg) : system_msg);
+  if (content.empty() && !render_empty_system_message && !force_render_empty) return "";
   std::string system_text = this->system_template;
   static std::string system_placeholder = PLACEHOLDERS[MessagePlaceholders::SYSTEM];
   size_t pos = system_text.find(system_placeholder);
@@ -270,14 +272,14 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
                                        const ModelConfig& config, DLDevice device) {
   using TResult = Result<std::vector<Data>>;
 
-  if (conv.reasoning_history_style == "qwen3_8") {
+  if (conv.reasoning_history_style == "qwen3_8" || conv.reasoning_history_style == "qwen3_6") {
     if (request.tools.has_value() || request.has_template_options) {
-      return TResult::Error("Qwen3.8 supports static templates and plain text chat only");
+      return TResult::Error("Qwen supports static templates and plain text chat only");
     }
     std::vector<ChatCompletionMessage> history = conv.messages;
     history.insert(history.end(), request.messages.begin(), request.messages.end());
     if (history.empty() || history.back().role != "user") {
-      return TResult::Error("Qwen3.8 requires a final user message");
+      return TResult::Error("Qwen requires a final user message");
     }
     for (size_t i = 0; i < history.size(); ++i) {
       const auto& msg = history[i];
@@ -286,12 +288,12 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
           msg.has_invalid_reasoning_content || msg.tool_calls.has_value() || msg.name.has_value() ||
           msg.tool_call_id.has_value() ||
           (msg.reasoning_content.has_value() && msg.role != "assistant")) {
-        return TResult::Error("Qwen3.8 supports plain text messages only");
+        return TResult::Error("Qwen supports plain text messages only");
       }
       std::string text = TrimPythonWhitespace(msg.content.Text());
       if (msg.role == "user" && text.rfind("<tool_response>", 0) == 0 && text.size() >= 16 &&
           text.compare(text.size() - 16, 16, "</tool_response>") == 0) {
-        return TResult::Error("Qwen3.8 tool responses are unsupported");
+        return TResult::Error("Qwen tool responses are unsupported");
       }
     }
   }
@@ -324,7 +326,8 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
   // we lazily accumulate the pending text
   // to reduce amount of segments in the Data vector
   std::string pending_text =
-      conv.GetSystemText(has_custom_system ? custom_system_inputs : conv.system_message);
+      conv.GetSystemText(has_custom_system ? custom_system_inputs : conv.system_message,
+                         conv.reasoning_history_style == "qwen3_6" && has_custom_system);
 
   // Get the message strings
   std::vector<Data> message_list;
@@ -429,7 +432,8 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
   const std::vector<ChatCompletionMessage>* request_messages_ptr = &request.messages;
   std::vector<ChatCompletionMessage> stripped_conv_messages;
   std::vector<ChatCompletionMessage> stripped_request_messages;
-  if (conv.strip_reasoning_in_history || conv.reasoning_history_style == "qwen3_8") {
+  if (conv.strip_reasoning_in_history || conv.reasoning_history_style == "qwen3_8" ||
+      conv.reasoning_history_style == "qwen3_6") {
     const size_t conv_size = conv.messages.size();
     int64_t last_user_idx = -1;
     for (size_t i = 0; i < conv_size; ++i) {
@@ -445,6 +449,20 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
       for (size_t i = 0; i < in.size(); ++i) {
         ChatCompletionMessage msg = in[i];
         const int64_t global_idx = static_cast<int64_t>(offset + i);
+        if (conv.reasoning_history_style == "qwen3_6") {
+          std::string text = TrimPythonWhitespace(msg.content.Text());
+          if (msg.role == "assistant" && !msg.reasoning_content.has_value()) {
+            const size_t close_pos = text.rfind(kCloseTag);
+            if (close_pos != std::string::npos) {
+              size_t start = close_pos + kCloseTag.size();
+              while (start < text.size() && text[start] == '\n') ++start;
+              text = text.substr(start);
+            }
+          }
+          msg.content = ChatCompletionMessageContent(text);
+          out.push_back(std::move(msg));
+          continue;
+        }
         if (conv.reasoning_history_style == "qwen3_8") {
           std::string text = TrimPythonWhitespace(msg.content.Text());
           if (msg.role == "assistant") {
@@ -692,7 +710,8 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
       json::LookupOptionalWithResultReturn<bool>(json_obj, "render_empty_system_message");
   if (render_empty.IsErr()) return TResult::Error(render_empty.UnwrapErr());
   conv.render_empty_system_message = render_empty.Unwrap().value_or(true);
-  if (conv.reasoning_history_style != "default" && conv.reasoning_history_style != "qwen3_8") {
+  if (conv.reasoning_history_style != "default" && conv.reasoning_history_style != "qwen3_8" &&
+      conv.reasoning_history_style != "qwen3_6") {
     return TResult::Error("Unsupported reasoning_history_style");
   }
   auto effort =

@@ -87,7 +87,7 @@ class Conversation(BaseModel):
     strip_reasoning_in_history: bool = False
 
     # Select model-specific history normalization.
-    reasoning_history_style: Literal["default", "qwen3_8"] = "default"
+    reasoning_history_style: Literal["default", "qwen3_6", "qwen3_8"] = "default"
 
     # Static Qwen3.8 templates select effort; request-time overrides are unsupported.
     qwen3_8_reasoning_effort: Optional[Literal["xhigh", "medium", "low", "none"]] = None
@@ -145,6 +145,8 @@ class Conversation(BaseModel):
             system_content = qwen3_8_system_message(
                 system_content, self.qwen3_8_reasoning_effort or "xhigh"
             )
+        if self.reasoning_history_style == "qwen3_6":
+            system_content = system_content.strip()
         system_msg = (
             self.system_template.replace(MessagePlaceholders.SYSTEM.value, system_content)
             if system_content or self.render_empty_system_message
@@ -170,6 +172,11 @@ class Conversation(BaseModel):
             if self.use_function_calling:
                 raise ValueError("Qwen3.8 templates support plain text chat only")
             messages = _normalize_qwen3_8_history(self.messages, self.reasoning_contents)
+
+        if self.reasoning_history_style == "qwen3_6":
+            if self.use_function_calling:
+                raise ValueError("Qwen3.6 templates support plain text chat only")
+            messages = _normalize_qwen3_6_history(self.messages, self.reasoning_contents)
 
         for i, (role, content) in enumerate(messages):
             if role not in self.roles.keys():
@@ -233,7 +240,7 @@ class Conversation(BaseModel):
 
         prompt = _combine_consecutive_messages(message_list)
 
-        if self.reasoning_history_style != "qwen3_8" and not any(
+        if self.reasoning_history_style not in ("qwen3_6", "qwen3_8") and not any(
             isinstance(item, data.ImageData) for item in message_list
         ):
             # Replace the last function string placeholder with actual function string
@@ -352,5 +359,28 @@ def _normalize_qwen3_8_history(messages, reasoning_contents):
         if role == "assistant":
             reasoning = reasoning_contents.get(index, "").strip()
             content = "<think>\n" + reasoning + "\n</think>\n\n" + content
+        result.append((role, content))
+    return result + list(messages[len(history) :])
+
+
+def _normalize_qwen3_6_history(messages, reasoning_contents):
+    """Match the pinned Qwen3.6 default: omit reasoning before the final user turn."""
+    history = messages[:-1] if messages and messages[-1] == ("assistant", None) else messages
+    if not history or history[-1][0] != "user":
+        raise ValueError("Qwen3.6 templates require a final user message")
+    result = []
+    for index, (role, content) in enumerate(history):
+        if role not in ("user", "assistant") or not isinstance(content, str):
+            raise ValueError("Qwen3.6 templates support plain text user/assistant messages only")
+        content = content.strip()
+        if (
+            role == "user"
+            and content.startswith("<tool_response>")
+            and content.endswith("</tool_response>")
+        ):
+            raise ValueError("Qwen3.6 tool responses are unsupported")
+        # Structured reasoning takes precedence: inline tags then remain literal content.
+        if role == "assistant" and index not in reasoning_contents and "</think>" in content:
+            content = content.rsplit("</think>", 1)[1].lstrip("\n")
         result.append((role, content))
     return result + list(messages[len(history) :])
