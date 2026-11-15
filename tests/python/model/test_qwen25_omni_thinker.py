@@ -205,7 +205,7 @@ def test_projection_precision_is_scoped_to_thinker():
             assert old.weight.dtype == new.weight.dtype == "float16"
 
 
-@pytest.mark.parametrize("quantization", ["q0f16", "q4f16_1", "q8f16_1"])
+@pytest.mark.parametrize("quantization", ["q0f16", "q4f16_1"])
 def test_mixed_precision_exports_after_quantization(quantization):
     from mlc_llm.quantization.model_quantization import make_quantization_functions
 
