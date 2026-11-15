@@ -9,7 +9,8 @@ parameter schema; the WebLLM example composes them at load time.
 Use an MLC checkout containing these components, its matching TVM build, and an
 activated Emscripten environment. The TVM JavaScript runtime must come from that
 same TVM build. Install `safetensors`, `torch`, `transformers`, and
-`huggingface_hub` in the compiler environment. Run these commands from the MLC
+`huggingface_hub` in the compiler environment. The reference fixtures and frontend
+were verified with `transformers==5.17.0`; use that version for reproduction. Run these commands from the MLC
 repository root:
 
 ```sh

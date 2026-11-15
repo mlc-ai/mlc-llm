@@ -143,7 +143,7 @@ def main():
         json.dumps(
             {
                 "library": str(library),
-                "sha256": hashlib.file_digest(library.open("rb"), "sha256").hexdigest(),
+                "sha256": hashlib.sha256(library.read_bytes()).hexdigest(),
                 "samples": processor.n_samples,
             }
         )
