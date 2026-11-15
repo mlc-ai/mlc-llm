@@ -9,8 +9,16 @@ from tvm.relax.frontend.nn import IntExpr, Tensor, op
 from tvm.s_tir import script as Ts
 from tvm_tirx import tirx
 from tvm_tirx.script import tirx as T
+from tvm_tirx.target import Target
 
 # mypy: disable-error-code="attr-defined,name-defined"
+
+
+def _moe_num_threads() -> int:
+    target = Target.current()
+    if target is not None and target.kind.name == "webgpu":
+        return min(256, int(target.attrs.get("max_num_threads", 256)))
+    return 1024
 
 
 def moe_sum(x: Tensor, dim: int) -> Tensor:
@@ -84,7 +92,7 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:  # noqa: UP006
     (batch_size, num_local_experts), dtype = scores.shape, scores.dtype
     index_dtype = "int32"
 
-    TX = 1024
+    TX = _moe_num_threads()
 
     def _get_topk_func(k_val: int):
         batch_size = T.dynamic("batch_size", "int64")
@@ -159,7 +167,7 @@ def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor,
     (batch_size, num_local_experts), dtype = x.shape, x.dtype
     index_dtype = "int32"
 
-    TX = 1024
+    TX = _moe_num_threads()
 
     def _get_topk_softmax_norm_func(k_val: int):
         def _nested_max(local_top_k_f32):
@@ -476,7 +484,7 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]
     token_indices : Tensor
         The indices for shuffling with shape [batch_size * experts_per_tok].
     """  # noqa: E501
-    TX = 1024
+    TX = _moe_num_threads()
     num_tokens, experts_per_tok = expert_indices.shape
 
     batch_size = T.dynamic("batch_size", "int32")
