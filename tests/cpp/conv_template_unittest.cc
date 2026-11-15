@@ -78,7 +78,7 @@ void _TestConvTemplateLoadJSONPartsContent() {
       "      \"tool\": \"{tool_message}\"\n"
       "    },\n"
       "    \"messages\": [[\"Instruct\", "
-      "    [{\"type\": \"text\", \"text\": \"What's in the image?\"},\n"
+      "    [{\"type\": \"text\", \"text\": \"What's in the image?\", \"score\": 3},\n"
       "     {\"type\": \"image_url\", \"image_url\": \"https://example.com/image.jpg\"}]\n"
       "    ]],\n"
       "    \"seps\": [\n"
@@ -109,6 +109,7 @@ void _TestConvTemplateLoadJSONPartsContent() {
   ASSERT_EQ(conv.role_templates.at("tool"), "{tool_message}");
   ASSERT_EQ(conv.messages.at(0).role, "Instruct");
   ASSERT_EQ(conv.messages.at(0).content.Parts().at(0).at("type"), "text");
+  ASSERT_EQ(conv.messages.at(0).content.Parts().at(0).at("score"), "3");
   ASSERT_EQ(conv.messages.at(0).content.Parts().at(0).at("text"), "What's in the image?");
   ASSERT_EQ(conv.messages.at(0).content.Parts().at(1).at("type"), "image_url");
   ASSERT_EQ(conv.messages.at(0).content.Parts().at(1).at("image_url"),
@@ -133,7 +134,7 @@ TEST(JsonFFIConvTest, Lfm3PlainTextHistory) {
     "role_empty_sep":"\n<think>", "stop_str":["<|im_end|>"],
     "stop_token_ids":[124900], "reasoning_history_style":"lfm3"
   })");
-  ASSERT_TRUE(parsed.IsOk());
+  ASSERT_TRUE(parsed.IsOk()) << (parsed.IsErr() ? parsed.UnwrapErr() : "");
   auto conv = parsed.Unwrap();
   ASSERT_EQ(conv.reasoning_history_style, "lfm3");
   ASSERT_EQ(conv.GetSystemText(""), "");

@@ -573,7 +573,8 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
         }
         std::unordered_map<std::string, std::string> item_map;
         for (const auto& [key, value] : item.cast<tvm::ffi::json::Object>()) {
-          item_map[key.cast<tvm::ffi::String>()] = tvm::ffi::json::Stringify(value);
+          item_map[key.cast<tvm::ffi::String>()] =
+              value.try_cast<std::string>().value_or(tvm::ffi::json::Stringify(value));
         }
         content.push_back(std::move(item_map));
       }
