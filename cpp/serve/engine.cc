@@ -430,6 +430,23 @@ class EngineImpl : public Engine {
       return TResult::Error(engine_config_res.UnwrapErr());
     }
     EngineConfig engine_config = engine_config_res.Unwrap();
+    for (const Model& model : n->models_) {
+      if (model->GetMetadata().kv_state_kind != KVStateKind::kHybrid) {
+        continue;
+      }
+      if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
+        return TResult::Error(
+            "Speculative decoding is not supported for hybrid models with recurrent state.");
+      }
+      // Recurrent-state forks cannot restore arbitrary prefix positions.
+      if (engine_config->prefix_cache_mode == PrefixCacheMode::kRadix) {
+        LOG(WARNING) << "Disabling prefix caching for hybrid models because recurrent state "
+                        "cannot be restored at arbitrary prefix positions.";
+        engine_config->prefix_cache_mode = PrefixCacheMode::kDisable;
+      }
+      engine_config->prefix_cache_max_num_recycling_seqs = 0;
+      break;
+    }
     {
       if (engine_config->prefix_cache_mode == PrefixCacheMode::kRadix) {
         n->estate_->prefix_cache = PrefixCache::CreateRadixPrefixCache(
