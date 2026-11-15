@@ -58,7 +58,8 @@ categorical sampling applies full-history repetition penalty, BOS suppression,
 temperature, top-k, then top-p. The verified sampled fixture uses penalty 1.05,
 temperature 0.9, top-k 40 and top-p 0.8 with explicit inverse-CDF uniforms. This
 matches the categorical policy; it does not reproduce PyTorch's seeded random
-number algorithm. Codec PAD/EOS terminate generation and are excluded from the
+number algorithm. Equal-score ties use token-ID order; floating-point filtering
+near boundaries can differ from HF. Codec PAD/EOS terminate generation and are excluded from the
 output; other unsupported codec IDs are rejected. Generation is bounded to 256
 codes to fit the current 512-frame DiT component.
 
