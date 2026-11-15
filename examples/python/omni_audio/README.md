@@ -8,7 +8,8 @@ parameter schema; the WebLLM example composes them at load time.
 
 Use an MLC checkout containing these components, its matching TVM build, and an
 activated Emscripten environment. The TVM JavaScript runtime must come from that
-same TVM build. Install `safetensors`, `torch`, `transformers`, and
+same TVM build. WebGPU builds of the reference conditioner require the scheduler
+fix in [apache/tvm#20985](https://github.com/apache/tvm/pull/20985). Install `safetensors`, `torch`, `transformers`, and
 `huggingface_hub` in the compiler environment. The reference fixtures and frontend
 were verified with `transformers==5.17.0`; use that version for reproduction. Run these commands from the MLC
 repository root:
