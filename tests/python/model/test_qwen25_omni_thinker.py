@@ -50,6 +50,7 @@ def test_nested_thinker_config_and_overrides():
         {"use_sliding_window": True},
         {"layer_types": ["full_attention", "sliding_attention"]},
         {"attention_bias": False},
+        {"tie_word_embeddings": True},
     ],
 )
 def test_reject_unsupported_position_or_attention_semantics(change):
@@ -177,3 +178,68 @@ def test_compiled_text_audio_prefill_decode(thinker_fixture, tmp_path):
         )[0].numpy()
         end(cache)
         np.testing.assert_allclose(replay[0, -1], expected[0, 4], atol=2e-5, rtol=2e-5)
+
+
+def test_projection_precision_is_scoped_to_thinker():
+    from mlc_llm.model.qwen2.qwen2_model import QWen2Config, QWen2LMHeadModel
+
+    base_config = QWen2Config.from_dict(tiny_config())
+    thinker_config = Qwen25OmniThinkerConfig.from_dict(tiny_config())
+    base = QWen2LMHeadModel(base_config)
+    thinker = Qwen25OmniThinker(thinker_config)
+    base.to("float16")
+    thinker.to("float16")
+    assert "projection_out_dtype" not in base_config.asdict()
+    assert "projection_out_dtype" not in thinker_config.asdict()
+    for plain, precise in zip(base.model.layers, thinker.model.layers):
+        assert plain.self_attn.c_attn.bias.dtype == "float16"
+        assert precise.self_attn.c_attn.bias.dtype == "float32"
+        for old, new in (
+            (plain.self_attn.c_attn, precise.self_attn.c_attn),
+            (plain.self_attn.o_proj, precise.self_attn.o_proj),
+            (plain.mlp.gate_up_proj, precise.mlp.gate_up_proj),
+            (plain.mlp.down_proj, precise.mlp.down_proj),
+        ):
+            assert old.out_dtype is None
+            assert new.out_dtype == "float32"
+            assert old.weight.dtype == new.weight.dtype == "float16"
+
+
+@pytest.mark.parametrize("quantization", ["q0f16", "q4f16_1", "q8f16_1"])
+def test_mixed_precision_exports_after_quantization(quantization):
+    from mlc_llm.quantization.model_quantization import make_quantization_functions
+
+    config = Qwen25OmniThinkerConfig.from_dict(tiny_config())
+    quant = QUANTIZATION[quantization]
+    model, _ = make_quantization_functions(Qwen25OmniThinker)[quant.kind](config, quant)
+    mod, params, _ = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
+    assert dict(params)["model.layers.0.self_attn.c_attn.bias"].dtype == "float32"
+    assert mod["prefill"].ret_ty.fields[0].dtype == "float32"
+
+
+def test_fp16_projection_accumulates_before_rounding():
+    torch = pytest.importorskip("torch")
+    from tvm.relax.frontend import nn
+
+    from mlc_llm.model.qwen2.qwen2_model import QWen2Attention
+
+    class Projection(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.projection = QWen2Attention(
+                Qwen25OmniThinkerConfig.from_dict(tiny_config())
+            ).c_attn
+            self.to("float16")
+
+        def forward(self, x):
+            return self.projection(x).astype(x.dtype)
+
+    model = Projection()
+    projection = model.projection
+    projection.weight.data = np.ones(projection.weight.shape, dtype="float16")
+    projection.bias.data = np.full(projection.bias.shape, 0.25, dtype="float32")
+    # Half accumulation loses unit terms next to 2048; float32 must retain them.
+    inputs = np.tile(np.array([2048, 1, -2048, 1], dtype="float16"), 32)[None]
+    compiled = model.jit(spec={"forward": {"x": nn.spec.Tensor((1, 128), "float16")}})
+    actual = compiled["forward"](torch.tensor(inputs))
+    np.testing.assert_array_equal(actual, np.full((1, 256), 64.25, dtype="float16"))

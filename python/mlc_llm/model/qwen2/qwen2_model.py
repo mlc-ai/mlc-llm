@@ -4,7 +4,7 @@ Implementation for QWEN2 architecture.
 
 import dataclasses
 from functools import partial
-from typing import Any, Dict, Optional  # noqa: UP035
+from typing import Any, ClassVar, Dict, Optional  # noqa: UP035
 
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 @dataclasses.dataclass
 class QWen2Config(ConfigBase):
     """Configuration of the QWen2 model."""
+
+    # Model variants may opt into wider projection accumulation without changing activations.
+    projection_out_dtype: ClassVar[Optional[str]] = None
 
     hidden_act: str
     hidden_size: int
@@ -83,6 +86,7 @@ class QWen2Config(ConfigBase):
 
 class QWen2Attention(nn.Module):
     def __init__(self, config: QWen2Config):
+        self.projection_out_dtype = config.projection_out_dtype
         self.head_dim = config.head_dim
         if config.num_key_value_heads % config.tensor_parallel_shards != 0:
             raise ValueError(
@@ -97,15 +101,21 @@ class QWen2Attention(nn.Module):
             in_features=config.hidden_size,
             out_features=(2 * self.num_key_value_heads + self.num_attention_heads) * self.head_dim,
             bias=True,
+            out_dtype=self.projection_out_dtype,
         )
         self.o_proj = nn.Linear(
-            self.num_attention_heads * self.head_dim, config.hidden_size, bias=False
+            self.num_attention_heads * self.head_dim,
+            config.hidden_size,
+            bias=False,
+            out_dtype=self.projection_out_dtype,
         )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_attention_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         qkv = self.c_attn(hidden_states)
+        if self.projection_out_dtype is not None:
+            qkv = qkv.astype(hidden_states.dtype)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
@@ -114,6 +124,8 @@ class QWen2Attention(nn.Module):
             (b, s, h_q * d),
         )
         attn_output = self.o_proj(output)
+        if self.projection_out_dtype is not None:
+            attn_output = attn_output.astype(hidden_states.dtype)
         return attn_output
 
 
@@ -141,20 +153,34 @@ class Qwen2Embedding(nn.Embedding):
 
 class QWen2MLP(nn.Module):
     def __init__(self, config: QWen2Config):
+        self.projection_out_dtype = config.projection_out_dtype
         if config.intermediate_size % config.tensor_parallel_shards != 0:
             raise ValueError(
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
         self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
-        self.gate_up_proj = nn.Linear(config.hidden_size, 2 * self.intermediate_size, bias=False)
-        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
+        self.gate_up_proj = nn.Linear(
+            config.hidden_size,
+            2 * self.intermediate_size,
+            bias=False,
+            out_dtype=self.projection_out_dtype,
+        )
+        self.down_proj = nn.Linear(
+            self.intermediate_size,
+            config.hidden_size,
+            bias=False,
+            out_dtype=self.projection_out_dtype,
+        )
         self.act_fn = ACT2FN[config.hidden_act]
 
     def forward(self, x: Tensor):
         concat_x1_x2 = self.gate_up_proj(x)
+        if self.projection_out_dtype is not None:
+            concat_x1_x2 = concat_x1_x2.astype(x.dtype)
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
-        return self.down_proj(self.act_fn(x1) * x2)
+        output = self.down_proj(self.act_fn(x1) * x2)
+        return output.astype(x.dtype) if self.projection_out_dtype is not None else output
 
 
 class QWen2DecoderLayer(nn.Module):

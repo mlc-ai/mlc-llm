@@ -6,6 +6,7 @@ and video positions are not supported by this component.
 """
 
 import dataclasses
+from typing import ClassVar
 
 from tvm import relax
 
@@ -15,6 +16,8 @@ from mlc_llm.model.qwen2.qwen2_model import QWen2Config, QWen2LMHeadModel
 @dataclasses.dataclass
 class Qwen25OmniThinkerConfig(QWen2Config):
     """Dense Thinker configuration restricted to ordinary text/audio positions."""
+
+    projection_out_dtype: ClassVar[str] = "float32"
 
     input_modalities: tuple[str, ...] = ("text", "audio")
 
@@ -35,6 +38,8 @@ class Qwen25OmniThinkerConfig(QWen2Config):
         return super().from_dict(flattened)
 
     def __post_init__(self):
+        if self.tie_word_embeddings:
+            raise ValueError("Thinker requires an untied output projection")
         self.input_modalities = tuple(self.input_modalities)
         if self.input_modalities not in (("text",), ("text", "audio")):
             raise ValueError("Thinker supports only text and audio input modalities")
@@ -65,6 +70,11 @@ class Qwen25OmniThinker(QWen2LMHeadModel):
     The caller must replace audio placeholder embeddings before prefill. This is
     not a full Omni model: it provides no media processing or Talker exports.
     """
+
+    def __init__(self, config):
+        super().__init__(config)
+        if not self.tie_word_embeddings:
+            self.lm_head.out_dtype = "float32"
 
     def export_tvm(self, spec, debug=False, allow_extern=False):
         """Add a real impure state-reset export alongside the generation methods."""
