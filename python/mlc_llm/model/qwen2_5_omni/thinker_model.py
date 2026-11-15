@@ -9,8 +9,12 @@ import dataclasses
 from typing import ClassVar
 
 from tvm import relax
+from tvm.relax.frontend import nn
 
+from mlc_llm import op as op_ext
+from mlc_llm.model.model_utils import index_last_token
 from mlc_llm.model.qwen2.qwen2_model import QWen2Config, QWen2LMHeadModel
+from mlc_llm.nn import PagedKVCache
 
 
 @dataclasses.dataclass
@@ -68,13 +72,48 @@ class Qwen25OmniThinker(QWen2LMHeadModel):
     """Token embeddings and stateful generation over text/audio embeddings.
 
     The caller must replace audio placeholder embeddings before prefill. This is
-    not a full Omni model: it provides no media processing or Talker exports.
+    not a full Omni model. Hidden-state exports for Talker alignment are opt-in;
+    media processing and reply alignment remain the caller's responsibility.
     """
 
     def __init__(self, config):
         super().__init__(config)
         if not self.tie_word_embeddings:
             self.lm_head.out_dtype = "float32"
+
+    def prefill_with_hidden(self, input_embed, paged_kv_cache):
+        """Return all normalized prompt states and last-position logits.
+
+        The caller retains the actual input embeddings, including injected audio,
+        to construct the two Thinker state streams consumed by Talker.
+        """
+        op_ext.configure()
+        hidden = self.model(input_embed, paged_kv_cache)
+        logits = self.lm_head(index_last_token(hidden)).astype("float32")
+        return logits, hidden, paged_kv_cache
+
+    def decode_with_hidden(self, input_embed, paged_kv_cache):
+        """Return the forwarded token's normalized state and next-token logits."""
+        op_ext.configure()
+        hidden = self.model(input_embed, paged_kv_cache)
+        logits = self.lm_head(hidden).astype("float32")
+        return logits, hidden, paged_kv_cache
+
+    def get_talker_spec(self):
+        """Opt into hidden-state capture without changing the default ABI.
+
+        Generation of N tokens forwards only the first N-1 sampled tokens. The
+        last sampled token therefore has no corresponding captured hidden state.
+        """
+        inherited = self.get_default_spec()
+        methods = dict(zip(inherited.method_names, inherited.method_specs))
+        for name, length in (("prefill_with_hidden", "seq_len"), ("decode_with_hidden", 1)):
+            methods[name] = {
+                "input_embed": nn.spec.Tensor([1, length, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {"param_mode": "packed", "effect_mode": "none"},
+            }
+        return nn.spec.ModuleSpec.from_raw(methods, self)
 
     def export_tvm(self, spec, debug=False, allow_extern=False):
         """Add a real impure state-reset export alongside the generation methods."""

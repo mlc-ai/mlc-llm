@@ -83,7 +83,7 @@ def thinker_fixture():
     }
     state["thinker.lm_head.weight"] = head.weight.detach().numpy()
     model = Qwen25OmniThinker(config)
-    mod, params, external = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
+    mod, params, external = model.export_tvm(spec=model.get_talker_spec(), allow_extern=True)
     mapping = huggingface(config, QUANTIZATION["q0f32"])
     values = {}
     for name, param in params:
@@ -169,6 +169,58 @@ def test_compiled_text_audio_prefill_decode(thinker_fixture, tmp_path):
         np.testing.assert_allclose(prefill[0, -1], expected[0, 3], atol=2e-5, rtol=2e-5)
         np.testing.assert_allclose(decode[0, -1], expected[0, 4], atol=2e-5, rtol=2e-5)
 
+        # The opt-in path returns every normalized prompt state, not just the
+        # last state used for logits. Decode returns exactly one forwarded row.
+        vm["reset_state"](cache)
+        add(cache, 0)
+        with torch.no_grad():
+            expected_hidden = reference(inputs_embeds=embeds, use_cache=False).last_hidden_state
+        for prompt_length in (2, 4):
+            vm["reset_state"](cache)
+            add(cache, 0)
+            begin(cache, Shape([0]), Shape([prompt_length]))
+            traced = vm["prefill_with_hidden"](
+                tvm_tirx.runtime.tensor(embeds[:, :prompt_length].numpy(), device=device),
+                cache,
+                packed,
+            )
+            end(cache)
+            np.testing.assert_allclose(
+                traced[1].numpy(),
+                expected_hidden[:, :prompt_length].numpy(),
+                atol=2e-5,
+                rtol=2e-5,
+            )
+            np.testing.assert_allclose(
+                traced[0].numpy(),
+                expected[:, prompt_length - 1 : prompt_length],
+                atol=2e-5,
+                rtol=2e-5,
+            )
+            sampled = [int(np.argmax(traced[0].numpy()))]
+            forwarded = []
+            hf_embeds = embeds[:, :prompt_length]
+            # Four sampled IDs require three forwarded generated-token states.
+            for _ in range(3):
+                with torch.no_grad():
+                    token_embed = reference.embed_tokens(torch.tensor([[sampled[-1]]]))
+                    hf_embeds = torch.cat([hf_embeds, token_embed], dim=1)
+                    hf_hidden = reference(inputs_embeds=hf_embeds).last_hidden_state[:, -1:]
+                    hf_logits = head(hf_hidden).numpy()
+                begin(cache, Shape([0]), Shape([1]))
+                step = vm["decode_with_hidden"](
+                    tvm_tirx.runtime.tensor(token_embed.numpy(), device=device), cache, packed
+                )
+                end(cache)
+                hidden = step[1].numpy()
+                assert hidden.shape == (1, 1, config.hidden_size)
+                np.testing.assert_allclose(hidden, hf_hidden.numpy(), atol=2e-5, rtol=2e-5)
+                np.testing.assert_allclose(step[0].numpy(), hf_logits, atol=2e-5, rtol=2e-5)
+                forwarded.append(sampled[-1])
+                sampled.append(int(np.argmax(step[0].numpy())))
+            assert len(sampled) == 4 and len(forwarded) == 3
+            assert forwarded == sampled[:-1]
+
         # Reset must clear sequence membership and positions, not merely return an alias.
         vm["reset_state"](cache)
         add(cache, 0)
@@ -243,3 +295,24 @@ def test_fp16_projection_accumulates_before_rounding():
     compiled = model.jit(spec={"forward": {"x": nn.spec.Tensor((1, 128), "float16")}})
     actual = compiled["forward"](torch.tensor(inputs))
     np.testing.assert_array_equal(actual, np.full((1, 256), 64.25, dtype="float16"))
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+def test_talker_hidden_exports_are_opt_in(dtype):
+    model = Qwen25OmniThinker(Qwen25OmniThinkerConfig.from_dict(tiny_config()))
+    model.to(dtype)
+    default, default_params, _ = model.export_tvm(model.get_default_spec(), allow_extern=True)
+    traced, traced_params, _ = model.export_tvm(model.get_talker_spec(), allow_extern=True)
+    names = {item.name_hint for item in default.get_global_vars()}
+    assert "prefill_with_hidden" not in names and "decode_with_hidden" not in names
+    assert [(n, tuple(p.shape), p.dtype) for n, p in default_params] == [
+        (n, tuple(p.shape), p.dtype) for n, p in traced_params
+    ]
+    for name, length in (("prefill_with_hidden", "seq_len"), ("decode_with_hidden", 1)):
+        fields = traced[name].ret_ty.fields
+        assert len(fields) == 3
+        assert fields[0].dtype == "float32" and fields[1].dtype == dtype
+        if isinstance(length, int):
+            assert int(fields[1].shape[1]) == length
+        else:
+            assert str(fields[1].shape[1]) == length
