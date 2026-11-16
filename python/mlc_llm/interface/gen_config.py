@@ -354,6 +354,8 @@ CONV_TEMPLATES = {
     "gemma_instruction",
     "gemma3_instruction",
     "gemma4_instruction",
+    "gemma4_large",
+    "gemma4_large_thinking",
     "orion",
     "llava",
     "hermes2_pro_llama3",

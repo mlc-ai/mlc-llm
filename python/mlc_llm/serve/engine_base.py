@@ -24,7 +24,7 @@ import tvm_ffi
 import tvm_tirx
 from tvm_tirx.runtime import Device
 
-from mlc_llm.protocol import openai_api_protocol
+from mlc_llm.protocol import error_protocol, openai_api_protocol
 from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.protocol.mlc_chat_config import MLCChatConfig
@@ -747,12 +747,33 @@ def process_chat_completion_request(
     # - Check for function calling usage and update the conversation template
     request.check_function_call_usage(conv_template)
 
+    if conv_template.reasoning_history_style == "gemma4":
+        if request.tools is not None or request.tool_choice not in (None, "auto"):
+            raise error_protocol.BadRequestError(
+                "Gemma 4 large templates support plain text chat only"
+            )
+        if not request.messages or request.messages[-1].role != "user":
+            raise error_protocol.BadRequestError("Gemma 4 text chat must end in a user message")
+        for index, message in enumerate(request.messages):
+            if (
+                not isinstance(message.content, str)
+                or message.role not in ("user", "assistant", "system")
+                or (message.role == "system" and index != 0)
+                or message.tool_calls is not None
+                or message.tool_call_id is not None
+            ):
+                raise error_protocol.BadRequestError(
+                    "Gemma 4 large templates support plain text chat only"
+                )
+
     for message in request.messages:
         role = message.role
         content = message.content
         if role == "system":
             assert isinstance(content, str)
             conv_template.system_message = content if content is not None else ""
+            if conv_template.reasoning_history_style == "gemma4":
+                conv_template.render_empty_system_message = True
             continue
         conv_template.messages.append((role, content))
     conv_template.messages.append(("assistant", None))

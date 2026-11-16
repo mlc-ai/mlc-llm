@@ -1,7 +1,7 @@
 """The standard conversation protocol in MLC LLM"""
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union  # noqa: UP035
+from typing import Any, Dict, List, Literal, Optional, Tuple, Type, TypeVar, Union  # noqa: UP035
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -86,6 +86,8 @@ class Conversation(BaseModel):
     # preserved for tool-call prefill scenarios.
     strip_reasoning_in_history: bool = False
 
+    reasoning_history_style: Literal["default", "gemma4"] = "default"
+
     # Function call fields
     function_string: str = ""
     # whether using function calling or not, helps check for output message format in API call
@@ -132,9 +134,14 @@ class Conversation(BaseModel):
         from ..serve import data
 
         # - Get the system message.
+        system_content = (
+            self.system_message.strip()
+            if self.reasoning_history_style == "gemma4"
+            else self.system_message
+        )
         system_msg = (
-            self.system_template.replace(MessagePlaceholders.SYSTEM.value, self.system_message)
-            if self.system_message or self.render_empty_system_message
+            self.system_template.replace(MessagePlaceholders.SYSTEM.value, system_content)
+            if system_content or self.render_empty_system_message
             else ""
         )
 
@@ -152,6 +159,11 @@ class Conversation(BaseModel):
             if self.strip_reasoning_in_history
             else self.messages
         )
+
+        if self.reasoning_history_style == "gemma4":
+            if self.use_function_calling:
+                raise ValueError("Gemma 4 large templates support plain text chat only")
+            messages = _normalize_gemma4_history(messages)
 
         for i, (role, content) in enumerate(messages):
             if role not in self.roles.keys():
@@ -215,7 +227,9 @@ class Conversation(BaseModel):
 
         prompt = _combine_consecutive_messages(message_list)
 
-        if not any(isinstance(item, data.ImageData) for item in message_list):
+        if self.reasoning_history_style != "gemma4" and not any(
+            isinstance(item, data.ImageData) for item in message_list
+        ):
             # Replace the last function string placeholder with actual function string
             prompt[0] = self.function_string.join(
                 prompt[0].rsplit(MessagePlaceholders.FUNCTION.value, 1)
@@ -294,3 +308,21 @@ def _combine_consecutive_messages(messages: List[Any]) -> List[Any]:  # noqa: UP
         else:
             combined_messages.append(message)
     return combined_messages
+
+
+def _normalize_gemma4_history(messages):
+    """Match the pinned template's trim and channel stripping for plain text."""
+    if len(messages) < 2 or messages[-1] != ("assistant", None) or messages[-2][0] != "user":
+        raise ValueError("Gemma 4 text chat requires a final user turn and generation header")
+    result = []
+    for role, content in messages[:-1]:
+        if role not in ("user", "assistant") or not isinstance(content, str):
+            raise ValueError("Gemma 4 large templates support plain text user/assistant messages")
+        if role == "assistant":
+            content = "".join(part.split("<|channel>")[0] for part in content.split("<channel|>"))
+        content = content.strip()
+        if role == "assistant" and result and result[-1][0] == "assistant":
+            result[-1] = (role, result[-1][1] + content)
+        else:
+            result.append((role, content))
+    return [*result, messages[-1]]

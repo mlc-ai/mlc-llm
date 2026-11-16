@@ -2,6 +2,7 @@
 
 #include <tvm/ffi/function.h>
 
+#include "../support/encoding.h"
 #include "../support/json_parser.h"
 #include "image_utils.h"
 
@@ -221,10 +222,98 @@ Result<std::optional<std::string>> TryGetFunctionCallingString(
   return TResult::Ok(tvm::ffi::json::Stringify(function_list_json));
 };
 
+namespace {
+
+std::string TrimGemma4Text(const std::string& text) {
+  const char* end = text.data() + text.size();
+  const char* first = end;
+  const char* last = end;
+  for (const char* cursor = text.data(); cursor < end;) {
+    auto [cp, next] = ParseNextUTF8(cursor, UTF8ErrorPolicy::kReturnByte);
+    // Python str.strip/Jinja trim includes Unicode whitespace.
+    bool space = (cp >= 9 && cp <= 13) || (cp >= 0x1c && cp <= 0x20) || cp == 0x85 || cp == 0xa0 ||
+                 cp == 0x1680 || (cp >= 0x2000 && cp <= 0x200a) || cp == 0x2028 || cp == 0x2029 ||
+                 cp == 0x202f || cp == 0x205f || cp == 0x3000;
+    if (!space) {
+      if (first == end) first = cursor;
+      last = next;
+    }
+    cursor = next;
+  }
+  return std::string(first, last);
+}
+
+std::string StripGemma4Channels(const std::string& text) {
+  const std::string end_tag = "<channel|>";
+  std::string content;
+  size_t start = 0;
+  for (;;) {
+    size_t end = text.find(end_tag, start);
+    size_t open = text.find("<|channel>", start);
+    content.append(text, start, std::min(end, open) - start);
+    if (end == std::string::npos) break;
+    start = end + end_tag.size();
+  }
+  return TrimGemma4Text(content);
+}
+
+Result<std::vector<Data>> CreateGemma4Prompt(const Conversation& conv,
+                                             const ChatCompletionRequest& request) {
+  using TResult = Result<std::vector<Data>>;
+  if (request.tools || request.tool_choice.value_or("auto") != "auto") {
+    return TResult::Error("Gemma 4 large templates support plain text chat only");
+  }
+  std::vector<ChatCompletionMessage> messages = conv.messages;
+  messages.insert(messages.end(), request.messages.begin(), request.messages.end());
+  if (messages.empty() || messages.back().role != "user") {
+    return TResult::Error("Gemma 4 text chat must end in a user message");
+  }
+  for (size_t i = 0; i < messages.size(); ++i) {
+    const auto& message = messages[i];
+    if ((message.role != "user" && message.role != "assistant" &&
+         !(i == 0 && message.role == "system")) ||
+        !message.content.IsText() || message.tool_calls || message.tool_call_id) {
+      return TResult::Error("Gemma 4 large templates support plain text chat only");
+    }
+  }
+  bool explicit_system = messages.front().role == "system";
+  std::string system =
+      TrimGemma4Text(explicit_system ? messages.front().content.Text() : conv.system_message);
+  std::string prompt;
+  if (explicit_system || !system.empty() || conv.render_empty_system_message) {
+    prompt = conv.GetSystemText(system);
+  }
+  for (size_t i = explicit_system ? 1 : 0; i < messages.size(); ++i) {
+    const auto& message = messages[i];
+    bool assistant = message.role == "assistant";
+    if (!assistant || i == 0 || messages[i - 1].role != "assistant") {
+      prompt += conv.roles.at(message.role) + conv.role_content_sep;
+    }
+    prompt += conv.GetRoleText(message.role,
+                               assistant ? StripGemma4Channels(message.content.Text())
+                                         : TrimGemma4Text(message.content.Text()),
+                               std::nullopt);
+    if (!assistant || messages[i + 1].role != "assistant") {
+      prompt += conv.seps.at(assistant && conv.seps.size() == 2 ? 1 : 0);
+    }
+  }
+  prompt += conv.roles.at("assistant") + conv.role_empty_sep;
+  std::vector<Data> output;
+  if (conv.system_prefix_token_ids) {
+    output.push_back(TokenData(*conv.system_prefix_token_ids));
+  }
+  output.push_back(TextData(prompt));
+  return TResult::Ok(std::move(output));
+}
+
+}  // namespace
+
 Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
                                        const ChatCompletionRequest& request,
                                        const ModelConfig& config, DLDevice device) {
   using TResult = Result<std::vector<Data>>;
+
+  if (conv.reasoning_history_style == "gemma4") return CreateGemma4Prompt(conv, request);
 
   Result<std::optional<std::string>> fn_call_str_tmp = TryGetFunctionCallingString(conv, request);
   if (fn_call_str_tmp.IsErr()) {
@@ -611,6 +700,11 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
     return TResult::Error(strip_reasoning_res.UnwrapErr());
   }
   conv.strip_reasoning_in_history = strip_reasoning_res.Unwrap().value_or(false);
+
+  auto history_style =
+      json::LookupOptionalWithResultReturn<std::string>(json_obj, "reasoning_history_style");
+  if (history_style.IsErr()) return TResult::Error(history_style.UnwrapErr());
+  conv.reasoning_history_style = history_style.Unwrap().value_or("default");
 
   return TResult::Ok(conv);
 }

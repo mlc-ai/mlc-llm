@@ -1,0 +1,526 @@
+{
+  "revision": "4d7ae4984b7db7de8f8457170b3f1a419ee76d52",
+  "template_sha256": "ae53464bf3be25802b3a5b37def7fd89667067d7577049b3b2d74c4d8de4c6d4",
+  "cases": [
+    {
+      "name": "one_turn",
+      "thinking": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "  Hello!  "
+        }
+      ],
+      "prompt": "<|turn>user\nHello!<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
+      "ids": [
+        2,
+        105,
+        2364,
+        107,
+        9259,
+        236888,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        100,
+        45518,
+        107,
+        101
+      ]
+    },
+    {
+      "name": "one_turn",
+      "thinking": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "  Hello!  "
+        }
+      ],
+      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nHello!<turn|>\n<|turn>model\n",
+      "ids": [
+        2,
+        105,
+        9731,
+        107,
+        98,
+        107,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        9259,
+        236888,
+        106,
+        107,
+        105,
+        4368,
+        107
+      ]
+    },
+    {
+      "name": "empty_system",
+      "thinking": false,
+      "messages": [
+        {
+          "role": "system",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "Hello!"
+        }
+      ],
+      "prompt": "<|turn>system\n<turn|>\n<|turn>user\nHello!<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
+      "ids": [
+        2,
+        105,
+        9731,
+        107,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        9259,
+        236888,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        100,
+        45518,
+        107,
+        101
+      ]
+    },
+    {
+      "name": "empty_system",
+      "thinking": true,
+      "messages": [
+        {
+          "role": "system",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "Hello!"
+        }
+      ],
+      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nHello!<turn|>\n<|turn>model\n",
+      "ids": [
+        2,
+        105,
+        9731,
+        107,
+        98,
+        107,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        9259,
+        236888,
+        106,
+        107,
+        105,
+        4368,
+        107
+      ]
+    },
+    {
+      "name": "trim_unicode",
+      "thinking": false,
+      "messages": [
+        {
+          "role": "system",
+          "content": " Be brief.  "
+        },
+        {
+          "role": "user",
+          "content": "　Literal {function_string} $&\u001f"
+        }
+      ],
+      "prompt": "<|turn>system\nBe brief.<turn|>\n<|turn>user\nLiteral {function_string} $&<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
+      "ids": [
+        2,
+        105,
+        9731,
+        107,
+        3912,
+        8652,
+        236761,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        55769,
+        642,
+        2501,
+        236779,
+        2383,
+        236783,
+        609,
+        236880,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        100,
+        45518,
+        107,
+        101
+      ]
+    },
+    {
+      "name": "trim_unicode",
+      "thinking": true,
+      "messages": [
+        {
+          "role": "system",
+          "content": " Be brief.  "
+        },
+        {
+          "role": "user",
+          "content": "　Literal {function_string} $&\u001f"
+        }
+      ],
+      "prompt": "<|turn>system\n<|think|>\nBe brief.<turn|>\n<|turn>user\nLiteral {function_string} $&<turn|>\n<|turn>model\n",
+      "ids": [
+        2,
+        105,
+        9731,
+        107,
+        98,
+        107,
+        3912,
+        8652,
+        236761,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        55769,
+        642,
+        2501,
+        236779,
+        2383,
+        236783,
+        609,
+        236880,
+        106,
+        107,
+        105,
+        4368,
+        107
+      ]
+    },
+    {
+      "name": "assistant_channels",
+      "thinking": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "One"
+        },
+        {
+          "role": "assistant",
+          "content": " <|channel>thought\nhidden<channel|> answer <|channel>thought\nignored<channel|>"
+        },
+        {
+          "role": "user",
+          "content": "Two"
+        }
+      ],
+      "prompt": "<|turn>user\nOne<turn|>\n<|turn>model\nanswer<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
+      "ids": [
+        2,
+        105,
+        2364,
+        107,
+        4906,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        14433,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        11634,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        100,
+        45518,
+        107,
+        101
+      ]
+    },
+    {
+      "name": "assistant_channels",
+      "thinking": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "One"
+        },
+        {
+          "role": "assistant",
+          "content": " <|channel>thought\nhidden<channel|> answer <|channel>thought\nignored<channel|>"
+        },
+        {
+          "role": "user",
+          "content": "Two"
+        }
+      ],
+      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nOne<turn|>\n<|turn>model\nanswer<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n",
+      "ids": [
+        2,
+        105,
+        9731,
+        107,
+        98,
+        107,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        4906,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        14433,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        11634,
+        106,
+        107,
+        105,
+        4368,
+        107
+      ]
+    },
+    {
+      "name": "adjacent_assistants",
+      "thinking": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "One"
+        },
+        {
+          "role": "assistant",
+          "content": " A "
+        },
+        {
+          "role": "assistant",
+          "content": " B "
+        },
+        {
+          "role": "user",
+          "content": "Two"
+        }
+      ],
+      "prompt": "<|turn>user\nOne<turn|>\n<|turn>model\nAB<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
+      "ids": [
+        2,
+        105,
+        2364,
+        107,
+        4906,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        3066,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        11634,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        100,
+        45518,
+        107,
+        101
+      ]
+    },
+    {
+      "name": "adjacent_assistants",
+      "thinking": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "One"
+        },
+        {
+          "role": "assistant",
+          "content": " A "
+        },
+        {
+          "role": "assistant",
+          "content": " B "
+        },
+        {
+          "role": "user",
+          "content": "Two"
+        }
+      ],
+      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nOne<turn|>\n<|turn>model\nAB<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n",
+      "ids": [
+        2,
+        105,
+        9731,
+        107,
+        98,
+        107,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        4906,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        3066,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        11634,
+        106,
+        107,
+        105,
+        4368,
+        107
+      ]
+    },
+    {
+      "name": "open_channel",
+      "thinking": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": "One"
+        },
+        {
+          "role": "assistant",
+          "content": "Before <|channel>thought\nunfinished"
+        },
+        {
+          "role": "user",
+          "content": "Two"
+        }
+      ],
+      "prompt": "<|turn>user\nOne<turn|>\n<|turn>model\nBefore<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
+      "ids": [
+        2,
+        105,
+        2364,
+        107,
+        4906,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        13286,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        11634,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        100,
+        45518,
+        107,
+        101
+      ]
+    },
+    {
+      "name": "open_channel",
+      "thinking": true,
+      "messages": [
+        {
+          "role": "user",
+          "content": "One"
+        },
+        {
+          "role": "assistant",
+          "content": "Before <|channel>thought\nunfinished"
+        },
+        {
+          "role": "user",
+          "content": "Two"
+        }
+      ],
+      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nOne<turn|>\n<|turn>model\nBefore<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n",
+      "ids": [
+        2,
+        105,
+        9731,
+        107,
+        98,
+        107,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        4906,
+        106,
+        107,
+        105,
+        4368,
+        107,
+        13286,
+        106,
+        107,
+        105,
+        2364,
+        107,
+        11634,
+        106,
+        107,
+        105,
+        4368,
+        107
+      ]
+    }
+  ]
+}

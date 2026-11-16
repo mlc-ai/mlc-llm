@@ -52,3 +52,27 @@ ConvTemplateRegistry.register_conv_template(
         system_prefix_token_ids=[2],
     )
 )
+
+# Pinned Gemma 4 large text profile; existing E2B behavior stays unchanged.
+for _thinking in (False, True):
+    ConvTemplateRegistry.register_conv_template(
+        Conversation(
+            name="gemma4_large_thinking" if _thinking else "gemma4_large",
+            system_template=(
+                "<|turn>system\n"
+                + ("<|think|>\n" if _thinking else "")
+                + MessagePlaceholders.SYSTEM.value
+                + "<turn|>\n"
+            ),
+            system_message="",
+            render_empty_system_message=_thinking,
+            roles={"user": "<|turn>user", "assistant": "<|turn>model"},
+            seps=["<turn|>\n"],
+            role_content_sep="\n",
+            role_empty_sep="\n" if _thinking else "\n<|channel>thought\n<channel|>",
+            stop_str=["<turn|>"],
+            stop_token_ids=[1, 106, 50],
+            system_prefix_token_ids=[2],
+            reasoning_history_style="gemma4",
+        )
+    )
