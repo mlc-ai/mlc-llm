@@ -26,7 +26,15 @@ def main():
     parser.add_argument("--device", choices=["metal", "webgpu"], default="webgpu")
     parser.add_argument("--tiny", action="store_true")
     parser.add_argument("--quantization", choices=["q0f16", "q0f32"], default="q0f16")
+    parser.add_argument(
+        "--talker", action="store_true", help="Export FP32 hidden states for speech alignment"
+    )
+    parser.add_argument(
+        "--export-only", action="store_true", help="Validate/export schemas without a library"
+    )
     args = parser.parse_args()
+    if args.talker and (args.quantization != "q0f32" or args.tiny):
+        parser.error("--talker requires the pretrained q0f32 profile")
     args.out.mkdir(parents=True, exist_ok=True)
     if args.tiny:
         config = Qwen25OmniThinkerConfig.from_dict(
@@ -46,13 +54,28 @@ def main():
         )
     else:
         config = Qwen25OmniThinkerConfig.from_file(args.source / "config.json")
-        config.context_window_size = 4096
+        if args.talker and config.context_window_size != 32768:
+            parser.error("The speech profile requires the pinned 32768-token context")
+        config.context_window_size = 32768 if args.talker else 4096
         config.prefill_chunk_size = 256
+    if args.talker:
+        if config.hidden_size != 2048 or config.vocab_size != 151936:
+            parser.error("The speech profile requires Qwen2.5-Omni-3B Thinker dimensions")
+        source_config = json.loads((args.source / "config.json").read_text())
+        talker_config = source_config.get("talker_config", {})
+        if any(
+            talker_config.get(name) != value
+            for name, value in dict(
+                tts_text_end_token_id=151861, tts_text_pad_token_id=151859
+            ).items()
+        ):
+            parser.error("Unexpected Talker text special tokens")
     config.max_batch_size = 1
     quant = QUANTIZATION[args.quantization]
     model = Qwen25OmniThinker(config)
     model.to(quant.model_dtype)
-    mod, params, ext = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
+    model_spec = model.get_talker_spec() if args.talker else model.get_default_spec()
+    mod, params, ext = model.export_tvm(spec=model_spec, allow_extern=True)
     schema = [dict(name=n, shape=list(p.shape), dtype=p.dtype) for n, p in params]
 
     def canonical(value):
@@ -70,11 +93,30 @@ def main():
         delivery="value",
     )
     output = dict(semantic="token.ids.v1", dtype="int32", shape=[1], delivery="stream")
+    outputs = dict(token_ids=output)
+    if args.talker:
+        for name, axis, semantic in (
+            ("prefix_embeddings", "prefix", "audio.talker_prefix.v1"),
+            ("reply_embeddings", "reply", "audio.talker_reply.v1"),
+        ):
+            outputs[name] = dict(
+                semantic=semantic,
+                dtype="float32",
+                shape=[axis, config.hidden_size],
+                delivery="value",
+            )
+        outputs["finish_reason"] = dict(
+            semantic="generation.finish_reason.v1", dtype="int32", shape=[1], delivery="value"
+        )
     spec = dict(
         kind="autoregressive",
-        contract="qwen2_5_omni.thinker_audio.v1",
+        contract=(
+            "qwen2_5_omni.thinker_audio_talker.v1"
+            if args.talker
+            else "qwen2_5_omni.thinker_audio.v1"
+        ),
         inputs=dict(token_ids=tokens, audio_embeddings=audio),
-        outputs=dict(token_ids=output),
+        outputs=outputs,
         weights=dict(manifest="tensor-cache.json", parameter_schema_id=schema_id),
         state=dict(kind="kv_cache", scope="request"),
     )
@@ -89,13 +131,12 @@ def main():
                     name: dict(spec=port, targets=[dict(component="thinker", port=name)])
                     for name, port in spec["inputs"].items()
                 },
-                outputs=dict(
-                    token_ids=dict(
-                        spec=output,
-                        source=dict(component="thinker", port="token_ids"),
-                        optional=False,
+                outputs={
+                    name: dict(
+                        spec=port, source=dict(component="thinker", port=name), optional=False
                     )
-                ),
+                    for name, port in outputs.items()
+                },
                 edges=[],
             )
         },
@@ -112,9 +153,9 @@ def main():
                 spec=spec,
                 module=library.name,
                 exports=dict(
-                    run="prefill",
-                    prefill="prefill",
-                    decode="decode",
+                    run="prefill_with_hidden" if args.talker else "prefill",
+                    prefill="prefill_with_hidden" if args.talker else "prefill",
+                    decode="decode_with_hidden" if args.talker else "decode",
                     embed="embed",
                     create_state="create_tir_paged_kv_cache",
                     reset_state="reset_state",
@@ -134,7 +175,7 @@ def main():
         model_dtype=quant.model_dtype,
         hidden_size=config.hidden_size,
         vocab_size=config.vocab_size,
-        active_vocab_size=64 if args.tiny else 151665,
+        active_vocab_size=config.vocab_size if args.talker or args.tiny else 151665,
         audio_token_id=151646,
         image_token_id=151655,
         video_token_id=151656,
@@ -142,6 +183,12 @@ def main():
         context_window_size=config.context_window_size,
         prefill_chunk_size=config.prefill_chunk_size,
     )
+    if args.talker:
+        thinker["speech_profile"] = dict(
+            speaker_bos_token_ids=[151870, 151872],
+            text_eos_token_id=151861,
+            text_pad_token_id=151859,
+        )
     metadata = dict(
         params=schema,
         artifact=compiled,
@@ -219,6 +266,8 @@ def main():
                 )
             )
         (args.out / "fixtures.json").write_text(json.dumps(cases, indent=2) + "\n")
+    if args.export_only:
+        return
     if args.device == "webgpu":
         auto_target.PRESET["webgpu:generic"]["target"]["host"]["mcpu"] = "mvp"
     target, build = auto_target.detect_target_and_host(args.device)

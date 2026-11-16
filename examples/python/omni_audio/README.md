@@ -46,3 +46,34 @@ The pinned upstream [configuration](https://huggingface.co/Qwen/Qwen2.5-Omni-3B/
 [processor](https://huggingface.co/Qwen/Qwen2.5-Omni-3B/blob/f75b40e3da2003cdd6e1829b1f420ca70797c34e/preprocessor_config.json),
 and [chat template](https://huggingface.co/Qwen/Qwen2.5-Omni-3B/blob/f75b40e3da2003cdd6e1829b1f420ca70797c34e/chat_template.json)
 are the source of truth for this example.
+
+## Thinker states for speech
+
+The opt-in speech profile exports the normalized states needed to align Thinker
+text with Talker. It uses the verified FP32 profile and compiles at 32768 tokens:
+
+```sh
+python -m mlc_llm convert_weight dist/omni-reference \
+  --model-type qwen2_5_omni_thinker_audio --quantization q0f32 \
+  --device cpu -o dist/omni-thinker-speech
+python examples/python/omni_audio/build_thinker.py \
+  --source dist/omni-reference --out dist/omni-thinker-speech \
+  --quantization q0f32 --talker
+```
+
+This emits the `qwen2_5_omni.thinker_audio_talker.v1` contract. The WebLLM host
+aligns actual prompt and reply states and returns `prefix_embeddings` and
+`reply_embeddings` for the Talker inputs, alongside streamed text token IDs.
+`finish_reason` is 0 for a text EOS and 1 for a token/context bound; reaching a
+bound is not a naturally completed answer. The metadata records the supported
+speaker BOS IDs and Talker text EOS/PAD IDs from the pinned source assets. The
+speech profile samples over the full Thinker vocabulary, as the HF reference
+does. `--export-only` validates and writes schemas without compiling a library.
+
+The default text/audio contract and its exports are unchanged. FP32 speech
+weights require a storage-buffer binding of at least 1,244,659,712 bytes; the
+resource estimate in the manifest covers weights only, excluding cache and
+workspace. The compiled context is an upper bound, not a claim that the full
+context fits on every adapter. See [Talker](TALKER.md),
+[flow predictor](FLOW_PREDICTOR.md), and [waveform decoder](WAVEFORM_DECODER.md)
+for the subsequent components and their numerical verification boundaries.
