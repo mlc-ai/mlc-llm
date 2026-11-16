@@ -20,7 +20,7 @@ from .eagle import eagle_loader, eagle_model
 from .gemma import gemma_loader, gemma_model
 from .gemma2 import gemma2_loader, gemma2_model
 from .gemma3 import gemma3_loader, gemma3_model, gemma3v_loader, gemma3v_model
-from .gemma4 import gemma4_loader, gemma4_model
+from .gemma4 import gemma4_large_loader, gemma4_large_model, gemma4_loader, gemma4_model
 from .gpt2 import gpt2_loader, gpt2_model
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model
 from .gpt_j import gpt_j_loader, gpt_j_model
@@ -247,6 +247,19 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
         },
         quantize=make_quantization_functions(
             gemma3_model.Gemma3ForCausalLM,
+            supports_ft_quant=False,
+        ),
+    ),
+    "gemma4_large_text": Model(
+        name="gemma4_large_text",
+        model=gemma4_large_model.Gemma4LargeForCausalLM,
+        config=gemma4_large_model.Gemma4LargeConfig,
+        source={
+            "huggingface-torch": gemma4_large_loader.huggingface,
+            "huggingface-safetensor": gemma4_large_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            gemma4_large_model.Gemma4LargeForCausalLM,
             supports_ft_quant=False,
         ),
     ),
