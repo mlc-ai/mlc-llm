@@ -77,3 +77,15 @@ workspace. The compiled context is an upper bound, not a claim that the full
 context fits on every adapter. See [Talker](TALKER.md),
 [flow predictor](FLOW_PREDICTOR.md), and [waveform decoder](WAVEFORM_DECODER.md)
 for the subsequent components and their numerical verification boundaries.
+
+Export the pinned voice assets for the speech example:
+
+```sh
+python examples/python/omni_audio/export_speakers.py \
+  --source dist/omni-reference/spk_dict.pt --out dist/omni-speakers
+```
+
+The exporter checks the pinned source hash before loading with
+`torch.load(weights_only=True)`, validates both voices and writes portable
+`speakers.json` plus a source/output hash receipt. The selected voice's BOS,
+reference mel and speaker embedding must be used together.
