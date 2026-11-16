@@ -539,6 +539,13 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
   }
   conv.system_message = system_message_res.Unwrap();
 
+  Result<std::optional<bool>> render_empty_system_res =
+      json::LookupOptionalWithResultReturn<bool>(json_obj, "render_empty_system_message");
+  if (render_empty_system_res.IsErr()) {
+    return TResult::Error(render_empty_system_res.UnwrapErr());
+  }
+  conv.render_empty_system_message = render_empty_system_res.Unwrap().value_or(true);
+
   Result<std::optional<tvm::ffi::json::Array>> system_prefix_token_ids_arr_res =
       json::LookupOptionalWithResultReturn<tvm::ffi::json::Array>(json_obj,
                                                                   "system_prefix_token_ids");
@@ -706,10 +713,6 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
       json::LookupOptionalWithResultReturn<std::string>(json_obj, "reasoning_history_style");
   if (history_style.IsErr()) return TResult::Error(history_style.UnwrapErr());
   conv.reasoning_history_style = history_style.Unwrap().value_or("default");
-  auto render_empty =
-      json::LookupOptionalWithResultReturn<bool>(json_obj, "render_empty_system_message");
-  if (render_empty.IsErr()) return TResult::Error(render_empty.UnwrapErr());
-  conv.render_empty_system_message = render_empty.Unwrap().value_or(true);
   if (conv.reasoning_history_style != "default" && conv.reasoning_history_style != "qwen3_8" &&
       conv.reasoning_history_style != "qwen3_6") {
     return TResult::Error("Unsupported reasoning_history_style");

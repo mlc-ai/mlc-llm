@@ -27,6 +27,7 @@ from .gpt_j import gpt_j_loader, gpt_j_model
 from .gpt_neox import gpt_neox_loader, gpt_neox_model
 from .internlm import internlm_loader, internlm_model
 from .internlm2 import internlm2_loader, internlm2_model
+from .lfm2 import lfm2_loader, lfm2_model
 from .llama import llama_loader, llama_model
 from .llama4 import llama4_loader, llama4_model
 from .llava import llava_loader, llava_model
@@ -50,6 +51,7 @@ from .qwen3_moe import qwen3_moe_loader, qwen3_moe_model
 from .qwen35 import qwen35_loader, qwen35_model, qwen35v_loader, qwen35v_model
 from .rwkv5 import rwkv5_loader, rwkv5_model
 from .rwkv6 import rwkv6_loader, rwkv6_model
+from .smollm3 import smollm3_loader, smollm3_model
 from .stable_lm import stablelm_loader, stablelm_model
 from .starcoder2 import starcoder2_loader, starcoder2_model
 
@@ -799,6 +801,31 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
             model_type="encoder",
             pooling_strategy="cls",
             normalize=True,
+        ),
+    ),
+    "smollm3": Model(
+        name="smollm3",
+        model=smollm3_model.SmolLM3ForCausalLM,
+        config=smollm3_model.SmolLM3Config,
+        source={
+            "huggingface-torch": smollm3_loader.huggingface,
+            "huggingface-safetensor": smollm3_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            smollm3_model.SmolLM3ForCausalLM,
+            supports_per_tensor=True,
+        ),
+    ),
+    "lfm2": Model(
+        name="lfm2",
+        model=lfm2_model.Lfm2ForCausalLM,
+        config=lfm2_model.Lfm2Config,
+        source={
+            "huggingface-torch": lfm2_loader.huggingface,
+            "huggingface-safetensor": lfm2_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            lfm2_model.Lfm2ForCausalLM,
         ),
     ),
 }
