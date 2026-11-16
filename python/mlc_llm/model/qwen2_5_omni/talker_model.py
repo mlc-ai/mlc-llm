@@ -6,6 +6,7 @@ image/video MRoPE, reply alignment, and codec sampling are not implemented here.
 """
 
 import dataclasses
+from typing import ClassVar
 
 from tvm.relax.frontend import nn
 
@@ -15,6 +16,9 @@ from .thinker_model import Qwen25OmniThinker, Qwen25OmniThinkerConfig
 @dataclasses.dataclass
 class Qwen25OmniTalkerConfig(Qwen25OmniThinkerConfig):
     """Talker configuration restricted to ordinary text/audio positions."""
+
+    # Omni-7B Talker has a 1536-wide attention projection and 896-wide residuals.
+    allow_distinct_attention_width: ClassVar[bool] = True
 
     embedding_size: int = 2048
 
@@ -31,9 +35,18 @@ class Qwen25OmniTalkerConfig(Qwen25OmniThinkerConfig):
         return super().from_dict(flattened)
 
     def __post_init__(self):
+        if self.num_attention_heads <= 0 or self.num_key_value_heads <= 0:
+            raise ValueError("Talker requires positive query and KV head counts")
         super().__post_init__()
         if isinstance(self.embedding_size, bool) or not isinstance(self.embedding_size, int):
             raise ValueError("Talker embedding_size must be a positive integer")
+        if (
+            type(self.head_dim) is not int
+            or self.head_dim <= 0
+            or self.head_dim % 2 != 0
+            or self.num_attention_heads % self.num_key_value_heads != 0
+        ):
+            raise ValueError("Talker requires even head dimensions and divisible KV groups")
         if self.embedding_size <= 0 or self.tensor_parallel_shards != 1:
             raise ValueError(
                 "Talker requires positive embedding_size and one tensor-parallel shard"

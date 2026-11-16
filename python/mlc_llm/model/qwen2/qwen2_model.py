@@ -27,6 +27,7 @@ class QWen2Config(ConfigBase):
 
     # Model variants may opt into wider projection accumulation without changing activations.
     projection_out_dtype: ClassVar[Optional[str]] = None
+    allow_distinct_attention_width: ClassVar[bool] = False
 
     hidden_act: str
     hidden_size: int
@@ -66,7 +67,8 @@ class QWen2Config(ConfigBase):
                 )
         if self.head_dim == 0:
             self.head_dim = self.hidden_size // self.num_attention_heads
-        assert self.head_dim * self.num_attention_heads == self.hidden_size
+        if not self.allow_distinct_attention_width:
+            assert self.head_dim * self.num_attention_heads == self.hidden_size
         if self.prefill_chunk_size == 0:
             logger.info(
                 "%s defaults to %d",

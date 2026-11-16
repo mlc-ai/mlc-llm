@@ -59,8 +59,8 @@ def main():
         config.context_window_size = 32768 if args.talker else 4096
         config.prefill_chunk_size = 256
     if args.talker:
-        if config.hidden_size != 2048 or config.vocab_size != 151936:
-            parser.error("The speech profile requires Qwen2.5-Omni-3B Thinker dimensions")
+        if (config.hidden_size, config.vocab_size) not in {(2048, 151936), (3584, 152064)}:
+            parser.error("The speech profile requires Qwen2.5-Omni-3B or 7B Thinker dimensions")
         source_config = json.loads((args.source / "config.json").read_text())
         talker_config = source_config.get("talker_config", {})
         if any(

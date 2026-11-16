@@ -2,9 +2,9 @@
 
 These scripts build the three standalone components used by WebLLM's
 `examples/omni-audio`: PCM features, audio encoding, and text generation.
-They support Qwen2.5-Omni-3B text/audio positions, not image/video positions or
-Talker speech output. Each module embeds its validated component contract and
-parameter schema; the WebLLM example composes them at load time.
+The example below uses Qwen2.5-Omni-3B for text generation from text or audio.
+Each module embeds its component contract and parameter schema. The WebLLM
+example composes these components at load time.
 
 Use an MLC checkout containing these components, its matching TVM build, and an
 activated Emscripten environment. The TVM JavaScript runtime must come from that
@@ -49,13 +49,15 @@ are the source of truth for this example.
 
 ## Thinker states for speech
 
-The opt-in speech profile exports the normalized states needed to align Thinker
-text with Talker. It uses the verified FP32 profile and compiles at 32768 tokens:
+The opt-in FP32 speech profile exports the normalized states needed to align
+Thinker text with Talker. It compiles at 32,768 tokens for Qwen2.5-Omni-3B and
+[Qwen2.5-Omni-7B](https://huggingface.co/Qwen/Qwen2.5-Omni-7B/tree/ae9e1690543ffd5c0221dc27f79834d0294cba00).
+Use the same checkpoint for the audio encoder, Thinker and Talker.
 
 ```sh
 python -m mlc_llm convert_weight dist/omni-reference \
   --model-type qwen2_5_omni_thinker_audio --quantization q0f32 \
-  --device cpu -o dist/omni-thinker-speech
+  --encode-format raw --device cpu -o dist/omni-thinker-speech
 python examples/python/omni_audio/build_thinker.py \
   --source dist/omni-reference --out dist/omni-thinker-speech \
   --quantization q0f32 --talker
@@ -70,11 +72,11 @@ speaker BOS IDs and Talker text EOS/PAD IDs from the pinned source assets. The
 speech profile samples over the full Thinker vocabulary, as the HF reference
 does. `--export-only` validates and writes schemas without compiling a library.
 
-The default text/audio contract and its exports are unchanged. FP32 speech
-weights require a storage-buffer binding of at least 1,244,659,712 bytes; the
-resource estimate in the manifest covers weights only, excluding cache and
-workspace. The compiled context is an upper bound, not a claim that the full
-context fits on every adapter. See [Talker](TALKER.md),
+The largest FP32 Thinker buffer is 1,244,659,712 bytes for 3B and 2,179,989,504
+bytes for 7B. Raw encoding lets the WebGPU runtime upload weights directly.
+BF16-packed weights require a CPU staging tensor that exceeds the default
+2 GiB WebAssembly memory limit for 7B. The manifest estimates parameter memory.
+Runtime KV cache and workspace require additional memory. See [Talker](TALKER.md),
 [flow predictor](FLOW_PREDICTOR.md), and [waveform decoder](WAVEFORM_DECODER.md)
 for the subsequent components and their numerical verification boundaries.
 

@@ -34,19 +34,21 @@ def tiny_config(**updates):
     return values
 
 
-@pytest.fixture(scope="module")
-def models():
+@pytest.fixture(scope="module", params=[(2, 64), (3, 128)])
+def models(request):
     torch = pytest.importorskip("torch")
     hf = pytest.importorskip("transformers.models.qwen2_5_omni.modeling_qwen2_5_omni")
-    config = Qwen25OmniTalkerConfig.from_dict({"talker_config": tiny_config()})
+    num_attention_heads, head_dim = request.param
+    values = tiny_config(num_attention_heads=num_attention_heads, head_dim=head_dim)
+    config = Qwen25OmniTalkerConfig.from_dict({"talker_config": values})
     hf_config = hf.Qwen2_5OmniTalkerConfig(
-        **tiny_config(),
+        **values,
         pad_token_id=0,
         tie_word_embeddings=False,
         rope_parameters={
             "rope_type": "default",
             "rope_theta": 1000000,
-            "mrope_section": [16, 16, 0],
+            "mrope_section": [head_dim // 4, head_dim // 4, 0],
         },
     )
     torch.manual_seed(83)
@@ -105,6 +107,9 @@ def test_codec_embedding_and_projection(models, length):
     [
         {"embedding_size": 0},
         {"embedding_size": True},
+        {"head_dim": 63},
+        {"head_dim": 0, "num_attention_heads": 0},
+        {"num_attention_heads": 3, "num_key_value_heads": 2},
         {"tensor_parallel_shards": 2},
         {"input_modalities": ["image"]},
         {"tie_word_embeddings": True},

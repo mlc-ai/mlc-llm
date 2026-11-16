@@ -36,12 +36,25 @@ def main():
     expected = dict(
         context_window_size=32768,
         hidden_size=896,
-        embedding_size=2048,
         vocab_size=8448,
         num_hidden_layers=24,
     )
-    if any(getattr(config, key) != value for key, value in expected.items()):
-        parser.error("This component builder requires the pinned Qwen2.5-Omni-3B Talker dimensions")
+    profiles = {
+        # embedding_size, attention heads, KV heads, head_dim, MLP width
+        (2048, 14, 2, 64, 4864),
+        (3584, 12, 4, 128, 18944),
+    }
+    shape = (
+        config.embedding_size,
+        config.num_attention_heads,
+        config.num_key_value_heads,
+        config.head_dim,
+        config.intermediate_size,
+    )
+    if shape not in profiles or any(
+        getattr(config, key) != value for key, value in expected.items()
+    ):
+        parser.error("Expected the pinned Qwen2.5-Omni-3B or 7B Talker dimensions")
     raw_config = json.loads((source / "config.json").read_text())["talker_config"]
     for name, value in dict(
         tts_codec_start_token_id=8293,
@@ -69,9 +82,9 @@ def main():
         max_batch_size=1,
         talker=dict(
             model_dtype="float32",
-            embedding_size=2048,
-            hidden_size=896,
-            vocab_size=8448,
+            embedding_size=config.embedding_size,
+            hidden_size=config.hidden_size,
+            vocab_size=config.vocab_size,
             codec_bos_token_id=8293,
             codec_pad_token_id=8292,
             codec_eos_token_id=8294,
@@ -88,10 +101,16 @@ def main():
         + hashlib.sha256(canonical(sorted(schema, key=lambda x: x["name"])).encode()).hexdigest()
     )
     prefix = dict(
-        semantic="audio.talker_prefix.v1", dtype="float32", shape=["prefix", 2048], delivery="value"
+        semantic="audio.talker_prefix.v1",
+        dtype="float32",
+        shape=["prefix", config.embedding_size],
+        delivery="value",
     )
     reply = dict(
-        semantic="audio.talker_reply.v1", dtype="float32", shape=["reply", 2048], delivery="value"
+        semantic="audio.talker_reply.v1",
+        dtype="float32",
+        shape=["reply", config.embedding_size],
+        delivery="value",
     )
     code = dict(semantic="audio.codec_ids.v1", dtype="int32", shape=["codes"], delivery="value")
     spec = dict(

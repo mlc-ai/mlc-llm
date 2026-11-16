@@ -31,6 +31,9 @@ def main():
         "--tiny", action="store_true", help="Synthetic fixture, never pretrained evidence"
     )
     parser.add_argument("--weights", action="store_true")
+    parser.add_argument(
+        "--export-only", action="store_true", help="Validate/export schemas without a library"
+    )
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     if args.tiny:
@@ -177,6 +180,8 @@ def main():
             assert values[name].shape == tuple(parameter.shape), name
         tvmjs.dump_tensor_cache(values, str(args.out), encode_format="raw")
         del values, state
+    if args.export_only:
+        return
     if args.device == "webgpu":
         auto_target.PRESET["webgpu:generic"]["target"]["host"]["mcpu"] = "mvp"
     target, build = auto_target.detect_target_and_host(args.device)
