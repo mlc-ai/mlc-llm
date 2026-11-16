@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-import tvm
+import tvm_tirx
 from tvm import relax
 from tvm.relax.frontend import nn
 
@@ -136,7 +136,7 @@ def test_lfm2_conv_matches_reference(chunks):
             }
         }
     )
-    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm.cpu())
+    vm = relax.VirtualMachine(relax.build(mod, target="llvm"), tvm_tirx.cpu())
     rng = np.random.default_rng(0)
     x = rng.standard_normal((1, sum(chunks), channels)).astype("float32")
     weight = rng.standard_normal((channels, 1, kernel_size)).astype("float32")
@@ -145,9 +145,9 @@ def test_lfm2_conv_matches_reference(chunks):
     outputs, start = [], 0
     for size in chunks:
         out, state = vm["forward"](
-            tvm.runtime.tensor(x[:, start : start + size]),
-            tvm.runtime.tensor(state),
-            tvm.runtime.tensor(weight),
+            tvm_tirx.runtime.tensor(x[:, start : start + size]),
+            tvm_tirx.runtime.tensor(state),
+            tvm_tirx.runtime.tensor(weight),
         )
         outputs.append(out.numpy())
         state = state.numpy()

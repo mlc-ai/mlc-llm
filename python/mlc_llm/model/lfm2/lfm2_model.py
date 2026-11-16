@@ -8,9 +8,10 @@ from typing import Any, Dict, List, Optional, Tuple  # noqa: UP035
 
 import numpy as np
 from tvm import relax as R
-from tvm import te, tirx
+from tvm import te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm_tirx import tirx
 
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
