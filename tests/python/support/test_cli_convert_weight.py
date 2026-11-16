@@ -9,7 +9,10 @@ from mlc_llm.cli import convert_weight as convert_weight_cli
 pytestmark = [pytest.mark.unittest]
 
 
-def test_convert_weight_cli_passes_lora_adapter(monkeypatch):
+@pytest.mark.parametrize(
+    "encode_args, expected_format", [([], "f32-to-bf16"), (["--encode-format", "raw"], "raw")]
+)
+def test_convert_weight_cli_passes_lora_adapter(monkeypatch, encode_args, expected_format):
     with tempfile.TemporaryDirectory() as tmp_dir:
         temp_path = Path(tmp_dir)
         config_path = temp_path / "config.json"
@@ -61,9 +64,11 @@ def test_convert_weight_cli_passes_lora_adapter(monkeypatch):
                 str(output_dir),
                 "--lora-adapter",
                 str(adapter_dir),
+                *encode_args,
             ]
         )
 
         assert call_args["lora_adapter"] == adapter_dir
+        assert call_args["encode_format"] == expected_format
         assert call_args["source"] == source_index
         assert call_args["source_format"] == "huggingface-torch"

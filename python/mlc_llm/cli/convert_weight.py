@@ -84,6 +84,12 @@ def main(argv):
         help=HELP["output_quantize"] + " (required)",
     )
     parser.add_argument(
+        "--encode-format",
+        choices=["f32-to-bf16", "raw"],
+        default="f32-to-bf16",
+        help="Tensor cache encoding. Use raw to store float32 weights without BF16 packing.",
+    )
+    parser.add_argument(
         "--lora-adapter",
         type=_parse_lora_adapter,
         default=None,
@@ -109,4 +115,5 @@ def main(argv):
         source_format=parsed.source_format,
         output=parsed.output,
         lora_adapter=parsed.lora_adapter,
+        encode_format=parsed.encode_format,
     )
