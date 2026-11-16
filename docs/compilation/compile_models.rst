@@ -1090,3 +1090,22 @@ Note that ``MODEL`` is a positional argument. Arguments wrapped with ``[ ]`` are
                                             ``context_window_size``, ``prefill_chunk_size``, ``sliding_window``, ``max_batch_size`` and
                                             ``tensor_parallel_shards``. Meanwhile, model config could be explicitly specified via details
                                             knobs, e.g. ``--overrides "context_window_size=1024;prefill_chunk_size=128"``.
+
+Qwen3.5 projection accumulation
+------------------------------
+
+The ``qwen3_5_text`` architecture supports an optional
+``projection_out_dtype: "float32"`` model configuration field. It accumulates
+linear projections in float32 and rounds their outputs back to the activation
+dtype. The default is ``null``, which preserves the existing accumulation policy.
+This option also applies to compatible Qwen3.6 and Qwen3.8 text configurations;
+it does not add support for their vision components.
+
+To select this policy, make a local copy of the Hugging Face configuration and
+set ``projection_out_dtype`` to ``"float32"`` inside ``text_config`` (or at the
+root for a text-only configuration). Use that configuration for both
+``mlc_llm convert_weight`` and ``mlc_llm gen_config``, then compile the generated
+``mlc-chat-config.json``. Verify that its ``model_config`` records
+``"projection_out_dtype": "float32"``. Regenerate weights when changing this
+option for models with attention biases, because their stored bias dtype also
+changes. Compilation may use slower kernels; measure latency on the target device.
