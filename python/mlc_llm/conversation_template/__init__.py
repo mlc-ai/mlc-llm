@@ -32,6 +32,7 @@ from . import (
     qwen3_5,
     redpajama,
     rwkv,
+    smollm3,
     stablelm,
     tinyllama,
     wizardlm,
