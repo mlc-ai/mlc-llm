@@ -91,3 +91,5 @@ The exporter checks the pinned source hash before loading with
 `torch.load(weights_only=True)`, validates both voices and writes portable
 `speakers.json` plus a source/output hash receipt. The selected voice's BOS,
 reference mel and speaker embedding must be used together.
+
+For the separate Qwen3-Omni text/audio component workflow, see [QWEN3.md](QWEN3.md).

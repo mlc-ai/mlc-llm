@@ -26,6 +26,9 @@ def main():
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--device", choices=["metal", "webgpu"], default="webgpu")
+    parser.add_argument(
+        "--unpadded", action="store_true", help="Use Qwen3-Omni variable-length PCM framing"
+    )
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     raw = json.loads((args.source / "preprocessor_config.json").read_text())
@@ -41,7 +44,7 @@ def main():
         if raw[name] != expected:
             raise ValueError(f"Unsupported frontend {name}")
     processor = WhisperFeatureExtractor.from_dict(raw)
-    model = Qwen25OmniAudioFeatures(processor.n_samples)
+    model = Qwen25OmniAudioFeatures(processor.n_samples, unpadded=args.unpadded)
     mod, params, ext = model.export_tvm(spec=model.get_default_spec(), allow_extern=True)
     values = whisper_frontend_parameters(processor.mel_filters)
     tvmjs.dump_tensor_cache(values, str(args.out), encode_format="raw")
@@ -60,7 +63,9 @@ def main():
     )
     spec = dict(
         kind="transform",
-        contract="qwen2_5_omni.audio_features.v1",
+        contract=(
+            "qwen3_omni.audio_features.v1" if args.unpadded else "qwen2_5_omni.audio_features.v1"
+        ),
         inputs={"pcm": pcm},
         outputs={"mel_features": mel},
         weights=dict(manifest="tensor-cache.json", parameter_schema_id=schema_id),
@@ -126,6 +131,9 @@ def main():
         (args.out / name).write_text(json.dumps(value, indent=2) + "\n")
     auto_target.PRESET["webgpu:generic"]["target"]["host"]["mcpu"] = "mvp"
     target, build = auto_target.detect_target_and_host(args.device)
+    bounds = {"batch_size": 1, "vocab_size": 8}
+    if args.unpadded:
+        bounds["num_samples"] = processor.n_samples
     with target, tvm_tirx.transform.PassContext(config={"tirx.disable_cse_tir": True}):
         build(
             mod,
@@ -135,7 +143,7 @@ def main():
                 target=target,
                 metadata=metadata,
                 ext_mods=ext,
-                variable_bounds={"batch_size": 1, "vocab_size": 8},
+                variable_bounds=bounds,
             ),
         )
     (args.out / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
