@@ -85,3 +85,33 @@ def test_exported_thread_limits_and_tails(operation, target_name, expected_threa
         for offset, valid in ((0, True), (1, False)):
             bindings[thread.target.id] = (count - 1) % expected_threads + offset
             assert evaluate(guards[0], bindings) == valid
+
+
+@pytest.mark.parametrize("operation", [moe_misc.gating_topk, moe_misc.gating_softmax_topk])
+def test_gating_initializes_each_local_expert_index(operation):
+    class Module(nn.Module):
+        def forward(self, scores):
+            return operation(scores, 8)
+
+    with Target("webgpu"):
+        exported, _, _ = Module().export_tvm(
+            spec={
+                "forward": {
+                    "scores": nn.spec.Tensor(("tokens", 128), "float16"),
+                    "$": {"param_mode": "packed", "effect_mode": "none"},
+                }
+            },
+            allow_extern=True,
+        )
+    init = next(
+        node
+        for node in ast.walk(ast.parse(exported.script()))
+        if isinstance(node, ast.With)
+        and ast.unparse(node.items[0].context_expr) == "Ts.sblock('init')"
+    )
+    initializers = [
+        (ast.literal_eval(store.targets[0].slice), ast.literal_eval(store.value))
+        for store in init.body
+        if isinstance(store, ast.Assign) and not isinstance(store.value, ast.Call)
+    ]
+    assert initializers == [(i, -1) for i in range(8)]

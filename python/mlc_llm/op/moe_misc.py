@@ -46,7 +46,7 @@ def _gating_topk_init_local_top_k(k_val, dtype, local_top_k, local_top_k_index):
     for t in range(k_val):
         T.tensor_store(local_top_k, [t], T.min_value(ty=dtype))
     for t in range(k_val):
-        T.tensor_store(local_top_k_index, [-1], t)
+        T.tensor_store(local_top_k_index, [t], -1)
 
 
 def _gating_topk_process_value(k_val, x, local_top_k, local_top_k_index, vi, vk):
