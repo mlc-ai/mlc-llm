@@ -223,7 +223,9 @@ class Conversation(BaseModel):
 
         prompt = _combine_consecutive_messages(message_list)
 
-        if not any(isinstance(item, data.ImageData) for item in message_list):
+        if self.reasoning_history_style != "lfm3" and not any(
+            isinstance(item, data.ImageData) for item in message_list
+        ):
             # Replace the last function string placeholder with actual function string
             prompt[0] = self.function_string.join(
                 prompt[0].rsplit(MessagePlaceholders.FUNCTION.value, 1)

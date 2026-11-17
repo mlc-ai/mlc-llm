@@ -49,6 +49,15 @@ def test_prompt(name, suffix, system):
     assert conv.to_json_dict()["reasoning_history_style"] == "lfm3"
 
 
+@pytest.mark.parametrize("name", ["lfm3", "lfm3_nothink"])
+def test_literal_function_string(name):
+    conv = ConvTemplateRegistry.get_conv_template(name)
+    text = "Keep {function_string} literally."
+    conv.system_message = text
+    conv.messages = [("user", text), ("assistant", text), ("user", text), ("assistant", None)]
+    assert "".join(conv.as_prompt()).count(text) == 4
+
+
 @pytest.mark.parametrize(
     "messages",
     [
