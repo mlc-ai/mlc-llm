@@ -1,6 +1,6 @@
 """The pass that attaches GPU sampler functions to the IRModule."""
 
-from typing import Dict  # noqa: UP035
+from typing import Any, Dict, Optional  # noqa: UP035
 
 import tvm_tirx
 from tvm import relax, te
@@ -11,13 +11,19 @@ from tvm_tirx.script import tirx as T
 
 from mlc_llm.op.batch_spec_verify import batch_spec_verify
 from mlc_llm.op.top_p_pivot import top_p_pivot, top_p_renorm
+from mlc_llm.support.max_thread_check import get_max_num_threads_per_block
 
 
 @tvm_tirx.transform.module_pass(opt_level=0, name="AttachGPUSamplingFunc")
 class AttachGPUSamplingFunc:
     """Attach GPU sampling functions to IRModule."""
 
-    def __init__(self, target: tvm_tirx.target.Target, variable_bounds: Dict[str, int]):  # noqa: UP006
+    def __init__(
+        self,
+        target: tvm_tirx.target.Target,
+        variable_bounds: Dict[str, int],  # noqa: UP006
+        metadata: Optional[Dict[str, Any]] = None,  # noqa: UP006
+    ):
         # Specifically for RWKV workloads, which contains -1 max_seq_len
         max_batch_size = variable_bounds["batch_size"]
         self.variable_bounds = {
@@ -27,6 +33,7 @@ class AttachGPUSamplingFunc:
         }
         self.non_negative_var = ["vocab_size"]
         self.target = target
+        self.active_vocab_size = metadata.get("active_vocab_size") if metadata else None
 
     def transform_module(self, mod: IRModule, _ctx: tvm_tirx.transform.PassContext) -> IRModule:
         """Entrypoint"""
@@ -41,6 +48,7 @@ class AttachGPUSamplingFunc:
             gv_names = [
                 gv.name_hint
                 for gv in [
+                    _attach_argmax_logits(bb, self.target, self.active_vocab_size),
                     _attach_argsort_func(bb),
                     _attach_sample_with_top_p(bb),
                 ]
@@ -115,6 +123,159 @@ def _attach_multinomial_sampling_func(bb: relax.BlockBuilder):
             output = bb.emit_output(result)
         gv = bb.emit_func_output(output)
     return gv
+
+
+# Logits each workgroup of the first argmax pass scans. At batch 1, a 150K-260K vocabulary
+# then spreads over 125-256 workgroups.
+ARGMAX_CHUNK_SIZE = 1024
+
+
+def _attach_argmax_logits(
+    bb: relax.BlockBuilder,
+    target: tvm_tirx.target.Target,
+    active_vocab_size: Optional[int],
+):
+    """Greedy sampling: the index of the largest logit of each row.
+
+    Equal logits resolve to the lowest index. The temperature-zero softmax gives every
+    maximal logit the same probability and the stable descending argsort keeps them in
+    index order, so this is the token sample_with_top_p returns in the first sorted
+    position.
+    """
+    batch_size = tirx.Var("batch_size", "int64")
+    vocab_size = tirx.Var("vocab_size", "int64")
+    logits = relax.Var("logits", relax.TensorType((batch_size, 1, vocab_size), "float32"))
+    chunk_argmax, merge_argmax = _get_argmax_funcs(target, active_vocab_size)
+    num_chunks = (vocab_size + ARGMAX_CHUNK_SIZE - 1) // ARGMAX_CHUNK_SIZE
+    with bb.function("argmax_logits", [logits]):
+        with bb.dataflow():
+            partials = bb.emit(
+                relax.call_tir(
+                    bb.add_func(chunk_argmax, "chunk_argmax"),
+                    args=[logits],
+                    ty_args=[
+                        relax.TupleType(
+                            [
+                                relax.TensorType((batch_size, num_chunks), "float32"),
+                                relax.TensorType((batch_size, num_chunks), "int32"),
+                            ]
+                        )
+                    ],
+                )
+            )
+            tokens = bb.emit_output(
+                relax.call_tir(
+                    bb.add_func(merge_argmax, "merge_argmax"),
+                    args=[partials[0], partials[1]],
+                    ty_args=[relax.TensorType((batch_size,), "int32")],
+                )
+            )
+        gv = bb.emit_func_output(tokens)
+    return gv
+
+
+def _get_argmax_funcs(target: tvm_tirx.target.Target, active_vocab_size: Optional[int]):
+    threads = min(256, get_max_num_threads_per_block(target))
+    assert ARGMAX_CHUNK_SIZE % threads == 0
+    invalid_index = -1
+
+    def lhs_wins(lhs_index, lhs_value, rhs_index, rhs_value):
+        return tirx.all(
+            lhs_index != invalid_index,
+            tirx.any(
+                rhs_index == invalid_index,
+                lhs_value > rhs_value,
+                tirx.all(lhs_value == rhs_value, lhs_index < rhs_index),
+            ),
+        )
+
+    def combine(lhs_index, lhs_value, rhs_index, rhs_value):
+        cond = lhs_wins(lhs_index, lhs_value, rhs_index, rhs_value)
+        return T.select(cond, lhs_index, rhs_index), T.select(cond, lhs_value, rhs_value)
+
+    @Ts.macro
+    def block_argmax(best_index, best_value, reduced_index, reduced_value, tx):
+        # Reduce the (index, value) pairs of all threads in the workgroup.
+        with Ts.sblock("block_argmax"):
+            Ts.reads(best_index[0], best_value[0])
+            Ts.writes(reduced_index[0], reduced_value[0])
+            T.gpu_thread_allreduce(
+                T.Lambda([T.int32, T.float32, T.int32, T.float32], combine),
+                [T.int32(invalid_index), T.min_value(ty="float32")],
+                [best_index[0], best_value[0]],
+                True,
+                [reduced_index[0], reduced_value[0]],
+                tx,
+            )
+
+    batch_size = T.dynamic("batch_size", "int32")
+    vocab_size = T.dynamic("vocab_size", "int32")
+    num_chunks = T.dynamic("num_chunks", "int32")
+    # The softmax ignores the logits past the active vocabulary, so the argmax does too.
+    scan_limit = vocab_size if active_vocab_size is None else T.min(vocab_size, active_vocab_size)
+
+    @Ts.function(private=True)
+    def chunk_argmax(
+        logits: T.Tensor((batch_size, 1, vocab_size), "float32"),
+        partial_value: T.Tensor((batch_size, num_chunks), "float32"),
+        partial_index: T.Tensor((batch_size, num_chunks), "int32"),
+    ):
+        T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
+        with Ts.sblock("kernel"):
+            best_index = Ts.sblock_alloc_tensor((1,), "int32", scope="local")
+            best_value = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+            reduced_index = Ts.sblock_alloc_tensor((1,), "int32", scope="local")
+            reduced_value = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+            for row in T.parallel(0, batch_size, annotations={"thread_binding": "blockIdx.y"}):
+                for chunk in T.parallel(
+                    0, num_chunks, annotations={"thread_binding": "blockIdx.x"}
+                ):
+                    for tx in T.parallel(0, threads, annotations={"thread_binding": "threadIdx.x"}):
+                        with Ts.sblock("scan"):
+                            best_index[0] = invalid_index
+                            best_value[0] = T.min_value(ty="float32")
+                            for k in T.serial(ARGMAX_CHUNK_SIZE // threads):
+                                index = T.meta_var(chunk * ARGMAX_CHUNK_SIZE + k * threads + tx)
+                                if index < scan_limit:
+                                    value = T.meta_var(logits[row, 0, index])
+                                    if lhs_wins(index, value, best_index[0], best_value[0]):
+                                        best_index[0] = index
+                                        best_value[0] = value
+                            block_argmax(best_index, best_value, reduced_index, reduced_value, tx)
+                            if tx == 0:
+                                partial_value[row, chunk] = reduced_value[0]
+                                partial_index[row, chunk] = reduced_index[0]
+
+    @Ts.function(private=True)
+    def merge_argmax(
+        partial_value: T.Tensor((batch_size, num_chunks), "float32"),
+        partial_index: T.Tensor((batch_size, num_chunks), "int32"),
+        output: T.Tensor((batch_size,), "int32"),
+    ):
+        T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
+        with Ts.sblock("kernel"):
+            best_index = Ts.sblock_alloc_tensor((1,), "int32", scope="local")
+            best_value = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+            reduced_index = Ts.sblock_alloc_tensor((1,), "int32", scope="local")
+            reduced_value = Ts.sblock_alloc_tensor((1,), "float32", scope="local")
+            for row in T.parallel(0, batch_size, annotations={"thread_binding": "blockIdx.x"}):
+                for tx in T.parallel(0, threads, annotations={"thread_binding": "threadIdx.x"}):
+                    with Ts.sblock("merge"):
+                        best_index[0] = invalid_index
+                        best_value[0] = T.min_value(ty="float32")
+                        for k in T.serial(T.ceildiv(num_chunks, threads)):
+                            chunk = T.meta_var(k * threads + tx)
+                            if chunk < num_chunks:
+                                index = T.meta_var(partial_index[row, chunk])
+                                value = T.meta_var(partial_value[row, chunk])
+                                if lhs_wins(index, value, best_index[0], best_value[0]):
+                                    best_index[0] = index
+                                    best_value[0] = value
+                        block_argmax(best_index, best_value, reduced_index, reduced_value, tx)
+                        if tx == 0:
+                            output[row] = reduced_index[0]
+
+    return chunk_argmax, merge_argmax
 
 
 def _attach_argsort_func(bb: relax.BlockBuilder):
