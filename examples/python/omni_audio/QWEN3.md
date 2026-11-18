@@ -11,7 +11,7 @@ dispatch requires [mlc-ai/mlc-llm#3602](https://github.com/mlc-ai/mlc-llm/pull/3
 
 Obtain a snapshot with `config.json`, `model.safetensors.index.json`,
 `preprocessor_config.json`, and the shards containing `thinker.model.*`,
-`thinker.lm_head.*` and `thinker.audio_tower.*`. The verified profiles are:
+`thinker.lm_head.*` and `thinker.audio_tower.*`. The pinned configuration profiles are:
 
 | Repository | Revision / configuration |
 | --- | --- |
