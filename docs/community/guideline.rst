@@ -57,7 +57,7 @@ Contribute New Models to MLC-LLM
 
 * If you add a new model variant to MLC-LLM by following our :doc:`/compilation/define_new_models` tutorial.
   Please create a pull request to add your model architecture (currently model architectures are placed under
-  `relax_models <https://github.com/mlc-ai/mlc-llm/tree/main/mlc_llm/relax_model>`__ folder).
+  `python/mlc_llm/model <https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_llm/model>`__ folder).
 
 .. _coding-styles:
 
