@@ -19,6 +19,7 @@ from mlc_llm.protocol.artifact_manifest_v2 import (
 )
 from mlc_llm.quantization import QUANTIZATION
 from mlc_llm.support import auto_target
+from mlc_llm.support.constants import MLC_DSO_SUFFIX
 
 MODEL = MODELS["qwen3_moe"]
 
@@ -181,7 +182,7 @@ def main():
     parser.add_argument("--repo", required=True)
     parser.add_argument("--revision", required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--device", choices=("webgpu", "metal"), default="webgpu")
+    parser.add_argument("--device", choices=("webgpu", "metal", "cuda"), default="webgpu")
     parser.add_argument("--export-only", action="store_true")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
@@ -209,7 +210,9 @@ def main():
     with target:
         mod, params, extern = model.export_tvm(model.get_default_spec(), allow_extern=True)
     mod = add_reset(mod)
-    library = args.out / ("thinker-text.wasm" if args.device == "webgpu" else "thinker-text.dylib")
+    library = args.out / (
+        "thinker-text.wasm" if args.device == "webgpu" else f"thinker-text.{MLC_DSO_SUFFIX}"
+    )
     schema = [dict(name=n, shape=list(p.shape), dtype=p.dtype) for n, p in params]
     artifact = export_contract(args.out, schema, cfg, library, args.device)
     metadata = dict(

@@ -23,6 +23,7 @@ from mlc_llm.model.qwen3_omni.audio_model import (
 )
 from mlc_llm.protocol.artifact_manifest_v2 import compute_interface_id_v2, validate_compiled_v2
 from mlc_llm.support import auto_target
+from mlc_llm.support.constants import MLC_DSO_SUFFIX
 
 
 def main():
@@ -31,7 +32,7 @@ def main():
     parser.add_argument("--repo", required=True)
     parser.add_argument("--revision", required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--device", choices=("metal", "webgpu"), default="webgpu")
+    parser.add_argument("--device", choices=("metal", "webgpu", "cuda"), default="webgpu")
     parser.add_argument("--weights", action="store_true")
     parser.add_argument("--export-only", action="store_true")
     args = parser.parse_args()
@@ -130,7 +131,7 @@ def main():
     )
     package["interface_id"] = compute_interface_id_v2(package)
     sizes = [prod(row["shape"]) * 4 for row in schema]
-    library = out / ("audio.wasm" if device == "webgpu" else "audio.dylib")
+    library = out / ("audio.wasm" if device == "webgpu" else f"audio.{MLC_DSO_SUFFIX}")
     compiled = dict(
         schema="mlc.compiled-program",
         schema_version=2,

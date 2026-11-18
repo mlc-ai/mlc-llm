@@ -19,13 +19,14 @@ from mlc_llm.model.qwen2_5_omni.audio_processing import (
 )
 from mlc_llm.protocol.artifact_manifest_v2 import compute_interface_id_v2, validate_compiled_v2
 from mlc_llm.support import auto_target
+from mlc_llm.support.constants import MLC_DSO_SUFFIX
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--device", choices=["metal", "webgpu"], default="webgpu")
+    parser.add_argument("--device", choices=["metal", "webgpu", "cuda"], default="webgpu")
     parser.add_argument(
         "--unpadded", action="store_true", help="Use Qwen3-Omni variable-length PCM framing"
     )
@@ -91,7 +92,9 @@ def main():
         },
     )
     package["interface_id"] = compute_interface_id_v2(package)
-    library = args.out / ("features.wasm" if args.device == "webgpu" else "features.dylib")
+    library = args.out / (
+        "features.wasm" if args.device == "webgpu" else f"features.{MLC_DSO_SUFFIX}"
+    )
     sizes = [int(np.prod(p["shape"])) * 4 for p in schema]
     compiled = dict(
         schema="mlc.compiled-program",

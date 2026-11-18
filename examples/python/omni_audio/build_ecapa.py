@@ -20,13 +20,14 @@ from mlc_llm.model.qwen2_5_omni.ecapa_model import (
 )
 from mlc_llm.protocol.artifact_manifest_v2 import compute_interface_id_v2, validate_compiled_v2
 from mlc_llm.support import auto_target
+from mlc_llm.support.constants import MLC_DSO_SUFFIX
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--device", choices=["llvm", "metal", "webgpu"], default="webgpu")
+    parser.add_argument("--device", choices=["llvm", "metal", "webgpu", "cuda"], default="webgpu")
     parser.add_argument("--max-frames", type=int, default=512)
     parser.add_argument("--weights", action="store_true")
     args = parser.parse_args()
@@ -88,7 +89,9 @@ def main():
         },
     )
     package["interface_id"] = compute_interface_id_v2(package)
-    library = args.out / ("conditioner.wasm" if args.device == "webgpu" else "conditioner.dylib")
+    library = args.out / (
+        "conditioner.wasm" if args.device == "webgpu" else f"conditioner.{MLC_DSO_SUFFIX}"
+    )
     sizes = [int(np.prod(p["shape"])) * 4 for p in schema]
     activation = 3 * config.enc_channels[-1] * args.max_frames * 4
     compiled = dict(

@@ -17,13 +17,14 @@ from mlc_llm.model.qwen2_5_omni.thinker_model import Qwen25OmniThinker, Qwen25Om
 from mlc_llm.protocol.artifact_manifest_v2 import compute_interface_id_v2, validate_compiled_v2
 from mlc_llm.quantization import QUANTIZATION
 from mlc_llm.support import auto_target
+from mlc_llm.support.constants import MLC_DSO_SUFFIX
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--source", type=Path, required=True)
-    parser.add_argument("--device", choices=["metal", "webgpu"], default="webgpu")
+    parser.add_argument("--device", choices=["metal", "webgpu", "cuda"], default="webgpu")
     parser.add_argument("--tiny", action="store_true")
     parser.add_argument("--quantization", choices=["q0f16", "q0f32"], default="q0f16")
     parser.add_argument(
@@ -142,7 +143,9 @@ def main():
         },
     )
     package["interface_id"] = compute_interface_id_v2(package)
-    library = args.out / ("thinker.wasm" if args.device == "webgpu" else "thinker.dylib")
+    library = args.out / (
+        "thinker.wasm" if args.device == "webgpu" else f"thinker.{MLC_DSO_SUFFIX}"
+    )
     sizes = [int(np.prod(p["shape"])) * (2 if p["dtype"] == "float16" else 4) for p in schema]
     compiled = dict(
         schema="mlc.compiled-program",

@@ -78,6 +78,17 @@ def test_speech_and_default_contracts(monkeypatch, source, tmp_path):
     assert not list((tmp_path / "speech").glob("*.wasm"))
 
 
+@pytest.mark.parametrize("device, suffix", [("webgpu", "wasm"), ("metal", "dylib"), ("cuda", "so")])
+def test_builder_library_name_matches_manifest(monkeypatch, source, tmp_path, device, suffix):
+    from mlc_llm.support import constants
+
+    monkeypatch.setattr(constants, "MLC_DSO_SUFFIX", suffix)
+    metadata = build(
+        monkeypatch, source, tmp_path / device, "--device", device, "--quantization", "q0f32"
+    )
+    assert metadata["artifact"]["components"]["thinker"]["module"] == f"thinker.{suffix}"
+
+
 @pytest.mark.parametrize(
     "options", [("--talker",), ("--talker", "--tiny", "--quantization", "q0f32")]
 )

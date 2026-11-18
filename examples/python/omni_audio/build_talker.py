@@ -18,11 +18,12 @@ from mlc_llm.model.qwen2_5_omni.talker_model import Qwen25OmniTalker, Qwen25Omni
 from mlc_llm.protocol.artifact_manifest_v2 import compute_interface_id_v2, validate_compiled_v2
 from mlc_llm.quantization import QUANTIZATION
 from mlc_llm.support import auto_target
+from mlc_llm.support.constants import MLC_DSO_SUFFIX
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--device", choices=["metal", "webgpu"], required=True)
+    parser.add_argument("--device", choices=["metal", "webgpu", "cuda"], required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--weights", action="store_true")
@@ -149,7 +150,7 @@ def main():
         components=dict(
             talker=dict(
                 spec=spec,
-                module="talker.wasm" if args.device == "webgpu" else "talker.dylib",
+                module="talker.wasm" if args.device == "webgpu" else f"talker.{MLC_DSO_SUFFIX}",
                 exports=dict(
                     run="prefill",
                     embed="embed",
@@ -200,7 +201,7 @@ def main():
     if args.device == "webgpu":
         auto_target.PRESET["webgpu:generic"]["target"]["host"]["mcpu"] = "mvp"
     target, build = auto_target.detect_target_and_host(args.device)
-    lib = args.out / ("talker.wasm" if args.device == "webgpu" else "talker.dylib")
+    lib = args.out / ("talker.wasm" if args.device == "webgpu" else f"talker.{MLC_DSO_SUFFIX}")
     with target, tvm_tirx.transform.PassContext(config={"tirx.disable_cse_tir": True}):
         build(
             mod,

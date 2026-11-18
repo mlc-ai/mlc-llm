@@ -16,6 +16,7 @@ from mlc_llm.model.qwen2_5_omni.audio_loader import huggingface
 from mlc_llm.model.qwen2_5_omni.audio_model import Qwen25OmniAudioConfig, Qwen25OmniAudioEncoder
 from mlc_llm.protocol.artifact_manifest_v2 import compute_interface_id_v2, validate_compiled_v2
 from mlc_llm.support import auto_target
+from mlc_llm.support.constants import MLC_DSO_SUFFIX
 
 
 def canonical(value):
@@ -26,7 +27,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--device", choices=["llvm", "metal", "webgpu"], default="webgpu")
+    parser.add_argument("--device", choices=["llvm", "metal", "webgpu", "cuda"], default="webgpu")
     parser.add_argument(
         "--tiny", action="store_true", help="Synthetic fixture, never pretrained evidence"
     )
@@ -107,7 +108,7 @@ def main():
         },
     )
     package["interface_id"] = compute_interface_id_v2(package)
-    suffix = ".wasm" if args.device == "webgpu" else ".dylib"
+    suffix = ".wasm" if args.device == "webgpu" else f".{MLC_DSO_SUFFIX}"
     library = args.out / ("audio" + suffix)
     sizes = [int(np.prod(p["shape"])) * 4 for p in schema]
     compiled = dict(
