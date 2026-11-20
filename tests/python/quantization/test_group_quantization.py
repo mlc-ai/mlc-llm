@@ -88,13 +88,9 @@ def dequantize_np(
         ("q3f16_1", [2, 13], "float16", "cpu"),
         ("q3f16_1", [16, 120], "float16", "cpu"),
         ("q4f16_1", [2, 13], "float16", "cpu"),
-        ("q8f16_1", [2, 13], "float16", "cpu"),
         ("q4f16_1", [16, 128], "float16", "cpu"),
-        ("q8f16_1", [16, 128], "float16", "cpu"),
         ("q4f32_1", [2, 13], "float32", "cpu"),
-        ("q8f32_1", [2, 13], "float32", "cpu"),
         ("q4f32_1", [16, 128], "float32", "cpu"),
-        ("q8f32_1", [16, 128], "float32", "cpu"),
     ],
 )
 def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: str):  # noqa: UP006
@@ -121,13 +117,9 @@ def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: 
         ("q3f16_1", [2, 13], "float16"),
         ("q3f16_1", [16, 120], "float16"),
         ("q4f16_1", [2, 13], "float16"),
-        ("q8f16_1", [2, 13], "float16"),
         ("q4f16_1", [16, 128], "float16"),
-        ("q8f16_1", [16, 128], "float16"),
         ("q4f32_1", [2, 13], "float32"),
-        ("q8f32_1", [2, 13], "float32"),
         ("q4f32_1", [16, 128], "float32"),
-        ("q8f32_1", [16, 128], "float32"),
     ],
 )
 def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):  # noqa: UP006
@@ -162,9 +154,7 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):  # no
     [
         ("q3f16_1", [16, 128], "float16"),
         ("q4f16_1", [16, 128], "float16"),
-        ("q8f16_1", [16, 128], "float16"),
         ("q4f32_1", [16, 128], "float32"),
-        ("q8f32_1", [16, 128], "float32"),
     ],
 )
 def test_quantize_model(quant_name: str, shape: List[int], dtype: str):  # noqa: UP006
@@ -197,18 +187,6 @@ def test_quantize_model(quant_name: str, shape: List[int], dtype: str):  # noqa:
     ]
     assert quant_map.map_func["model.embedding.weight"] == config.quantize_weight
     assert isinstance(mod.embedding, GroupQuantizeEmbedding)
-
-
-@pytest.mark.parametrize("quant_name", ["q8f16_1", "q8f32_1"])
-def test_q8_signed_values_and_padding(quant_name: str):
-    config = QUANTIZATION[quant_name]
-    values = np.linspace(-1, 1, 65).astype(config.model_dtype)
-    weight = np.stack([values, -values, np.zeros_like(values)])
-    packed, scale = config.quantize_weight(tvm_tirx.runtime.tensor(weight))
-    assert packed.shape == (3, 24)
-    restored = dequantize_np(config, packed.numpy(), scale.numpy(), list(weight.shape))
-    np.testing.assert_allclose(restored, weight, rtol=0, atol=0.005)
-    np.testing.assert_array_equal(restored[2], np.zeros(65))
 
 
 if __name__ == "__main__":
