@@ -15,6 +15,7 @@ from . import (
     gpt,
     hermes,
     lfm2,
+    lfm3,
     llama,
     llava,
     llm_jp,
