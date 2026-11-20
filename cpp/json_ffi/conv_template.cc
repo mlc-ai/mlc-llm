@@ -272,6 +272,24 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
                                        const ModelConfig& config, DLDevice device) {
   using TResult = Result<std::vector<Data>>;
 
+  if (conv.reasoning_history_style == "lfm3") {
+    if (request.tools.has_value()) {
+      return TResult::Error("LFM3 templates support plain text chat only");
+    }
+    std::vector<ChatCompletionMessage> history = conv.messages;
+    history.insert(history.end(), request.messages.begin(), request.messages.end());
+    if (history.empty() || history.back().role != "user") {
+      return TResult::Error("LFM3 templates require a final user message");
+    }
+    for (size_t i = 0; i < history.size(); ++i) {
+      const auto& msg = history[i];
+      if ((msg.role != "user" && msg.role != "assistant" && !(i == 0 && msg.role == "system")) ||
+          !msg.content.IsText() || msg.tool_calls.has_value()) {
+        return TResult::Error("LFM3 templates support plain text messages only");
+      }
+    }
+  }
+
   if (conv.reasoning_history_style == "qwen3_8" || conv.reasoning_history_style == "qwen3_6") {
     if (request.tools.has_value() || request.has_template_options) {
       return TResult::Error("Qwen supports static templates and plain text chat only");
@@ -432,8 +450,8 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
   const std::vector<ChatCompletionMessage>* request_messages_ptr = &request.messages;
   std::vector<ChatCompletionMessage> stripped_conv_messages;
   std::vector<ChatCompletionMessage> stripped_request_messages;
-  if (conv.strip_reasoning_in_history || conv.reasoning_history_style == "qwen3_8" ||
-      conv.reasoning_history_style == "qwen3_6") {
+  if (conv.strip_reasoning_in_history || conv.reasoning_history_style == "lfm3" ||
+      conv.reasoning_history_style == "qwen3_8" || conv.reasoning_history_style == "qwen3_6") {
     const size_t conv_size = conv.messages.size();
     int64_t last_user_idx = -1;
     for (size_t i = 0; i < conv_size; ++i) {
@@ -478,9 +496,34 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
           const size_t close_pos = text.rfind(kCloseTag);
           if (close_pos != std::string::npos) {
             size_t start = close_pos + kCloseTag.size();
-            while (start < text.size() && text[start] == '\n') ++start;
-            msg.content = ChatCompletionMessageContent(text.substr(start));
+            if (conv.reasoning_history_style == "lfm3") {
+              // Match Python str.strip / Jinja trim, including Unicode whitespace.
+              const char* begin = text.c_str() + start;
+              const char* end = text.c_str() + text.size();
+              const char* first = end;
+              const char* last = end;
+              for (const char* cur = begin; cur < end;) {
+                auto [cp, next] = ParseNextUTF8(cur, UTF8ErrorPolicy::kReturnByte);
+                bool space = (cp >= 9 && cp <= 13) || (cp >= 0x1C && cp <= 0x20) || cp == 0x85 ||
+                             cp == 0xA0 || cp == 0x1680 || (cp >= 0x2000 && cp <= 0x200A) ||
+                             cp == 0x2028 || cp == 0x2029 || cp == 0x202F || cp == 0x205F ||
+                             cp == 0x3000;
+                if (!space) {
+                  if (first == end) first = cur;
+                  last = next;
+                }
+                cur = next;
+              }
+              msg.content = ChatCompletionMessageContent(std::string(first, last));
+            } else {
+              while (start < text.size() && text[start] == '\n') ++start;
+              msg.content = ChatCompletionMessageContent(text.substr(start));
+            }
           }
+        }
+        if (conv.reasoning_history_style == "lfm3" && msg.role == "assistant" &&
+            global_idx < last_user_idx && msg.content.IsText()) {
+          msg.content = ChatCompletionMessageContent("<think></think>" + msg.content.Text());
         }
         out.push_back(std::move(msg));
       }
@@ -713,7 +756,7 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
       json::LookupOptionalWithResultReturn<std::string>(json_obj, "reasoning_history_style");
   if (history_style.IsErr()) return TResult::Error(history_style.UnwrapErr());
   conv.reasoning_history_style = history_style.Unwrap().value_or("default");
-  if (conv.reasoning_history_style != "default" && conv.reasoning_history_style != "qwen3_8" &&
+  if (conv.reasoning_history_style != "default" && conv.reasoning_history_style != "lfm3" && conv.reasoning_history_style != "qwen3_8" &&
       conv.reasoning_history_style != "qwen3_6") {
     return TResult::Error("Unsupported reasoning_history_style");
   }
