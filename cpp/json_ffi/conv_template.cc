@@ -160,7 +160,9 @@ Conversation::Conversation()
                       {"assistant", PLACEHOLDERS[MessagePlaceholders::ASSISTANT]},
                       {"tool", PLACEHOLDERS[MessagePlaceholders::TOOL]}}) {}
 
-std::string Conversation::GetSystemText(const std::string& system_msg) const {
+std::string Conversation::GetSystemText(const std::string& system_msg,
+                                        bool force_render_empty) const {
+  if (system_msg.empty() && !render_empty_system_message && !force_render_empty) return "";
   std::string system_text = this->system_template;
   static std::string system_placeholder = PLACEHOLDERS[MessagePlaceholders::SYSTEM];
   size_t pos = system_text.find(system_placeholder);
@@ -281,7 +283,7 @@ Result<std::vector<Data>> CreateGemma4Prompt(const Conversation& conv,
       TrimGemma4Text(explicit_system ? messages.front().content.Text() : conv.system_message);
   std::string prompt;
   if (explicit_system || !system.empty() || conv.render_empty_system_message) {
-    prompt = conv.GetSystemText(system);
+    prompt = conv.GetSystemText(system, explicit_system);
   }
   for (size_t i = explicit_system ? 1 : 0; i < messages.size(); ++i) {
     const auto& message = messages[i];
