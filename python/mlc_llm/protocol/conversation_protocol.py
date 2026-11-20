@@ -86,7 +86,8 @@ class Conversation(BaseModel):
     # preserved for tool-call prefill scenarios.
     strip_reasoning_in_history: bool = False
 
-    reasoning_history_style: Literal["default", "gemma4"] = "default"
+    # LFM3 replaces historical reasoning with an empty block instead of removing it.
+    reasoning_history_style: Literal["default", "lfm3", "gemma4"] = "default"
 
     # Function call fields
     function_string: str = ""
@@ -160,7 +161,11 @@ class Conversation(BaseModel):
             else self.messages
         )
 
-        if self.reasoning_history_style == "gemma4":
+        if self.reasoning_history_style == "lfm3":
+            if self.use_function_calling:
+                raise ValueError("LFM3 templates support plain text chat only")
+            messages = _normalize_lfm3_history(self.messages)
+        elif self.reasoning_history_style == "gemma4":
             if self.use_function_calling:
                 raise ValueError("Gemma 4 large templates support plain text chat only")
             messages = _normalize_gemma4_history(messages)
@@ -227,7 +232,7 @@ class Conversation(BaseModel):
 
         prompt = _combine_consecutive_messages(message_list)
 
-        if self.reasoning_history_style != "gemma4" and not any(
+        if self.reasoning_history_style not in ("lfm3", "gemma4") and not any(
             isinstance(item, data.ImageData) for item in message_list
         ):
             # Replace the last function string placeholder with actual function string
@@ -256,6 +261,23 @@ def _get_url_from_item(item: Dict) -> str:  # noqa: UP006
             "Should be a string or a dict with a url field."
         )
     return image_url
+
+
+def _normalize_lfm3_history(messages):
+    """Render LFM3's default plain-text history; assistant continuations are unsupported."""
+    history = messages[:-1] if messages and messages[-1] == ("assistant", None) else messages
+    if not history or history[-1][0] != "user":
+        raise ValueError("LFM3 templates require a final user message")
+    result = []
+    for role, content in history:
+        if role not in ("user", "assistant") or not isinstance(content, str):
+            raise ValueError("LFM3 templates support plain text user/assistant messages only")
+        if role == "assistant":
+            if "</think>" in content:
+                content = content.rsplit("</think>", 1)[-1].strip()
+            content = "<think></think>" + content
+        result.append((role, content))
+    return result + list(messages[len(history) :])
 
 
 def _strip_reasoning_in_history(
