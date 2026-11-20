@@ -756,8 +756,8 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
       json::LookupOptionalWithResultReturn<std::string>(json_obj, "reasoning_history_style");
   if (history_style.IsErr()) return TResult::Error(history_style.UnwrapErr());
   conv.reasoning_history_style = history_style.Unwrap().value_or("default");
-  if (conv.reasoning_history_style != "default" && conv.reasoning_history_style != "lfm3" && conv.reasoning_history_style != "qwen3_8" &&
-      conv.reasoning_history_style != "qwen3_6") {
+  if (conv.reasoning_history_style != "default" && conv.reasoning_history_style != "lfm3" &&
+      conv.reasoning_history_style != "qwen3_8" && conv.reasoning_history_style != "qwen3_6") {
     return TResult::Error("Unsupported reasoning_history_style");
   }
   auto effort =
