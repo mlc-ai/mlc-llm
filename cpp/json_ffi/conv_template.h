@@ -127,6 +127,7 @@ struct Conversation {
   // before the last user message are affected.
   bool strip_reasoning_in_history = false;
   std::string reasoning_history_style = "default";
+  std::string qwen3_8_reasoning_effort = "xhigh";
 
   Conversation();
 
@@ -135,7 +136,7 @@ struct Conversation {
    * \param system_msg The system prompt message.
    * \return The created system text.
    */
-  std::string GetSystemText(const std::string& system_msg) const;
+  std::string GetSystemText(const std::string& system_msg, bool force_render_empty = false) const;
 
   /*!
    * \brief replace the content from role by the correct role text in template

@@ -118,6 +118,9 @@ class ChatCompletionMessage {
   ChatCompletionMessageContent content =
       std::nullopt;  // Assuming content is a list of string key-value pairs
   std::string role;
+  std::optional<std::string> reasoning_content = std::nullopt;
+  bool has_unsupported_template_fields = false;
+  bool has_invalid_reasoning_content = false;
   std::optional<std::string> name = std::nullopt;
   std::optional<std::vector<ChatToolCall>> tool_calls = std::nullopt;
   std::optional<std::string> tool_call_id = std::nullopt;
@@ -129,6 +132,7 @@ class ChatCompletionMessage {
 class ChatCompletionRequest {
  public:
   std::vector<ChatCompletionMessage> messages;
+  bool has_template_options = false;
   std::optional<std::string> model = std::nullopt;
   std::optional<double> frequency_penalty = std::nullopt;
   std::optional<double> presence_penalty = std::nullopt;

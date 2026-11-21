@@ -1,0 +1,70 @@
+{
+  "qwen3_6": {
+    "name": "qwen3_6",
+    "system_template": "<|im_start|>system\n{system_message}<|im_end|>\n",
+    "system_message": "",
+    "render_empty_system_message": false,
+    "add_role_after_system_message": true,
+    "roles": {
+      "user": "<|im_start|>user",
+      "assistant": "<|im_start|>assistant"
+    },
+    "role_templates": {
+      "user": "{user_message}",
+      "assistant": "{assistant_message}",
+      "tool": "{tool_message}"
+    },
+    "messages": [],
+    "seps": [
+      "<|im_end|>\n"
+    ],
+    "role_content_sep": "\n",
+    "role_empty_sep": "\n<think>\n",
+    "stop_str": [
+      "<|endoftext|>",
+      "<|im_end|>"
+    ],
+    "stop_token_ids": [
+      248046,
+      248044
+    ],
+    "strip_reasoning_in_history": false,
+    "reasoning_history_style": "qwen3_6",
+    "function_string": "",
+    "use_function_calling": false
+  },
+  "qwen3_6_nothink": {
+    "name": "qwen3_6_nothink",
+    "system_template": "<|im_start|>system\n{system_message}<|im_end|>\n",
+    "system_message": "",
+    "render_empty_system_message": false,
+    "add_role_after_system_message": true,
+    "roles": {
+      "user": "<|im_start|>user",
+      "assistant": "<|im_start|>assistant"
+    },
+    "role_templates": {
+      "user": "{user_message}",
+      "assistant": "{assistant_message}",
+      "tool": "{tool_message}"
+    },
+    "messages": [],
+    "seps": [
+      "<|im_end|>\n"
+    ],
+    "role_content_sep": "\n",
+    "role_empty_sep": "\n<think>\n\n</think>\n\n",
+    "stop_str": [
+      "<|endoftext|>",
+      "<|im_end|>"
+    ],
+    "stop_token_ids": [
+      248046,
+      248044
+    ],
+    "strip_reasoning_in_history": false,
+    "reasoning_history_style": "qwen3_6",
+    "function_string": "",
+    "use_function_calling": false
+  }
+}

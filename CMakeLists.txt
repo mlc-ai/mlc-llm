@@ -164,6 +164,8 @@ endif(BUILD_CPP_TEST)
 if(CMAKE_SYSTEM_NAME STREQUAL "Android")
   target_link_libraries(mlc_llm PRIVATE log)
   target_link_libraries(tokenizers_cpp PRIVATE log)
+elseif(WIN32)
+  target_link_libraries(tokenizers_c INTERFACE synchronization)
 endif()
 
 add_library(mlc_llm_module SHARED $<TARGET_OBJECTS:mlc_llm_objs>)

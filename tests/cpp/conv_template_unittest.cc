@@ -2,6 +2,12 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+
+#include "support/json_parser.h"
+
 namespace mlc {
 namespace llm {
 namespace json_ffi {
@@ -240,6 +246,74 @@ TEST(JsonFFIConvTest, Lfm3PlainTextHistory) {
   continuation.messages = {message("assistant", "partial")};
   ASSERT_TRUE(CreatePrompt(conv, continuation, ModelConfig(), DLDevice{kDLCPU, 0}).IsErr());
 }
+
+void _TestQwenPlainTextHistory(const std::string& family) {
+  const auto fixture_path = std::filesystem::path(__FILE__).parent_path().parent_path() /
+                            "python/protocol/fixtures" / family / "hf.json";
+  std::ifstream file(fixture_path);
+  ASSERT_TRUE(file.good());
+  std::stringstream buffer;
+  buffer << file.rdbuf();
+  auto fixture = json::ParseToJSONObjectWithResultReturn(buffer.str());
+  ASSERT_TRUE(fixture.IsOk());
+  auto cases = fixture.Unwrap().at("cases").cast<tvm::ffi::json::Array>();
+  ASSERT_GT(cases.size(), 0);
+  std::ifstream template_file(fixture_path.parent_path() / "mlc_templates.json");
+  ASSERT_TRUE(template_file.good());
+  std::stringstream template_buffer;
+  template_buffer << template_file.rdbuf();
+  auto templates = json::ParseToJSONObjectWithResultReturn(template_buffer.str());
+  ASSERT_TRUE(templates.IsOk());
+  auto template_map = templates.Unwrap();
+  for (const auto& value : cases) {
+    auto item = value.cast<tvm::ffi::json::Object>();
+    std::string name = item.at("template").cast<std::string>();
+    SCOPED_TRACE(name + ":" + item.at("name").cast<std::string>());
+    auto parsed_conv = Conversation::FromJSON(template_map.at(name).cast<tvm::ffi::json::Object>());
+    ASSERT_TRUE(parsed_conv.IsOk());
+    auto conv = parsed_conv.Unwrap();
+    tvm::ffi::json::Object request_json;
+    request_json.Set("messages", item.at("messages"));
+    auto request = ChatCompletionRequest::FromJSON(tvm::ffi::json::Stringify(request_json));
+    ASSERT_TRUE(request.IsOk());
+    auto result = CreatePrompt(conv, request.Unwrap(), ModelConfig(), DLDevice{kDLCPU, 0});
+    ASSERT_TRUE(result.IsOk());
+    std::string text;
+    for (const auto& part : result.Unwrap()) {
+      const auto* node = part.as<TextDataNode>();
+      ASSERT_NE(node, nullptr);
+      text += node->text;
+    }
+    EXPECT_EQ(text, item.at("rendered").cast<std::string>());
+  }
+
+  auto parsed_conv = Conversation::FromJSON(template_map.at(family).cast<tvm::ffi::json::Object>());
+  ASSERT_TRUE(parsed_conv.IsOk());
+  auto conv = parsed_conv.Unwrap();
+  tvm::ffi::json::Object request_json;
+  request_json.Set("messages", cases[0].cast<tvm::ffi::json::Object>().at("messages"));
+  request_json.Set("extra_body", nullptr);
+  auto request = ChatCompletionRequest::FromJSON(tvm::ffi::json::Stringify(request_json));
+  ASSERT_TRUE(request.IsOk());
+  EXPECT_TRUE(CreatePrompt(conv, request.Unwrap(), ModelConfig(), DLDevice{kDLCPU, 0}).IsOk());
+  for (const char* choice : {"none", "auto"}) {
+    auto choice_json = request_json;
+    choice_json.Set("tool_choice", choice);
+    auto rejected = ChatCompletionRequest::FromJSON(tvm::ffi::json::Stringify(choice_json));
+    ASSERT_TRUE(rejected.IsOk());
+    EXPECT_TRUE(CreatePrompt(conv, rejected.Unwrap(), ModelConfig(), DLDevice{kDLCPU, 0}).IsErr());
+  }
+  for (const char* option : {"enable_thinking", "reasoning_effort", "preserve_thinking"}) {
+    auto rejected_json = request_json;
+    rejected_json.Set(option, false);
+    auto rejected = ChatCompletionRequest::FromJSON(tvm::ffi::json::Stringify(rejected_json));
+    ASSERT_TRUE(rejected.IsOk());
+    EXPECT_TRUE(CreatePrompt(conv, rejected.Unwrap(), ModelConfig(), DLDevice{kDLCPU, 0}).IsErr());
+  }
+}
+
+TEST(JsonFFIConvTest, Qwen38PinnedPlainTextHistory) { _TestQwenPlainTextHistory("qwen3_8"); }
+TEST(JsonFFIConvTest, Qwen36PinnedPlainTextHistory) { _TestQwenPlainTextHistory("qwen3_6"); }
 
 }  // namespace json_ffi
 }  // namespace llm
