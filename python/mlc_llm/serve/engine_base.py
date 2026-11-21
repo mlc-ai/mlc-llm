@@ -24,7 +24,7 @@ import tvm_ffi
 import tvm_tirx
 from tvm_tirx.runtime import Device
 
-from mlc_llm.protocol import openai_api_protocol
+from mlc_llm.protocol import error_protocol, openai_api_protocol
 from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.protocol.mlc_chat_config import MLCChatConfig
@@ -768,6 +768,25 @@ def process_chat_completion_request(
         ):
             raise ValueError("Qwen templates support plain text chat only")
 
+    if conv_template.reasoning_history_style == "gemma4":
+        if request.tools is not None or request.tool_choice not in (None, "auto"):
+            raise error_protocol.BadRequestError(
+                "Gemma 4 large templates support plain text chat only"
+            )
+        if not request.messages or request.messages[-1].role != "user":
+            raise error_protocol.BadRequestError("Gemma 4 text chat must end in a user message")
+        for index, message in enumerate(request.messages):
+            if (
+                not isinstance(message.content, str)
+                or message.role not in ("user", "assistant", "system")
+                or (message.role == "system" and index != 0)
+                or message.tool_calls is not None
+                or message.tool_call_id is not None
+            ):
+                raise error_protocol.BadRequestError(
+                    "Gemma 4 large templates support plain text chat only"
+                )
+
     system_messages = []
     for message in request.messages:
         role = message.role
@@ -775,7 +794,7 @@ def process_chat_completion_request(
         if role == "system":
             assert isinstance(content, str)
             system_messages.append(content)
-            if conv_template.reasoning_history_style == "qwen3_6":
+            if conv_template.reasoning_history_style in ("qwen3_6", "gemma4"):
                 conv_template.render_empty_system_message = True
             continue
         if message.reasoning_content is not None:

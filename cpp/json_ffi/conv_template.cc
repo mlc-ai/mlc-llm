@@ -267,10 +267,76 @@ Result<std::optional<std::string>> TryGetFunctionCallingString(
   return TResult::Ok(tvm::ffi::json::Stringify(function_list_json));
 };
 
+namespace {
+
+std::string StripGemma4Channels(const std::string& text) {
+  const std::string end_tag = "<channel|>";
+  std::string content;
+  size_t start = 0;
+  for (;;) {
+    size_t end = text.find(end_tag, start);
+    size_t open = text.find("<|channel>", start);
+    content.append(text, start, std::min(end, open) - start);
+    if (end == std::string::npos) break;
+    start = end + end_tag.size();
+  }
+  return TrimPythonWhitespace(content);
+}
+
+Result<std::vector<Data>> CreateGemma4Prompt(const Conversation& conv,
+                                             const ChatCompletionRequest& request) {
+  using TResult = Result<std::vector<Data>>;
+  if (request.tools || request.tool_choice.value_or("auto") != "auto") {
+    return TResult::Error("Gemma 4 large templates support plain text chat only");
+  }
+  std::vector<ChatCompletionMessage> messages = conv.messages;
+  messages.insert(messages.end(), request.messages.begin(), request.messages.end());
+  if (messages.empty() || messages.back().role != "user") {
+    return TResult::Error("Gemma 4 text chat must end in a user message");
+  }
+  for (size_t i = 0; i < messages.size(); ++i) {
+    const auto& message = messages[i];
+    if ((message.role != "user" && message.role != "assistant" &&
+         !(i == 0 && message.role == "system")) ||
+        !message.content.IsText() || message.tool_calls || message.tool_call_id) {
+      return TResult::Error("Gemma 4 large templates support plain text chat only");
+    }
+  }
+  bool explicit_system = messages.front().role == "system";
+  std::string system =
+      TrimPythonWhitespace(explicit_system ? messages.front().content.Text() : conv.system_message);
+  std::string prompt = conv.GetSystemText(system, explicit_system);
+  for (size_t i = explicit_system ? 1 : 0; i < messages.size(); ++i) {
+    const auto& message = messages[i];
+    bool assistant = message.role == "assistant";
+    if (!assistant || i == 0 || messages[i - 1].role != "assistant") {
+      prompt += conv.roles.at(message.role) + conv.role_content_sep;
+    }
+    prompt += conv.GetRoleText(message.role,
+                               assistant ? StripGemma4Channels(message.content.Text())
+                                         : TrimPythonWhitespace(message.content.Text()),
+                               std::nullopt);
+    if (!assistant || messages[i + 1].role != "assistant") {
+      prompt += conv.seps.at(assistant && conv.seps.size() == 2 ? 1 : 0);
+    }
+  }
+  prompt += conv.roles.at("assistant") + conv.role_empty_sep;
+  std::vector<Data> output;
+  if (conv.system_prefix_token_ids) {
+    output.push_back(TokenData(*conv.system_prefix_token_ids));
+  }
+  output.push_back(TextData(prompt));
+  return TResult::Ok(std::move(output));
+}
+
+}  // namespace
+
 Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
                                        const ChatCompletionRequest& request,
                                        const ModelConfig& config, DLDevice device) {
   using TResult = Result<std::vector<Data>>;
+
+  if (conv.reasoning_history_style == "gemma4") return CreateGemma4Prompt(conv, request);
 
   if (conv.reasoning_history_style == "lfm3") {
     if (request.tools.has_value()) {
@@ -757,7 +823,8 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
   if (history_style.IsErr()) return TResult::Error(history_style.UnwrapErr());
   conv.reasoning_history_style = history_style.Unwrap().value_or("default");
   if (conv.reasoning_history_style != "default" && conv.reasoning_history_style != "lfm3" &&
-      conv.reasoning_history_style != "qwen3_8" && conv.reasoning_history_style != "qwen3_6") {
+      conv.reasoning_history_style != "qwen3_8" && conv.reasoning_history_style != "qwen3_6" &&
+      conv.reasoning_history_style != "gemma4") {
     return TResult::Error("Unsupported reasoning_history_style");
   }
   auto effort =

@@ -183,6 +183,47 @@ TEST(JsonFFIConvTest, LoadJSONTextContentTest) { _TestConvTemplateLoadJSONTextCo
 TEST(JsonFFIConvTest, LoadJSONPartsContentTest) { _TestConvTemplateLoadJSONPartsContent(); }
 TEST(JsonFFIConvTest, RenderEmptySystemMessageTest) { _TestConvTemplateRenderEmptySystemMessage(); }
 
+TEST(JsonFFIConvTest, Gemma4LargePlainText) {
+  const auto path = std::filesystem::path(__FILE__).parent_path().parent_path() /
+                    "fixtures/gemma4/large_text_chat.json";
+  std::ifstream input(path);
+  ASSERT_TRUE(input.good());
+  std::string fixture((std::istreambuf_iterator<char>(input)), {});
+  auto parsed = json::ParseToJSONObjectWithResultReturn(fixture);
+  ASSERT_TRUE(parsed.IsOk());
+  auto cases = parsed.Unwrap().at("cases").cast<tvm::ffi::json::Array>();
+  ASSERT_GT(cases.size(), 0);
+
+  for (const auto& value : cases) {
+    auto item = value.cast<tvm::ffi::json::Object>();
+    SCOPED_TRACE(item.at("name").cast<std::string>());
+    bool thinking = item.at("thinking").cast<bool>();
+    Conversation conv;
+    conv.reasoning_history_style = "gemma4";
+    conv.system_template = std::string("<|turn>system\n") + (thinking ? "<|think|>\n" : "") +
+                           "{system_message}<turn|>\n";
+    conv.render_empty_system_message = thinking;
+    conv.roles = {{"user", "<|turn>user"}, {"assistant", "<|turn>model"}};
+    conv.role_content_sep = "\n";
+    conv.role_empty_sep = thinking ? "\n" : "\n<|channel>thought\n<channel|>";
+    conv.seps = {"<turn|>\n"};
+    conv.system_prefix_token_ids = std::vector<int>{2};
+    auto request = ChatCompletionRequest::FromJSON(
+        "{\"messages\":" + tvm::ffi::json::Stringify(item.at("messages")) + "}");
+    ASSERT_TRUE(request.IsOk());
+    auto result = CreatePrompt(conv, request.Unwrap(), ModelConfig(), DLDevice{kDLCPU, 0});
+    ASSERT_TRUE(result.IsOk());
+    auto prompt = result.Unwrap();
+    ASSERT_EQ(prompt.size(), 2);
+    const auto* tokens = prompt[0].as<serve::TokenDataNode>();
+    ASSERT_NE(tokens, nullptr);
+    ASSERT_EQ(tokens->token_ids.size(), 1);
+    EXPECT_EQ(tokens->token_ids[0], 2);
+    ASSERT_NE(prompt[1].as<serve::TextDataNode>(), nullptr);
+    EXPECT_EQ(prompt[1].as<serve::TextDataNode>()->text, item.at("prompt").cast<std::string>());
+  }
+}
+
 TEST(JsonFFIConvTest, Lfm3PlainTextHistory) {
   auto parsed = Conversation::FromJSON(R"({
     "name":"lfm3", "add_role_after_system_message":true, "system_template":"<|im_start|>system\n{system_message}<|im_end|>\n",

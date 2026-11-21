@@ -87,7 +87,7 @@ class Conversation(BaseModel):
     strip_reasoning_in_history: bool = False
 
     # Select model-specific history normalization.
-    reasoning_history_style: Literal["default", "lfm3", "qwen3_6", "qwen3_8"] = "default"
+    reasoning_history_style: Literal["default", "lfm3", "qwen3_6", "qwen3_8", "gemma4"] = "default"
 
     # Static Qwen3.8 templates select effort; request-time overrides are unsupported.
     qwen3_8_reasoning_effort: Optional[Literal["xhigh", "medium", "low", "none"]] = None
@@ -145,7 +145,7 @@ class Conversation(BaseModel):
             system_content = qwen3_8_system_message(
                 system_content, self.qwen3_8_reasoning_effort or "xhigh"
             )
-        if self.reasoning_history_style == "qwen3_6":
+        if self.reasoning_history_style in ("qwen3_6", "gemma4"):
             system_content = system_content.strip()
         system_msg = (
             self.system_template.replace(MessagePlaceholders.SYSTEM.value, system_content)
@@ -172,6 +172,10 @@ class Conversation(BaseModel):
             if self.use_function_calling:
                 raise ValueError("LFM3 templates support plain text chat only")
             messages = _normalize_lfm3_history(self.messages)
+        elif self.reasoning_history_style == "gemma4":
+            if self.use_function_calling:
+                raise ValueError("Gemma 4 large templates support plain text chat only")
+            messages = _normalize_gemma4_history(messages)
 
         if self.reasoning_history_style == "qwen3_8":
             if self.use_function_calling:
@@ -245,7 +249,7 @@ class Conversation(BaseModel):
 
         prompt = _combine_consecutive_messages(message_list)
 
-        if self.reasoning_history_style not in ("lfm3", "qwen3_6", "qwen3_8") and not any(
+        if self.reasoning_history_style not in ("lfm3", "qwen3_6", "qwen3_8", "gemma4") and not any(
             isinstance(item, data.ImageData) for item in message_list
         ):
             # Replace the last function string placeholder with actual function string
@@ -406,3 +410,21 @@ def _normalize_qwen3_6_history(messages, reasoning_contents):
             content = content.rsplit("</think>", 1)[1].lstrip("\n")
         result.append((role, content))
     return result + list(messages[len(history) :])
+
+
+def _normalize_gemma4_history(messages):
+    """Match the pinned template's trim and channel stripping for plain text."""
+    if len(messages) < 2 or messages[-1] != ("assistant", None) or messages[-2][0] != "user":
+        raise ValueError("Gemma 4 text chat requires a final user turn and generation header")
+    result = []
+    for role, content in messages[:-1]:
+        if role not in ("user", "assistant") or not isinstance(content, str):
+            raise ValueError("Gemma 4 large templates support plain text user/assistant messages")
+        if role == "assistant":
+            content = "".join(part.split("<|channel>")[0] for part in content.split("<channel|>"))
+        content = content.strip()
+        if role == "assistant" and result and result[-1][0] == "assistant":
+            result[-1] = (role, result[-1][1] + content)
+        else:
+            result.append((role, content))
+    return [*result, messages[-1]]

@@ -182,3 +182,33 @@ def test_qwen_empty_system_message_keeps_explicit_rendering():
     assert conversation.system_message == ""
     assert conversation.render_empty_system_message
     assert "<|im_start|>system\n<|im_end|>" in "".join(rendered)
+
+
+@pytest.mark.parametrize("template", ["gemma4_large", "gemma4_large_thinking"])
+@pytest.mark.parametrize(
+    "messages",
+    [
+        [("user", "hello"), ("system", "LATER"), ("user", "next")],
+        [("system", "FIRST"), ("system", "SECOND"), ("user", "hello")],
+    ],
+)
+def test_gemma4_keeps_template_system_position_restriction(template, messages):
+    conversation = ConvTemplateRegistry.get_conv_template(template).model_copy(deep=True)
+    request = ChatCompletionRequest(
+        messages=[{"role": role, "content": content} for role, content in messages]
+    )
+    # Other templates accept these requests; Gemma 4 retains its own restriction.
+    request.check_message_validity()
+
+    with pytest.raises(
+        BadRequestError, match="Gemma 4 large templates support plain text chat only"
+    ):
+        process_chat_completion_request(
+            request,
+            "gemma4-system-messages-test",
+            EngineState(enable_tracing=False),
+            {},
+            lambda text: list(map(ord, text)),
+            4096,
+            conversation,
+        )
