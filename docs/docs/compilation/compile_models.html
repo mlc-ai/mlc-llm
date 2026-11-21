@@ -196,6 +196,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#compile-model-library">3. Compile Model Library</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#qwen3-5-projection-accumulation">Qwen3.5 projection accumulation</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="model_artifact_manifest.html">Model Artifact Manifest</a></li>
@@ -341,6 +342,7 @@ the CLI app / Python API that can be used to chat with the compiled model.</p>
 <li><p><a class="reference internal" href="#verify-output-and-chat" id="id8">3. Verify output and chat</a></p></li>
 <li><p><a class="reference internal" href="#compile-commands-for-more-models" id="id9">Compile Commands for More Models</a></p></li>
 <li><p><a class="reference internal" href="#compile-command-specification" id="id10">Compile Command Specification</a></p></li>
+<li><p><a class="reference internal" href="#qwen3-5-projection-accumulation" id="id11">Qwen3.5 projection accumulation</a></p></li>
 </ul>
 </nav>
 <section id="verify-installation">
@@ -1225,6 +1227,23 @@ knobs, e.g. <code class="docutils literal notranslate"><span class="pre">--overr
 </dd>
 </dl>
 </section>
+</section>
+<section id="qwen3-5-projection-accumulation">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Qwen3.5 projection accumulation</a><a class="headerlink" href="#qwen3-5-projection-accumulation" title="Permalink to this heading">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">qwen3_5_text</span></code> architecture supports an optional
+<code class="docutils literal notranslate"><span class="pre">projection_out_dtype:</span> <span class="pre">&quot;float32&quot;</span></code> model configuration field. It accumulates
+linear projections in float32 and rounds their outputs back to the activation
+dtype. The default is <code class="docutils literal notranslate"><span class="pre">null</span></code>, which preserves the existing accumulation policy.
+This option also applies to compatible Qwen3.6 and Qwen3.8 text configurations;
+it does not add support for their vision components.</p>
+<p>To select this policy, make a local copy of the Hugging Face configuration and
+set <code class="docutils literal notranslate"><span class="pre">projection_out_dtype</span></code> to <code class="docutils literal notranslate"><span class="pre">&quot;float32&quot;</span></code> inside <code class="docutils literal notranslate"><span class="pre">text_config</span></code> (or at the
+root for a text-only configuration). Use that configuration for both
+<code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">convert_weight</span></code> and <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">gen_config</span></code>, then compile the generated
+<code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>. Verify that its <code class="docutils literal notranslate"><span class="pre">model_config</span></code> records
+<code class="docutils literal notranslate"><span class="pre">&quot;projection_out_dtype&quot;:</span> <span class="pre">&quot;float32&quot;</span></code>. Regenerate weights when changing this
+option for models with attention biases, because their stored bias dtype also
+changes. Compilation may use slower kernels; measure latency on the target device.</p>
 </section>
 </section>
 
