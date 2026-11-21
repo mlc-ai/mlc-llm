@@ -1,0 +1,390 @@
+{
+  "source": "Qwen/Qwen3.6-27B",
+  "revision": "8f33b98937c6031bb49e713dee3e8e185aafd26f",
+  "source_sha256": {
+    "chat_template.jinja": "1b8361565cc35d47551d342214cff341c0f1a9685ce529c7ce31de0ed3616248",
+    "tokenizer.json": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+    "tokenizer_config.json": "a39230de929388c748904265340616449f3bdeeb324d99385c6243d0577f98ed"
+  },
+  "stop_token_ids": [
+    248046,
+    248044
+  ],
+  "cases": [
+    {
+      "name": "user_only",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "system",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Be concise."
+        },
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\nBe concise.<|im_end|>\n<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "empty_system",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "whitespace_system",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": " \n\t\u0085\u001c"
+        },
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "unicode_trim",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": "\u0085\u001cBe concise.\u001f"
+        },
+        {
+          "role": "user",
+          "content": "\u2003\u0085 Hello. \u001c"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\nBe concise.<|im_end|>\n<|im_start|>user\nHello.<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "bom_preserved",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": "\ufeffBe concise.\ufeff"
+        },
+        {
+          "role": "user",
+          "content": "\ufeffHello.\ufeff"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\n\ufeffBe concise.\ufeff<|im_end|>\n<|im_start|>user\n\ufeffHello.\ufeff<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "plain_history",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "Noted."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "inline_thinking_history",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "<think>Remember the code.</think>\n\nNoted."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "structured_history",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "Noted.",
+          "reasoning_content": "Remember the code."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "trimmed_structured_history",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": " \nNoted.\u0085",
+          "reasoning_content": "\u001cThink.\u2003"
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "empty_assistant_history",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "reasoning_content": ""
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "literal_placeholders",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Literal {system_message} {function_string} $& $` $' $$"
+        },
+        {
+          "role": "user",
+          "content": "First {user_message} {tool_message} $&"
+        },
+        {
+          "role": "assistant",
+          "content": "{assistant_message} {function_string} $` $' $$",
+          "reasoning_content": "Reason {function_string} {system_message} $&"
+        },
+        {
+          "role": "user",
+          "content": "Next {function_string} {user_message} {tool_message} $&"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>system\nLiteral {system_message} {function_string} $& $` $' $$<|im_end|>\n<|im_start|>user\nFirst {user_message} {tool_message} $&<|im_end|>\n<|im_start|>assistant\n{assistant_message} {function_string} $` $' $$<|im_end|>\n<|im_start|>user\nNext {function_string} {user_message} {tool_message} $&<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "multiple_turns",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "Noted.",
+          "reasoning_content": "Keep it."
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        },
+        {
+          "role": "assistant",
+          "content": "amber-42",
+          "reasoning_content": "Recall it."
+        },
+        {
+          "role": "user",
+          "content": "Confirm it again."
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\nNoted.<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\namber-42<|im_end|>\n<|im_start|>user\nConfirm it again.<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "structured_overrides_inline",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "<think>literal</think>\n\nAnswer",
+          "reasoning_content": ""
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n<think>literal</think>\n\nAnswer<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "multiple_inline_closures",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "a</think>b</think>\n  final\u0085"
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n  final<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "space_after_close",
+      "template": "qwen3_6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "My code is amber-42."
+        },
+        {
+          "role": "assistant",
+          "content": "<think>x</think>\n\n  keep indentation"
+        },
+        {
+          "role": "user",
+          "content": "What is my code?"
+        }
+      ],
+      "options": {
+        "enable_thinking": true
+      },
+      "rendered": "<|im_start|>user\nMy code is amber-42.<|im_end|>\n<|im_start|>assistant\n  keep indentation<|im_end|>\n<|im_start|>user\nWhat is my code?<|im_end|>\n<|im_start|>assistant\n<think>\n"
+    },
+    {
+      "name": "user_only",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+    },
+    {
+      "name": "system",
+      "template": "qwen3_6_nothink",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Be concise."
+        },
+        {
+          "role": "user",
+          "content": "What is 2 + 3?"
+        }
+      ],
+      "options": {
+        "enable_thinking": false
+      },
+      "rendered": "<|im_start|>system\nBe concise.<|im_end|>\n<|im_start|>user\nWhat is 2 + 3?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+    }
+  ]
+}

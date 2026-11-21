@@ -11,24 +11,7 @@
           "content": "  Hello!  "
         }
       ],
-      "prompt": "<|turn>user\nHello!<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
-      "ids": [
-        2,
-        105,
-        2364,
-        107,
-        9259,
-        236888,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        100,
-        45518,
-        107,
-        101
-      ]
+      "prompt": "<|turn>user\nHello!<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
     },
     {
       "name": "one_turn",
@@ -39,27 +22,7 @@
           "content": "  Hello!  "
         }
       ],
-      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nHello!<turn|>\n<|turn>model\n",
-      "ids": [
-        2,
-        105,
-        9731,
-        107,
-        98,
-        107,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        9259,
-        236888,
-        106,
-        107,
-        105,
-        4368,
-        107
-      ]
+      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nHello!<turn|>\n<|turn>model\n"
     },
     {
       "name": "empty_system",
@@ -74,29 +37,7 @@
           "content": "Hello!"
         }
       ],
-      "prompt": "<|turn>system\n<turn|>\n<|turn>user\nHello!<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
-      "ids": [
-        2,
-        105,
-        9731,
-        107,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        9259,
-        236888,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        100,
-        45518,
-        107,
-        101
-      ]
+      "prompt": "<|turn>system\n<turn|>\n<|turn>user\nHello!<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
     },
     {
       "name": "empty_system",
@@ -111,27 +52,7 @@
           "content": "Hello!"
         }
       ],
-      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nHello!<turn|>\n<|turn>model\n",
-      "ids": [
-        2,
-        105,
-        9731,
-        107,
-        98,
-        107,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        9259,
-        236888,
-        106,
-        107,
-        105,
-        4368,
-        107
-      ]
+      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nHello!<turn|>\n<|turn>model\n"
     },
     {
       "name": "trim_unicode",
@@ -146,38 +67,7 @@
           "content": "　Literal {function_string} $&\u001f"
         }
       ],
-      "prompt": "<|turn>system\nBe brief.<turn|>\n<|turn>user\nLiteral {function_string} $&<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
-      "ids": [
-        2,
-        105,
-        9731,
-        107,
-        3912,
-        8652,
-        236761,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        55769,
-        642,
-        2501,
-        236779,
-        2383,
-        236783,
-        609,
-        236880,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        100,
-        45518,
-        107,
-        101
-      ]
+      "prompt": "<|turn>system\nBe brief.<turn|>\n<|turn>user\nLiteral {function_string} $&<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
     },
     {
       "name": "trim_unicode",
@@ -192,36 +82,7 @@
           "content": "　Literal {function_string} $&\u001f"
         }
       ],
-      "prompt": "<|turn>system\n<|think|>\nBe brief.<turn|>\n<|turn>user\nLiteral {function_string} $&<turn|>\n<|turn>model\n",
-      "ids": [
-        2,
-        105,
-        9731,
-        107,
-        98,
-        107,
-        3912,
-        8652,
-        236761,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        55769,
-        642,
-        2501,
-        236779,
-        2383,
-        236783,
-        609,
-        236880,
-        106,
-        107,
-        105,
-        4368,
-        107
-      ]
+      "prompt": "<|turn>system\n<|think|>\nBe brief.<turn|>\n<|turn>user\nLiteral {function_string} $&<turn|>\n<|turn>model\n"
     },
     {
       "name": "assistant_channels",
@@ -240,35 +101,7 @@
           "content": "Two"
         }
       ],
-      "prompt": "<|turn>user\nOne<turn|>\n<|turn>model\nanswer<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
-      "ids": [
-        2,
-        105,
-        2364,
-        107,
-        4906,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        14433,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        11634,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        100,
-        45518,
-        107,
-        101
-      ]
+      "prompt": "<|turn>user\nOne<turn|>\n<|turn>model\nanswer<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
     },
     {
       "name": "assistant_channels",
@@ -287,38 +120,7 @@
           "content": "Two"
         }
       ],
-      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nOne<turn|>\n<|turn>model\nanswer<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n",
-      "ids": [
-        2,
-        105,
-        9731,
-        107,
-        98,
-        107,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        4906,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        14433,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        11634,
-        106,
-        107,
-        105,
-        4368,
-        107
-      ]
+      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nOne<turn|>\n<|turn>model\nanswer<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n"
     },
     {
       "name": "adjacent_assistants",
@@ -341,35 +143,7 @@
           "content": "Two"
         }
       ],
-      "prompt": "<|turn>user\nOne<turn|>\n<|turn>model\nAB<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
-      "ids": [
-        2,
-        105,
-        2364,
-        107,
-        4906,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        3066,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        11634,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        100,
-        45518,
-        107,
-        101
-      ]
+      "prompt": "<|turn>user\nOne<turn|>\n<|turn>model\nAB<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
     },
     {
       "name": "adjacent_assistants",
@@ -392,38 +166,7 @@
           "content": "Two"
         }
       ],
-      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nOne<turn|>\n<|turn>model\nAB<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n",
-      "ids": [
-        2,
-        105,
-        9731,
-        107,
-        98,
-        107,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        4906,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        3066,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        11634,
-        106,
-        107,
-        105,
-        4368,
-        107
-      ]
+      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nOne<turn|>\n<|turn>model\nAB<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n"
     },
     {
       "name": "open_channel",
@@ -442,35 +185,7 @@
           "content": "Two"
         }
       ],
-      "prompt": "<|turn>user\nOne<turn|>\n<|turn>model\nBefore<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n<|channel>thought\n<channel|>",
-      "ids": [
-        2,
-        105,
-        2364,
-        107,
-        4906,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        13286,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        11634,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        100,
-        45518,
-        107,
-        101
-      ]
+      "prompt": "<|turn>user\nOne<turn|>\n<|turn>model\nBefore<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
     },
     {
       "name": "open_channel",
@@ -489,38 +204,7 @@
           "content": "Two"
         }
       ],
-      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nOne<turn|>\n<|turn>model\nBefore<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n",
-      "ids": [
-        2,
-        105,
-        9731,
-        107,
-        98,
-        107,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        4906,
-        106,
-        107,
-        105,
-        4368,
-        107,
-        13286,
-        106,
-        107,
-        105,
-        2364,
-        107,
-        11634,
-        106,
-        107,
-        105,
-        4368,
-        107
-      ]
+      "prompt": "<|turn>system\n<|think|>\n<turn|>\n<|turn>user\nOne<turn|>\n<|turn>model\nBefore<turn|>\n<|turn>user\nTwo<turn|>\n<|turn>model\n"
     }
   ]
 }

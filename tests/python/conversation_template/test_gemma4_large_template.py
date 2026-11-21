@@ -27,7 +27,7 @@ def test_hf_plain_text_prompt(case):
 
     def tokenize(text):
         rendered.append(text)
-        return case["ids"][1:]
+        return [7, 11]
 
     prompts, config, _, _ = process_chat_completion_request(
         request,
@@ -39,5 +39,5 @@ def test_hf_plain_text_prompt(case):
         conv,
     )
     assert rendered == [case["prompt"]]
-    assert prompts == [case["ids"]]
+    assert prompts == [[2, 7, 11]]
     assert config.stop_token_ids == [1, 106, 50]

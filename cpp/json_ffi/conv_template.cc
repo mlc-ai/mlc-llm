@@ -160,14 +160,57 @@ Conversation::Conversation()
                       {"assistant", PLACEHOLDERS[MessagePlaceholders::ASSISTANT]},
                       {"tool", PLACEHOLDERS[MessagePlaceholders::TOOL]}}) {}
 
+namespace {
+
+std::string TrimPythonWhitespace(const std::string& text) {
+  const char* end = text.c_str() + text.size();
+  const char* first = end;
+  const char* last = end;
+  for (const char* cur = text.c_str(); cur < end;) {
+    auto [cp, next] = ParseNextUTF8(cur, UTF8ErrorPolicy::kReturnByte);
+    bool space = (cp >= 9 && cp <= 13) || (cp >= 0x1C && cp <= 0x20) || cp == 0x85 || cp == 0xA0 ||
+                 cp == 0x1680 || (cp >= 0x2000 && cp <= 0x200A) || cp == 0x2028 || cp == 0x2029 ||
+                 cp == 0x202F || cp == 0x205F || cp == 0x3000;
+    if (!space) {
+      if (first == end) first = cur;
+      last = next;
+    }
+    cur = next;
+  }
+  return std::string(first, last);
+}
+
+std::string Qwen38SystemMessage(const std::string& message, const std::string& effort) {
+  std::string prefix;
+  if (effort == "xhigh") {
+    prefix =
+        "Reasoning effort is set to xhigh. Please think carefully through the task, "
+        "validate key assumptions, consider plausible alternatives, and prioritize "
+        "correctness, consistency, and clarity in the final answer.";
+  } else if (effort == "low") {
+    prefix =
+        "Reasoning effort is set to low. Keep your thinking brief and focused, moving "
+        "directly to the conclusion without unnecessary elaboration.";
+  }
+  std::string content = TrimPythonWhitespace(message);
+  if (!prefix.empty() && !content.empty()) prefix += "\n\n";
+  return prefix + content;
+}
+
+}  // namespace
+
 std::string Conversation::GetSystemText(const std::string& system_msg,
                                         bool force_render_empty) const {
-  if (system_msg.empty() && !render_empty_system_message && !force_render_empty) return "";
+  const std::string content =
+      reasoning_history_style == "qwen3_8"
+          ? Qwen38SystemMessage(system_msg, qwen3_8_reasoning_effort)
+          : (reasoning_history_style == "qwen3_6" ? TrimPythonWhitespace(system_msg) : system_msg);
+  if (content.empty() && !render_empty_system_message && !force_render_empty) return "";
   std::string system_text = this->system_template;
   static std::string system_placeholder = PLACEHOLDERS[MessagePlaceholders::SYSTEM];
   size_t pos = system_text.find(system_placeholder);
   if (pos != std::string::npos) {
-    system_text.replace(pos, system_placeholder.length(), system_msg);
+    system_text.replace(pos, system_placeholder.length(), content);
   }
   return system_text;
 }
@@ -226,25 +269,6 @@ Result<std::optional<std::string>> TryGetFunctionCallingString(
 
 namespace {
 
-std::string TrimGemma4Text(const std::string& text) {
-  const char* end = text.data() + text.size();
-  const char* first = end;
-  const char* last = end;
-  for (const char* cursor = text.data(); cursor < end;) {
-    auto [cp, next] = ParseNextUTF8(cursor, UTF8ErrorPolicy::kReturnByte);
-    // Python str.strip/Jinja trim includes Unicode whitespace.
-    bool space = (cp >= 9 && cp <= 13) || (cp >= 0x1c && cp <= 0x20) || cp == 0x85 || cp == 0xa0 ||
-                 cp == 0x1680 || (cp >= 0x2000 && cp <= 0x200a) || cp == 0x2028 || cp == 0x2029 ||
-                 cp == 0x202f || cp == 0x205f || cp == 0x3000;
-    if (!space) {
-      if (first == end) first = cursor;
-      last = next;
-    }
-    cursor = next;
-  }
-  return std::string(first, last);
-}
-
 std::string StripGemma4Channels(const std::string& text) {
   const std::string end_tag = "<channel|>";
   std::string content;
@@ -256,7 +280,7 @@ std::string StripGemma4Channels(const std::string& text) {
     if (end == std::string::npos) break;
     start = end + end_tag.size();
   }
-  return TrimGemma4Text(content);
+  return TrimPythonWhitespace(content);
 }
 
 Result<std::vector<Data>> CreateGemma4Prompt(const Conversation& conv,
@@ -280,11 +304,8 @@ Result<std::vector<Data>> CreateGemma4Prompt(const Conversation& conv,
   }
   bool explicit_system = messages.front().role == "system";
   std::string system =
-      TrimGemma4Text(explicit_system ? messages.front().content.Text() : conv.system_message);
-  std::string prompt;
-  if (explicit_system || !system.empty() || conv.render_empty_system_message) {
-    prompt = conv.GetSystemText(system, explicit_system);
-  }
+      TrimPythonWhitespace(explicit_system ? messages.front().content.Text() : conv.system_message);
+  std::string prompt = conv.GetSystemText(system, explicit_system);
   for (size_t i = explicit_system ? 1 : 0; i < messages.size(); ++i) {
     const auto& message = messages[i];
     bool assistant = message.role == "assistant";
@@ -293,7 +314,7 @@ Result<std::vector<Data>> CreateGemma4Prompt(const Conversation& conv,
     }
     prompt += conv.GetRoleText(message.role,
                                assistant ? StripGemma4Channels(message.content.Text())
-                                         : TrimGemma4Text(message.content.Text()),
+                                         : TrimPythonWhitespace(message.content.Text()),
                                std::nullopt);
     if (!assistant || messages[i + 1].role != "assistant") {
       prompt += conv.seps.at(assistant && conv.seps.size() == 2 ? 1 : 0);
@@ -335,6 +356,32 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
     }
   }
 
+  if (conv.reasoning_history_style == "qwen3_8" || conv.reasoning_history_style == "qwen3_6") {
+    if (request.tools.has_value() || request.has_template_options) {
+      return TResult::Error("Qwen supports static templates and plain text chat only");
+    }
+    std::vector<ChatCompletionMessage> history = conv.messages;
+    history.insert(history.end(), request.messages.begin(), request.messages.end());
+    if (history.empty() || history.back().role != "user") {
+      return TResult::Error("Qwen requires a final user message");
+    }
+    for (size_t i = 0; i < history.size(); ++i) {
+      const auto& msg = history[i];
+      if ((msg.role != "user" && msg.role != "assistant" && !(i == 0 && msg.role == "system")) ||
+          !msg.content.IsText() || msg.has_unsupported_template_fields ||
+          msg.has_invalid_reasoning_content || msg.tool_calls.has_value() || msg.name.has_value() ||
+          msg.tool_call_id.has_value() ||
+          (msg.reasoning_content.has_value() && msg.role != "assistant")) {
+        return TResult::Error("Qwen supports plain text messages only");
+      }
+      std::string text = TrimPythonWhitespace(msg.content.Text());
+      if (msg.role == "user" && text.rfind("<tool_response>", 0) == 0 && text.size() >= 16 &&
+          text.compare(text.size() - 16, 16, "</tool_response>") == 0) {
+        return TResult::Error("Qwen tool responses are unsupported");
+      }
+    }
+  }
+
   Result<std::optional<std::string>> fn_call_str_tmp = TryGetFunctionCallingString(conv, request);
   if (fn_call_str_tmp.IsErr()) {
     return TResult::Error(fn_call_str_tmp.UnwrapErr());
@@ -363,7 +410,8 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
   // we lazily accumulate the pending text
   // to reduce amount of segments in the Data vector
   std::string pending_text =
-      conv.GetSystemText(has_custom_system ? custom_system_inputs : conv.system_message);
+      conv.GetSystemText(has_custom_system ? custom_system_inputs : conv.system_message,
+                         conv.reasoning_history_style == "qwen3_6" && has_custom_system);
 
   // Get the message strings
   std::vector<Data> message_list;
@@ -468,7 +516,8 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
   const std::vector<ChatCompletionMessage>* request_messages_ptr = &request.messages;
   std::vector<ChatCompletionMessage> stripped_conv_messages;
   std::vector<ChatCompletionMessage> stripped_request_messages;
-  if (conv.strip_reasoning_in_history || conv.reasoning_history_style == "lfm3") {
+  if (conv.strip_reasoning_in_history || conv.reasoning_history_style == "lfm3" ||
+      conv.reasoning_history_style == "qwen3_8" || conv.reasoning_history_style == "qwen3_6") {
     const size_t conv_size = conv.messages.size();
     int64_t last_user_idx = -1;
     for (size_t i = 0; i < conv_size; ++i) {
@@ -484,6 +533,30 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
       for (size_t i = 0; i < in.size(); ++i) {
         ChatCompletionMessage msg = in[i];
         const int64_t global_idx = static_cast<int64_t>(offset + i);
+        if (conv.reasoning_history_style == "qwen3_6") {
+          std::string text = TrimPythonWhitespace(msg.content.Text());
+          if (msg.role == "assistant" && !msg.reasoning_content.has_value()) {
+            const size_t close_pos = text.rfind(kCloseTag);
+            if (close_pos != std::string::npos) {
+              size_t start = close_pos + kCloseTag.size();
+              while (start < text.size() && text[start] == '\n') ++start;
+              text = text.substr(start);
+            }
+          }
+          msg.content = ChatCompletionMessageContent(text);
+          out.push_back(std::move(msg));
+          continue;
+        }
+        if (conv.reasoning_history_style == "qwen3_8") {
+          std::string text = TrimPythonWhitespace(msg.content.Text());
+          if (msg.role == "assistant") {
+            text = "<think>\n" + TrimPythonWhitespace(msg.reasoning_content.value_or("")) +
+                   "\n</think>\n\n" + text;
+          }
+          msg.content = ChatCompletionMessageContent(text);
+          out.push_back(std::move(msg));
+          continue;
+        }
         if (msg.role == "assistant" && global_idx < last_user_idx && msg.content.IsText()) {
           const std::string& text = msg.content.Text();
           const size_t close_pos = text.rfind(kCloseTag);
@@ -750,8 +823,17 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
   if (history_style.IsErr()) return TResult::Error(history_style.UnwrapErr());
   conv.reasoning_history_style = history_style.Unwrap().value_or("default");
   if (conv.reasoning_history_style != "default" && conv.reasoning_history_style != "lfm3" &&
+      conv.reasoning_history_style != "qwen3_8" && conv.reasoning_history_style != "qwen3_6" &&
       conv.reasoning_history_style != "gemma4") {
     return TResult::Error("Unsupported reasoning_history_style");
+  }
+  auto effort =
+      json::LookupOptionalWithResultReturn<std::string>(json_obj, "qwen3_8_reasoning_effort");
+  if (effort.IsErr()) return TResult::Error(effort.UnwrapErr());
+  conv.qwen3_8_reasoning_effort = effort.Unwrap().value_or("xhigh");
+  if (conv.qwen3_8_reasoning_effort != "xhigh" && conv.qwen3_8_reasoning_effort != "medium" &&
+      conv.qwen3_8_reasoning_effort != "low" && conv.qwen3_8_reasoning_effort != "none") {
+    return TResult::Error("Unsupported qwen3_8_reasoning_effort");
   }
   return TResult::Ok(conv);
 }
