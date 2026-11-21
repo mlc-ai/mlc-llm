@@ -81,6 +81,9 @@ struct Conversation {
   // The content of the system prompt (without the template format).
   std::string system_message;
 
+  // Whether the system template is rendered when the system message is empty.
+  bool render_empty_system_message = true;
+
   // The system token ids to be prepended at the beginning of tokenized
   // generated prompt.
   std::optional<std::vector<int>> system_prefix_token_ids = std::nullopt;
@@ -123,6 +126,8 @@ struct Conversation {
   // Qwen3's official HF chat template. Only assistant messages that appear
   // before the last user message are affected.
   bool strip_reasoning_in_history = false;
+  std::string reasoning_history_style = "default";
+  std::string qwen3_8_reasoning_effort = "xhigh";
 
   Conversation();
 
@@ -131,7 +136,7 @@ struct Conversation {
    * \param system_msg The system prompt message.
    * \return The created system text.
    */
-  std::string GetSystemText(const std::string& system_msg) const;
+  std::string GetSystemText(const std::string& system_msg, bool force_render_empty = false) const;
 
   /*!
    * \brief replace the content from role by the correct role text in template

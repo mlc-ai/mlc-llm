@@ -248,6 +248,7 @@ class ChatToolCall(BaseModel):
 
 
 class ChatCompletionMessage(BaseModel):
+    reasoning_content: Optional[str] = None
     content: Optional[Union[str, List[Dict]]] = None  # noqa: UP006
     role: Literal["system", "user", "assistant", "tool"]
     name: Optional[str] = None
@@ -261,6 +262,11 @@ class ChatCompletionRequest(BaseModel):
     """
 
     messages: List[ChatCompletionMessage]  # noqa: UP006
+    # Recognized for explicit rejection by templates with static-only options.
+    enable_thinking: Optional[bool] = None
+    reasoning_effort: Optional[str] = None
+    preserve_thinking: Optional[bool] = None
+    extra_body: Optional[Dict[str, Any]] = None  # noqa: UP006
     model: Optional[str] = None
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None

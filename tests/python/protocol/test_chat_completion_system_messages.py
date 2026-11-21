@@ -2,6 +2,7 @@
 
 import pytest
 
+from mlc_llm.conversation_template import ConvTemplateRegistry
 from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.protocol.error_protocol import BadRequestError
 from mlc_llm.protocol.openai_api_protocol import ChatCompletionRequest
@@ -118,3 +119,66 @@ def test_system_messages_preserve_other_message_validation(message, error):
         request.check_message_validity()
 
     assert str(exc_info.value) == error
+
+
+@pytest.mark.parametrize("template", ["qwen3_6", "qwen3_8"])
+def test_qwen_system_messages_preserve_reasoning_history(template):
+    conversation = ConvTemplateRegistry.get_conv_template(template).model_copy(deep=True)
+    request = ChatCompletionRequest(
+        messages=[
+            {"role": "system", "content": "FIRST"},
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "answer", "reasoning_content": "reason"},
+            {"role": "system", "content": "SECOND"},
+            {"role": "user", "content": "next"},
+        ]
+    )
+    process_chat_completion_request(
+        request,
+        "qwen-system-messages-test",
+        EngineState(enable_tracing=False),
+        {},
+        lambda text: list(map(ord, text)),
+        4096,
+        conversation,
+    )
+
+    assert conversation.system_message == "FIRSTSECOND"
+    assert conversation.reasoning_contents == {1: "reason"}
+    assert conversation.messages == [
+        ("user", "hello"),
+        ("assistant", "answer"),
+        ("user", "next"),
+        ("assistant", None),
+    ]
+
+
+def test_qwen_empty_system_message_keeps_explicit_rendering():
+    conversation = ConvTemplateRegistry.get_conv_template("qwen3_6").model_copy(deep=True)
+    conversation.render_empty_system_message = False
+    request = ChatCompletionRequest(
+        messages=[
+            {"role": "system", "content": ""},
+            {"role": "system", "content": ""},
+            {"role": "user", "content": "hello"},
+        ]
+    )
+    rendered = []
+
+    def encode(text):
+        rendered.append(text)
+        return list(map(ord, text))
+
+    process_chat_completion_request(
+        request,
+        "qwen-empty-system-test",
+        EngineState(enable_tracing=False),
+        {},
+        encode,
+        4096,
+        conversation,
+    )
+
+    assert conversation.system_message == ""
+    assert conversation.render_empty_system_message
+    assert "<|im_start|>system\n<|im_end|>" in "".join(rendered)
