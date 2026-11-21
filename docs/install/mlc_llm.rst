@@ -62,12 +62,18 @@ Select your operating system/compute platform and run the command in your termin
 
             .. tab:: Vulkan
 
-                Supported in all Linux packages. Checkout the following instructions
-                to install the latest vulkan loader to avoid vulkan not found issue.
+                Vulkan support is included in all Linux packages. Install a
+                :ref:`Vulkan driver <vulkan_driver>` for your GPU first. For a
+                Vulkan-only setup, install the CPU wheel pair and the Vulkan loader
+                in the same environment:
 
                 .. code-block:: bash
 
+                    conda activate your-environment
                     conda install -c conda-forge gcc libvulkan-loader
+                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cpu mlc-ai-nightly-cpu psutil
+                    python -c "import mlc_llm; print(mlc_llm)"
+                    python -c "import tvm; print(tvm.vulkan(0).exist)"  # expected: True
 
         .. note::
             We need git-lfs in the system, you can install it via
