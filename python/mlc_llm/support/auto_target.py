@@ -1,6 +1,9 @@
 """Helper functions for target auto-detection."""
 
 import os
+import re
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple  # noqa: UP035
 
@@ -351,6 +354,23 @@ def detect_cuda_arch_list(target: Target) -> List[int]:  # noqa: UP006
     return multi_arch
 
 
+def _pack_nvshmem_cubins(images):
+    """Pack individually device-linked cubins into a CUDA fatbin."""
+    from tvm_tirx.support import nvcc
+
+    with tempfile.TemporaryDirectory(prefix="mlc-nvshmem-fatbin-") as temp_dir:
+        temp = Path(temp_dir)
+        output = temp / "linked.fatbin"
+        fatbinary = Path(nvcc.find_cuda_path()) / "bin" / "fatbinary"
+        command = [str(fatbinary), f"--create={output}", "-64"]
+        for index, (arch, binary) in enumerate(images):
+            cubin = temp / f"image-{index}.cubin"
+            cubin.write_bytes(binary)
+            command.append(f"--image3=kind=elf,sm={arch},file={cubin}")
+        subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        return bytearray(output.read_bytes())
+
+
 def _register_cuda_hook(target: Target):
     if MLC_MULTI_ARCH is None:
         default_arch = target.attrs.get("arch", None)
@@ -382,16 +402,32 @@ def _register_cuda_hook(target: Target):
             result = compile_source(code, config, target=target)
             return [bytearray(result.binary), result.target_format]
 
+        # CUDA backend_config only accepts a single architecture.
+        cuda_config = resolve_backend_config(config["cuda"], target)
+        options = compiler_options(cuda_config)
+        if use_nvshmem:
+            # nvlink produces a single-architecture cubin. Link each target
+            # separately, then combine the images for CUDA's module loader.
+            images = []
+            for compute_version in dict.fromkeys(multi_arch):
+                if not re.fullmatch(r"[0-9]+[a-z]?", compute_version):
+                    raise ValueError(f"Invalid CUDA architecture: {compute_version!r}")
+                binary, _ = nvcc._compile_cuda_nvcc(  # pylint: disable=protected-access
+                    code, "cubin", f"sm_{compute_version}", options, use_nvshmem=True
+                )
+                images.append((compute_version, binary))
+            if len(images) == 1:
+                return [bytearray(images[0][1]), "cubin"]
+            return [_pack_nvshmem_cubins(images), "fatbin"]
+
         arch = []
         for compute_version in multi_arch:
             arch += [
                 "-gencode",
                 f"arch=compute_{compute_version},code=sm_{compute_version}",
             ]
-        # CUDA backend_config only accepts a single architecture.
-        cuda_config = resolve_backend_config(config["cuda"], target)
         binary, _ = nvcc._compile_cuda_nvcc(  # pylint: disable=protected-access
-            code, target_format, arch, compiler_options(cuda_config), use_nvshmem=use_nvshmem
+            code, target_format, arch, options, use_nvshmem=False
         )
         return [bytearray(binary), target_format]
 
