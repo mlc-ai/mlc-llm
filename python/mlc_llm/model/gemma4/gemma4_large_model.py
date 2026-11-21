@@ -19,10 +19,8 @@ from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support.config import ConfigBase
 
 from .gemma4_audio import Gemma4RMSNorm
-from .gemma4_experts import Gemma4Experts
 from .gemma4_model import Gemma4TextMLP, Gemma4TextRotaryEmbedding
-from .gemma4_moe_components import Gemma4Router
-from .gemma4_projection import Gemma4TextProjections
+from .gemma4_moe import Gemma4LargeExperts, Gemma4Router
 
 
 @dataclasses.dataclass
@@ -220,16 +218,39 @@ def pack_cache_heads(value, physical_heads, physical_dim):
     return value
 
 
-class Gemma4LargeAttention(Gemma4TextProjections):
+class Gemma4LargeAttention(nn.Module):
     def __init__(self, config, index):
-        super().__init__(config, index)
+        self.config = config
+        self.layer_idx = index
+        self.head_dim, self.num_kv_heads, self.shared_projection = config.dimensions(index)
+        self.q_proj = nn.Linear(
+            config.hidden_size, config.num_attention_heads * self.head_dim, bias=False
+        )
+        self.k_proj = nn.Linear(config.hidden_size, self.num_kv_heads * self.head_dim, bias=False)
+        if not self.shared_projection:
+            self.v_proj = nn.Linear(
+                config.hidden_size, self.num_kv_heads * self.head_dim, bias=False
+            )
+        self.q_norm = Gemma4RMSNorm(self.head_dim, config.rms_norm_eps)
+        self.k_norm = Gemma4RMSNorm(self.head_dim, config.rms_norm_eps)
+        self.v_norm = Gemma4RMSNorm(self.head_dim, config.rms_norm_eps, with_scale=False)
         self.rotary_emb = Gemma4TextRotaryEmbedding(config, index)
         self.o_proj = nn.Linear(
             config.num_attention_heads * self.head_dim, config.hidden_size, bias=False
         )
 
     def forward(self, hidden, cache, positions):
-        query, key, value = super().forward(hidden)
+        batch, length, _ = hidden.shape
+        query = op.reshape(
+            self.q_proj(hidden), (batch, length, self.config.num_attention_heads, self.head_dim)
+        )
+        key = op.reshape(self.k_proj(hidden), (batch, length, self.num_kv_heads, self.head_dim))
+        value = (
+            key
+            if self.shared_projection
+            else op.reshape(self.v_proj(hidden), (batch, length, self.num_kv_heads, self.head_dim))
+        )
+        query, key, value = self.q_norm(query), self.k_norm(key), self.v_norm(value)
         query, key = self.rotary_emb(query, key, positions)
         c = self.config
         query = pack_cache_heads(query, c.num_attention_heads, c.physical_head_dim)
@@ -248,16 +269,6 @@ class Gemma4LargeAttention(Gemma4TextProjections):
                 result, (hidden.shape[0], hidden.shape[1], c.num_attention_heads * self.head_dim)
             )
         )
-
-
-class Gemma4LargeExperts(Gemma4Experts):
-    def to(self, dtype=None):
-        return nn.Module.to(self, dtype)
-
-    def forward(self, hidden, indices, weights):
-        # The grouped kernel supports arbitrary prefill and batch-decode extents.
-        result = self._combine(hidden, indices, weights, hidden.shape[0] == 1)
-        return op.astype(result, hidden.dtype)
 
 
 class Gemma4LargeLayer(nn.Module):

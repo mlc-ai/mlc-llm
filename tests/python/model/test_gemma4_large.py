@@ -1,7 +1,9 @@
 """Large Gemma 4 text architecture and uniform-cache equivalence."""
 
 import dataclasses
+import json
 import os
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -15,11 +17,13 @@ from mlc_llm.model import MODELS
 from mlc_llm.model.gemma4.gemma4_large_loader import huggingface
 from mlc_llm.model.gemma4.gemma4_large_model import (
     Gemma4LargeConfig,
-    Gemma4LargeExperts,
     Gemma4LargeForCausalLM,
     pack_cache_heads,
 )
+from mlc_llm.model.gemma4.gemma4_moe import Gemma4LargeExperts, Gemma4Router
 from mlc_llm.quantization import QUANTIZATION
+
+CHECKPOINTS = json.loads((Path(__file__).parent / "fixtures/gemma4_large.json").read_text())
 
 
 def tiny(moe=False):
@@ -55,34 +59,26 @@ def test_exports(moe, quant):
     assert "language_model.layers.0.self_attn.v_proj.weight" in mapping.param_map
 
 
-@pytest.mark.parametrize(
-    "heads,kv,dim,physical",
-    [(4, 1, 8, 16), (16, 2, 512, 512), (32, 4, 512, 512), (32, 16, 256, 512)],
-)
-def test_cache_replication_preserves_grouped_attention(heads, kv, dim, physical):
-    torch = pytest.importorskip("torch")
-    torch.manual_seed(17)
-    q = torch.randn(1, heads, 7, dim, dtype=torch.float64)
-    k = torch.randn(1, kv, 7, dim, dtype=torch.float64)
-    v = torch.randn(1, kv, 7, dim, dtype=torch.float64)
-
-    def attention(q, k, v):
-        k = k.repeat_interleave(heads // k.shape[1], dim=1)
-        v = v.repeat_interleave(heads // v.shape[1], dim=1)
-        return torch.softmax(q @ k.transpose(-1, -2), -1) @ v
-
-    expected = attention(q, k, v)
-    cache_heads = heads // 2
-
-    def padded(x):
-        return torch.nn.functional.pad(x, (0, physical - dim))
-
-    got = attention(
-        padded(q),
-        padded(k.repeat_interleave(cache_heads // kv, dim=1)),
-        padded(v.repeat_interleave(cache_heads // kv, dim=1)),
-    )[..., :dim]
-    torch.testing.assert_close(got, expected, atol=1e-12, rtol=1e-12)
+@pytest.mark.parametrize("checkpoint", CHECKPOINTS, ids=lambda f: f["model"])
+def test_checkpoint_mapping(checkpoint):
+    config = Gemma4LargeConfig.from_dict({"text_config": checkpoint["text_config"]})
+    mapping = huggingface(config, QUANTIZATION["q4f16_1"])
+    sources = {name for names in mapping.param_map.values() for name in names}
+    prefixes = tuple(
+        f"model.language_model.layers.{layer}.self_attn." for layer in checkpoint["layers"]
+    )
+    assert {name for name in sources if name.startswith(prefixes)} == set(
+        checkpoint["attention_keys"]
+    )
+    if "feedforward_keys" in checkpoint:
+        layer = "model.language_model.layers.0."
+        branches = tuple(
+            layer + name
+            for name in ("mlp.", "router.", "experts.", "pre_feedforward_", "post_feedforward_")
+        )
+        assert {name for name in sources if name.startswith(branches)} == set(
+            checkpoint["feedforward_keys"]
+        )
 
 
 class DenseCache:
@@ -253,8 +249,6 @@ def test_router_remains_unquantized():
 def test_fp16_router_matches_hf():
     torch = pytest.importorskip("torch")
     from transformers.models.gemma4.modeling_gemma4 import Gemma4TextConfig, Gemma4TextRouter
-
-    from mlc_llm.model.gemma4.gemma4_moe_components import Gemma4Router
 
     c = tiny(True)
     torch.manual_seed(123)
