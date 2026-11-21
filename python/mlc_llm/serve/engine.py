@@ -1887,7 +1887,7 @@ class MLCEngine(engine_base.MLCEngineBase):
             while True:
                 delta_outputs = self.state.sync_output_queue.get()
                 request_outputs, request_final_usage_json_str = self._request_stream_callback_impl(
-                    delta_outputs
+                    delta_outputs, request_id
                 )
                 for request_output in request_outputs:
                     yield request_output
@@ -1906,11 +1906,14 @@ class MLCEngine(engine_base.MLCEngineBase):
     def _request_stream_callback_impl(
         self,
         delta_outputs: List[data.RequestStreamOutput],  # noqa: UP006
+        request_id: str,
     ) -> Tuple[List[List[engine_base.CallbackStreamOutput]], Optional[str]]:  # noqa: UP006
         """The underlying implementation of request stream callback of MLCEngine."""
         batch_outputs: List[List[engine_base.CallbackStreamOutput]] = []  # noqa: UP006
         for delta_output in delta_outputs:
-            request_id, stream_outputs = delta_output.unpack()
+            output_request_id, stream_outputs = delta_output.unpack()
+            if output_request_id != request_id:
+                continue
             self.state.record_event(request_id, event="start callback")
 
             # final chunk is now always indicated by a chunk
