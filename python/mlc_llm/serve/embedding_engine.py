@@ -9,7 +9,7 @@ from typing import List, Literal, Optional, Tuple, Union  # noqa: UP035
 import numpy as np
 import tvm_ffi
 import tvm_tirx
-from tvm import relax
+from tvm.runtime.vm import VirtualMachine
 from tvm_ffi import Shape
 from tvm_tirx.runtime import Device
 
@@ -57,7 +57,7 @@ class AsyncEmbeddingEngine:
 
         # Load TVM module, metadata, and params via engine_utils helpers
         ex = tvm_ffi.load_module(model_lib)
-        vm = relax.VirtualMachine(ex, device=self.device)
+        vm = VirtualMachine(ex, device=self.device)
         self._mod = vm.module
         self._metadata = json.loads(self._mod["_metadata"]())
         self._params = engine_utils.load_embedding_params(model, self.device, self._metadata)
