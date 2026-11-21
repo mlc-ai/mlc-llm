@@ -302,7 +302,7 @@ See :ref:`compile-command-specification` for specification of ``gen_config``.
         --quantization q3f16_1 --conv-template neural_hermes_mistral \
         -o dist/NeuralHermes-2.5-Mistral-7B-q3f16_1-MLC
 
-For the ``conv-template``, `conversation_template.py <https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_llm/conversation_template.py>`__
+For the ``conv-template``, `conversation_template <https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_llm/conversation_template>`__
 contains a full list of conversation templates that MLC provides.
 
 If the model you are adding requires a new conversation template, you would need to add your own.
