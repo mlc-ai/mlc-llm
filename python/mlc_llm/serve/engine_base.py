@@ -787,12 +787,13 @@ def process_chat_completion_request(
                     "Gemma 4 large templates support plain text chat only"
                 )
 
+    system_messages = []
     for message in request.messages:
         role = message.role
         content = message.content
         if role == "system":
             assert isinstance(content, str)
-            conv_template.system_message = content if content is not None else ""
+            system_messages.append(content)
             if conv_template.reasoning_history_style in ("qwen3_6", "gemma4"):
                 conv_template.render_empty_system_message = True
             continue
@@ -801,6 +802,8 @@ def process_chat_completion_request(
                 message.reasoning_content
             )
         conv_template.messages.append((role, content))
+    if system_messages:
+        conv_template.system_message = "".join(system_messages)
     conv_template.messages.append(("assistant", None))
 
     # - Get the prompt from template, and encode to token ids.
