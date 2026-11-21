@@ -1,0 +1,12 @@
+{
+  "interface_id": "sha256:92a98e6e01299fadaf50536d28bb8339f6af32b170f3c5d6361fa62a42f930fb",
+  "text_components": ["audio_encoder", "vision_encoder", "thinker"],
+  "all_components": [
+    "audio_encoder",
+    "vision_encoder",
+    "thinker",
+    "talker",
+    "vocoder"
+  ],
+  "inputs": ["audio", "image", "text", "video"]
+}

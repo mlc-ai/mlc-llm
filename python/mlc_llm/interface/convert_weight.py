@@ -46,6 +46,7 @@ class ConversionArgs:
     source_format: str
     output: Path
     lora_adapter: Optional[Path] = None
+    encode_format: str = "f32-to-bf16"
 
     def display(self) -> None:
         """Display the arguments to stdout."""
@@ -215,7 +216,7 @@ def _convert_args(args: ConversionArgs) -> None:
         _param_generator(),
         str(args.output),
         meta_data=_metadata_callback,
-        encode_format="f32-to-bf16",
+        encode_format=args.encode_format,
         show_progress=False,
     )
     if expected_manifest is not None and not manifest_path.exists():
@@ -246,10 +247,20 @@ def convert_weight(
     source_format: str,
     output: Path,
     lora_adapter: Optional[Path] = None,
+    *,
+    encode_format: str = "f32-to-bf16",
 ):
     """MLC LLM's weight conversation and quantization flow."""
     args = ConversionArgs(
-        config, quantization, model, device, source, source_format, output, lora_adapter
+        config,
+        quantization,
+        model,
+        device,
+        source,
+        source_format,
+        output,
+        lora_adapter,
+        encode_format=encode_format,
     )
 
     allowed_lora_source_formats = {"huggingface-safetensor", "huggingface-torch"}

@@ -1,0 +1,133 @@
+"""Qwen2.5 Omni Thinker component for text and audio embeddings.
+
+Audio-only multimodal positions repeat the ordinary position on all three MRoPE
+axes. The existing Qwen2 cache therefore implements this restricted path. Image
+and video positions are not supported by this component.
+"""
+
+import dataclasses
+from typing import ClassVar
+
+from tvm import relax
+from tvm.relax.frontend import nn
+
+from mlc_llm import op as op_ext
+from mlc_llm.model.model_utils import index_last_token
+from mlc_llm.model.qwen2.qwen2_model import QWen2Config, QWen2LMHeadModel
+from mlc_llm.nn import PagedKVCache
+
+
+@dataclasses.dataclass
+class Qwen25OmniThinkerConfig(QWen2Config):
+    """Dense Thinker configuration restricted to ordinary text/audio positions."""
+
+    projection_out_dtype: ClassVar[str] = "float32"
+
+    input_modalities: tuple[str, ...] = ("text", "audio")
+
+    @classmethod
+    def from_dict(cls, source):
+        source = dict(source)
+        thinker = source.get("thinker_config", source)
+        if not isinstance(thinker, dict):
+            raise ValueError("thinker_config must be an object")
+        text = thinker.get("text_config", thinker)
+        if not isinstance(text, dict):
+            raise ValueError("Thinker text_config must be an object")
+        flattened = dict(text)
+        # Compilation overrides live outside the nested Hugging Face text config.
+        for field in dataclasses.fields(cls):
+            if field.name in source and field.name not in ("kwargs",):
+                flattened[field.name] = source[field.name]
+        return super().from_dict(flattened)
+
+    def __post_init__(self):
+        if self.tie_word_embeddings:
+            raise ValueError("Thinker requires an untied output projection")
+        self.input_modalities = tuple(self.input_modalities)
+        if self.input_modalities not in (("text",), ("text", "audio")):
+            raise ValueError("Thinker supports only text and audio input modalities")
+        if self.kwargs.get("use_sliding_window", False) or any(
+            kind != "full_attention" for kind in self.kwargs.get("layer_types", [])
+        ):
+            raise ValueError("Thinker sliding-window attention is not supported")
+        for name in ("rope_scaling", "rope_parameters"):
+            rope = self.kwargs.get(name)
+            if rope is None:
+                continue
+            if not isinstance(rope, dict):
+                raise ValueError("Thinker RoPE settings must be an object")
+            if any(rope.get(key, "default") != "default" for key in ("type", "rope_type")):
+                raise ValueError("Thinker requires default RoPE for text/audio positions")
+            if rope.get("factor", 1) != 1 or rope.get("partial_rotary_factor", 1) != 1:
+                raise ValueError("Thinker scaled or partial RoPE is not supported")
+            if "rope_theta" in rope:
+                self.rope_theta = rope["rope_theta"]
+        super().__post_init__()
+        if self.kwargs.get("attention_bias", True) is not True:
+            raise ValueError("Thinker requires Qwen2 query/key/value projection biases")
+
+
+class Qwen25OmniThinker(QWen2LMHeadModel):
+    """Token embeddings and stateful generation over text/audio embeddings.
+
+    The caller must replace audio placeholder embeddings before prefill. This is
+    not a full Omni model. Hidden-state exports for Talker alignment are opt-in;
+    media processing and reply alignment remain the caller's responsibility.
+    """
+
+    def __init__(self, config):
+        super().__init__(config)
+        if not self.tie_word_embeddings:
+            self.lm_head.out_dtype = "float32"
+
+    def prefill_with_hidden(self, input_embed, paged_kv_cache):
+        """Return all normalized prompt states and last-position logits.
+
+        The caller retains the actual input embeddings, including injected audio,
+        to construct the two Thinker state streams consumed by Talker.
+        """
+        op_ext.configure()
+        hidden = self.model(input_embed, paged_kv_cache)
+        logits = self.lm_head(index_last_token(hidden)).astype("float32")
+        return logits, hidden, paged_kv_cache
+
+    def decode_with_hidden(self, input_embed, paged_kv_cache):
+        """Return the forwarded token's normalized state and next-token logits."""
+        op_ext.configure()
+        hidden = self.model(input_embed, paged_kv_cache)
+        logits = self.lm_head(hidden).astype("float32")
+        return logits, hidden, paged_kv_cache
+
+    def get_talker_spec(self):
+        """Opt into hidden-state capture without changing the default ABI.
+
+        Generation of N tokens forwards only the first N-1 sampled tokens. The
+        last sampled token therefore has no corresponding captured hidden state.
+        """
+        inherited = self.get_default_spec()
+        methods = dict(zip(inherited.method_names, inherited.method_specs))
+        for name, length in (("prefill_with_hidden", "seq_len"), ("decode_with_hidden", 1)):
+            methods[name] = {
+                "input_embed": nn.spec.Tensor([1, length, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {"param_mode": "packed", "effect_mode": "none"},
+            }
+        return nn.spec.ModuleSpec.from_raw(methods, self)
+
+    def export_tvm(self, spec, debug=False, allow_extern=False):
+        """Add a real impure state-reset export alongside the generation methods."""
+        exported = list(super().export_tvm(spec, debug=debug, allow_extern=allow_extern))
+        builder = relax.BlockBuilder(exported[0])
+        state = relax.Var("state", relax.AnyType())
+        with builder.function("reset_state", [state], pure=False):
+            builder.emit(
+                relax.Call(
+                    relax.ExternFunc("vm.builtin.kv_state_clear"),
+                    [state],
+                    ty_args=[relax.TupleType([])],
+                )
+            )
+            builder.emit_func_output(relax.Tuple([]))
+        exported[0] = builder.finalize()
+        return tuple(exported)

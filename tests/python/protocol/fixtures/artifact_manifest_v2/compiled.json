@@ -1,0 +1,230 @@
+{
+  "schema": "mlc.compiled-program",
+  "schema_version": 2,
+  "interface_id": "sha256:92a98e6e01299fadaf50536d28bb8339f6af32b170f3c5d6361fa62a42f930fb",
+  "components": {
+    "audio_encoder": {
+      "spec": {
+        "kind": "encoder",
+        "contract": "example.encoder.v1",
+        "inputs": {
+          "audio": {
+            "semantic": "mlc.pcm.v1",
+            "dtype": "float32",
+            "shape": ["samples"],
+            "delivery": "stream"
+          }
+        },
+        "outputs": {
+          "features": {
+            "semantic": "mlc.embeddings.v1",
+            "dtype": "float32",
+            "shape": ["tokens", 128],
+            "delivery": "value"
+          }
+        },
+        "weights": {
+          "manifest": "encoder/tensor-cache.json",
+          "parameter_schema_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "state": {
+          "kind": "none",
+          "scope": "request"
+        }
+      },
+      "module": "audio_encoder/model.wasm",
+      "exports": {
+        "run": "_run"
+      },
+      "resources": {
+        "required_features": ["shader-f16"],
+        "max_storage_buffer_binding_size": 1024,
+        "estimated_device_memory_bytes": 4096
+      }
+    },
+    "vision_encoder": {
+      "spec": {
+        "kind": "encoder",
+        "contract": "example.encoder.v1",
+        "inputs": {
+          "image": {
+            "semantic": "mlc.rgb.v1",
+            "dtype": "uint8",
+            "shape": ["height", "width", 3],
+            "delivery": "value"
+          },
+          "video": {
+            "semantic": "mlc.video.v1",
+            "dtype": "uint8",
+            "shape": ["frames", "height", "width", 3],
+            "delivery": "value"
+          }
+        },
+        "outputs": {
+          "features": {
+            "semantic": "mlc.embeddings.v1",
+            "dtype": "float32",
+            "shape": ["tokens", 128],
+            "delivery": "value"
+          }
+        },
+        "weights": {
+          "manifest": "encoder/tensor-cache.json",
+          "parameter_schema_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "state": {
+          "kind": "none",
+          "scope": "request"
+        }
+      },
+      "module": "vision_encoder/model.wasm",
+      "exports": {
+        "run": "_run"
+      },
+      "resources": {
+        "required_features": ["shader-f16"],
+        "max_storage_buffer_binding_size": 1024,
+        "estimated_device_memory_bytes": 4096
+      }
+    },
+    "thinker": {
+      "spec": {
+        "kind": "autoregressive",
+        "contract": "example.autoregressive.v1",
+        "inputs": {
+          "text": {
+            "semantic": "mlc.tokens.v1",
+            "dtype": "int32",
+            "shape": ["tokens"],
+            "delivery": "stream"
+          },
+          "audio": {
+            "semantic": "mlc.embeddings.v1",
+            "dtype": "float32",
+            "shape": ["tokens", 128],
+            "delivery": "value"
+          },
+          "vision": {
+            "semantic": "mlc.embeddings.v1",
+            "dtype": "float32",
+            "shape": ["tokens", 128],
+            "delivery": "value"
+          }
+        },
+        "outputs": {
+          "text": {
+            "semantic": "mlc.tokens.v1",
+            "dtype": "int32",
+            "shape": ["tokens"],
+            "delivery": "stream"
+          },
+          "hidden": {
+            "semantic": "mlc.embeddings.v1",
+            "dtype": "float32",
+            "shape": ["tokens", 128],
+            "delivery": "value"
+          }
+        },
+        "weights": {
+          "manifest": "autoregressive/tensor-cache.json",
+          "parameter_schema_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "state": {
+          "kind": "kv_cache",
+          "scope": "request"
+        }
+      },
+      "module": "thinker/model.wasm",
+      "exports": {
+        "run": "_run",
+        "create_state": "create_state",
+        "reset_state": "reset_state"
+      },
+      "resources": {
+        "required_features": ["shader-f16"],
+        "max_storage_buffer_binding_size": 1024,
+        "estimated_device_memory_bytes": 4096
+      }
+    },
+    "talker": {
+      "spec": {
+        "kind": "code_predictor",
+        "contract": "example.code_predictor.v1",
+        "inputs": {
+          "hidden": {
+            "semantic": "mlc.embeddings.v1",
+            "dtype": "float32",
+            "shape": ["tokens", 128],
+            "delivery": "value"
+          }
+        },
+        "outputs": {
+          "codes": {
+            "semantic": "mlc.audio_codes.v1",
+            "dtype": "int32",
+            "shape": ["frames", 8],
+            "delivery": "stream"
+          }
+        },
+        "weights": {
+          "manifest": "code_predictor/tensor-cache.json",
+          "parameter_schema_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "state": {
+          "kind": "recurrent",
+          "scope": "request"
+        }
+      },
+      "module": "talker/model.wasm",
+      "exports": {
+        "run": "_run",
+        "create_state": "create_state",
+        "reset_state": "reset_state"
+      },
+      "resources": {
+        "required_features": ["shader-f16"],
+        "max_storage_buffer_binding_size": 1024,
+        "estimated_device_memory_bytes": 4096
+      }
+    },
+    "vocoder": {
+      "spec": {
+        "kind": "waveform_decoder",
+        "contract": "example.waveform_decoder.v1",
+        "inputs": {
+          "codes": {
+            "semantic": "mlc.audio_codes.v1",
+            "dtype": "int32",
+            "shape": ["frames", 8],
+            "delivery": "stream"
+          }
+        },
+        "outputs": {
+          "audio": {
+            "semantic": "mlc.pcm.v1",
+            "dtype": "float32",
+            "shape": ["samples"],
+            "delivery": "stream"
+          }
+        },
+        "weights": {
+          "manifest": "waveform_decoder/tensor-cache.json",
+          "parameter_schema_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "state": {
+          "kind": "none",
+          "scope": "request"
+        }
+      },
+      "module": "vocoder/model.wasm",
+      "exports": {
+        "run": "_run"
+      },
+      "resources": {
+        "required_features": ["shader-f16"],
+        "max_storage_buffer_binding_size": 1024,
+        "estimated_device_memory_bytes": 4096
+      }
+    }
+  }
+}

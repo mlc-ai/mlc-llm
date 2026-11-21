@@ -46,6 +46,7 @@ from .phi3 import phi3_loader, phi3_model
 from .phi3v import phi3v_loader, phi3v_model
 from .qwen import qwen_loader, qwen_model
 from .qwen2 import qwen2_loader, qwen2_model
+from .qwen2_5_omni import thinker_loader, thinker_model
 from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model
 from .qwen3 import qwen3_loader, qwen3_model
 from .qwen3_moe import qwen3_moe_loader, qwen3_moe_model
@@ -402,6 +403,16 @@ MODELS: Dict[str, Model] = {  # noqa: UP006
         quantize=make_quantization_functions(
             qwen2_model.QWen2LMHeadModel,
         ),
+    ),
+    "qwen2_5_omni_thinker_audio": Model(
+        name="qwen2_5_omni_thinker_audio",
+        model=thinker_model.Qwen25OmniThinker,
+        config=thinker_model.Qwen25OmniThinkerConfig,
+        source={
+            "huggingface-torch": thinker_loader.huggingface,
+            "huggingface-safetensor": thinker_loader.huggingface,
+        },
+        quantize=make_quantization_functions(thinker_model.Qwen25OmniThinker),
     ),
     "qwen2_moe": Model(
         name="qwen2_moe",
