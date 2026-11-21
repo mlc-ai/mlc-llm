@@ -42,6 +42,7 @@ class Qwen35Config(ConfigBase):
     head_dim: int = 256
     hidden_act: str = "silu"
     attention_bias: bool = False
+    projection_out_dtype: Optional[str] = None
     tie_word_embeddings: bool = False
     # GatedDeltaNet-specific
     linear_key_head_dim: int = 128
@@ -88,6 +89,9 @@ class Qwen35Config(ConfigBase):
                     self.rope_theta = rope_params["rope_theta"]
                 if "partial_rotary_factor" in rope_params:
                     self.partial_rotary_factor = rope_params["partial_rotary_factor"]
+
+        if self.projection_out_dtype not in (None, "float32"):
+            raise ValueError("projection_out_dtype must be None or float32")
 
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
@@ -148,14 +152,24 @@ class Qwen35Embedding(nn.Embedding):
 class Qwen35MLP(nn.Module):
     def __init__(self, config: Qwen35Config):
         self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
-        self.gate_up_proj = nn.Linear(config.hidden_size, 2 * self.intermediate_size, bias=False)
-        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
+        self.gate_up_proj = nn.Linear(
+            config.hidden_size,
+            2 * self.intermediate_size,
+            bias=False,
+            out_dtype=config.projection_out_dtype,
+        )
+        self.down_proj = nn.Linear(
+            self.intermediate_size,
+            config.hidden_size,
+            bias=False,
+            out_dtype=config.projection_out_dtype,
+        )
         self.act_fn = ACT2FN[config.hidden_act]
 
     def forward(self, x: Tensor):
-        concat_x1_x2 = self.gate_up_proj(x)
+        concat_x1_x2 = self.gate_up_proj(x).astype(x.dtype)
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
-        return self.down_proj(self.act_fn(x1) * x2)
+        return self.down_proj(self.act_fn(x1) * x2).astype(x.dtype)
 
 
 class Qwen35Attention(nn.Module):
@@ -177,11 +191,13 @@ class Qwen35Attention(nn.Module):
             out_features=(2 * self.num_attention_heads + 2 * self.num_key_value_heads)
             * self.head_dim,
             bias=config.attention_bias,
+            out_dtype=config.projection_out_dtype,
         )
         self.o_proj = nn.Linear(
             self.num_attention_heads * self.head_dim,
             config.hidden_size,
             bias=config.attention_bias,
+            out_dtype=config.projection_out_dtype,
         )
         self.q_norm = nn.RMSNorm(config.head_dim, -1, config.rms_norm_eps, bias=False)
         self.k_norm = nn.RMSNorm(config.head_dim, -1, config.rms_norm_eps, bias=False)
@@ -190,7 +206,7 @@ class Qwen35Attention(nn.Module):
         d, h_q, h_kv = self.head_dim, self.num_attention_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         # c_attn outputs flat: [Q_with_gate (h_q * 2 * d), K (h_kv * d), V (h_kv * d)]
-        proj = self.c_attn(hidden_states)
+        proj = self.c_attn(hidden_states).astype(hidden_states.dtype)
         # Reshape to heads: (b, s, 2*h_q + 2*h_kv, d)
         proj = op.reshape(proj, (b, s, 2 * h_q + 2 * h_kv, d))
         # Split: first 2*h_q heads have interleaved [Q, gate] per head, then h_kv K, h_kv V
@@ -212,7 +228,7 @@ class Qwen35Attention(nn.Module):
         )
         # Apply output gate: sigmoid(gate) * attn_output
         output = output * op.sigmoid(gate)
-        return self.o_proj(output)
+        return self.o_proj(output).astype(hidden_states.dtype)
 
 
 # ============================================================================
@@ -382,14 +398,32 @@ class Qwen35GatedDeltaNet(nn.Module):
         )
 
         # Projections — matching HF weight names
-        self.in_proj_qkv = nn.Linear(config.hidden_size, qkv_dim, bias=False)
-        self.in_proj_z = nn.Linear(
-            config.hidden_size, self.num_value_heads * self.value_head_dim, bias=False
+        self.in_proj_qkv = nn.Linear(
+            config.hidden_size, qkv_dim, bias=False, out_dtype=config.projection_out_dtype
         )
-        self.in_proj_a = nn.Linear(config.hidden_size, self.num_value_heads, bias=False)
-        self.in_proj_b = nn.Linear(config.hidden_size, self.num_value_heads, bias=False)
+        self.in_proj_z = nn.Linear(
+            config.hidden_size,
+            self.num_value_heads * self.value_head_dim,
+            bias=False,
+            out_dtype=config.projection_out_dtype,
+        )
+        self.in_proj_a = nn.Linear(
+            config.hidden_size,
+            self.num_value_heads,
+            bias=False,
+            out_dtype=config.projection_out_dtype,
+        )
+        self.in_proj_b = nn.Linear(
+            config.hidden_size,
+            self.num_value_heads,
+            bias=False,
+            out_dtype=config.projection_out_dtype,
+        )
         self.out_proj = nn.Linear(
-            self.num_value_heads * self.value_head_dim, config.hidden_size, bias=False
+            self.num_value_heads * self.value_head_dim,
+            config.hidden_size,
+            bias=False,
+            out_dtype=config.projection_out_dtype,
         )
 
         # Causal depthwise Conv1D kernel
@@ -414,10 +448,10 @@ class Qwen35GatedDeltaNet(nn.Module):
         layer_idx = self.linear_layer_idx
 
         # Input projections
-        qkv = self.in_proj_qkv(hidden_states)
-        z = self.in_proj_z(hidden_states)
-        alpha = self.in_proj_a(hidden_states)
-        beta_raw = self.in_proj_b(hidden_states)
+        qkv = self.in_proj_qkv(hidden_states).astype(hidden_states.dtype)
+        z = self.in_proj_z(hidden_states).astype(hidden_states.dtype)
+        alpha = self.in_proj_a(hidden_states).astype(hidden_states.dtype)
+        beta_raw = self.in_proj_b(hidden_states).astype(hidden_states.dtype)
 
         # Get conv state from RNNState (state_id=1)
         qkv_dim = qkv.shape[-1]
@@ -481,7 +515,7 @@ class Qwen35GatedDeltaNet(nn.Module):
         out_normed = self.norm(out_recurrent)
         out_flat = op.reshape(out_normed, (b, s, n_vh * V))
         out_gated = out_flat * op.silu(z)
-        return self.out_proj(out_gated), state
+        return self.out_proj(out_gated).astype(hidden_states.dtype), state
 
     def _causal_conv1d_with_state(self, qkv: Tensor, conv_state: Tensor) -> Tuple[Tensor, Tensor]:  # noqa: UP006
         """Causal Conv1D using a pre-extracted conv_state tensor (for RNNState path)."""
@@ -669,7 +703,12 @@ class Qwen35LMHeadModel(nn.Module):
         self.model = Qwen35Model(config)
         self.tie_word_embeddings = config.tie_word_embeddings
         if not config.tie_word_embeddings:
-            self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+            self.lm_head = nn.Linear(
+                config.hidden_size,
+                config.vocab_size,
+                bias=False,
+                out_dtype=config.projection_out_dtype,
+            )
         self.dtype = config.dtype
         self.hidden_size = config.hidden_size
         self.num_hidden_layers = config.num_hidden_layers
@@ -713,7 +752,7 @@ class Qwen35LMHeadModel(nn.Module):
         if self.tie_word_embeddings:
             logits = self.model.embed_tokens.lm_head_forward(hidden_states)
         else:
-            logits = self.lm_head(hidden_states)
+            logits = self.lm_head(hidden_states).astype(hidden_states.dtype)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits, paged_kv_cache, state
