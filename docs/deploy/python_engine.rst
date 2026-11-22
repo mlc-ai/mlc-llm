@@ -85,6 +85,24 @@ Please refer to `OpenAI's Python package <https://github.com/openai/openai-pytho
 and `OpenAI chat completion API <https://platform.openai.com/docs/api-reference/chat/create>`_
 for the complete chat completion interface.
 
+**Multi-turn conversations.** Each call to ``engine.chat.completions.create`` uses the
+conversation supplied in ``messages``. To continue a conversation on a running engine,
+append the assistant's reply and the next user message before calling ``create`` again:
+
+.. code:: python
+
+  messages = [{"role": "user", "content": "Name a city in Japan."}]
+  response = engine.chat.completions.create(model=model, messages=messages)
+  messages.append(response.choices[0].message.model_dump(exclude_none=True))
+  messages.append({"role": "user", "content": "What can I visit there?"})
+  response = engine.chat.completions.create(model=model, messages=messages)
+
+Start a separate conversation by supplying a fresh message list. When prefix caching
+is enabled, the engine can reuse cached KV state for a matching prefix of input tokens
+across requests, such as a shared system prompt. Reuse depends on the prefix still
+being in the cache. To clear the cache for the entire engine, call ``engine.reset()``.
+This also aborts outstanding requests and resets engine metrics.
+
 .. note::
 
   If you want to enable tensor parallelism to run LLMs on multiple GPUs,
