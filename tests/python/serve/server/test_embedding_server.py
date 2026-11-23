@@ -96,7 +96,9 @@ def check_embedding_response(
         assert len(emb) > 0
 
         if expected_dim is not None:
-            assert len(emb) == expected_dim, f"Expected dim={expected_dim}, got {len(emb)}"
+            assert (
+                len(emb) == expected_dim
+            ), f"Expected dim={expected_dim}, got {len(emb)}"
 
         if check_unit_norm:
             norm = float(np.linalg.norm(emb))
@@ -140,12 +142,16 @@ sys.path.insert(0, "{mlc_llm_path}")
 
 import fastapi
 import uvicorn
+from mlc_llm.protocol import error_protocol
 from mlc_llm.serve.embedding_engine import AsyncEmbeddingEngine
 from mlc_llm.serve.server import ServerContext
 from mlc_llm.serve.entrypoints import openai_entrypoints
 
 app = fastapi.FastAPI()
 app.include_router(openai_entrypoints.app)
+app.exception_handler(error_protocol.BadRequestError)(
+    error_protocol.bad_request_error_handler
+)
 
 engine = AsyncEmbeddingEngine(
     model="{EMBEDDING_MODEL_DIR}",
@@ -181,7 +187,9 @@ uvicorn.run(app, host="{EMBEDDING_SERVER_HOST}", port={EMBEDDING_SERVER_PORT}, l
         if not ready:
             stderr = proc.stderr.read().decode() if proc.stderr else ""
             proc.kill()
-            raise RuntimeError(f"Embedding server failed to start in {timeout}s.\nStderr: {stderr}")
+            raise RuntimeError(
+                f"Embedding server failed to start in {timeout}s.\nStderr: {stderr}"
+            )
 
         yield proc
 
@@ -221,7 +229,9 @@ def test_models_endpoint():
 
 def test_single_string_input(client):
     """Single string input returns one embedding."""
-    resp = client.embeddings.create(input="What is machine learning?", model=EMBEDDING_MODEL_NAME)
+    resp = client.embeddings.create(
+        input="What is machine learning?", model=EMBEDDING_MODEL_NAME
+    )
     raw = resp.model_dump()
     check_embedding_response(raw, model=EMBEDDING_MODEL_NAME, num_embeddings=1)
 
@@ -241,7 +251,9 @@ def test_batch_string_input(client):
     """List of strings returns one embedding per input."""
     resp = client.embeddings.create(input=BATCH_INPUTS, model=EMBEDDING_MODEL_NAME)
     raw = resp.model_dump()
-    check_embedding_response(raw, model=EMBEDDING_MODEL_NAME, num_embeddings=len(BATCH_INPUTS))
+    check_embedding_response(
+        raw, model=EMBEDDING_MODEL_NAME, num_embeddings=len(BATCH_INPUTS)
+    )
 
 
 def test_batch_index_ordering(client):
@@ -269,9 +281,9 @@ def test_cosine_similarity_via_endpoint(client):
     e0, e1, e2 = [np.array(d.embedding) for d in resp.data]
     sim_related = float(np.dot(e0, e1))
     sim_unrelated = float(np.dot(e0, e2))
-    assert sim_related > sim_unrelated, (
-        f"Related ({sim_related:.4f}) should > unrelated ({sim_unrelated:.4f})"
-    )
+    assert (
+        sim_related > sim_unrelated
+    ), f"Related ({sim_related:.4f}) should > unrelated ({sim_unrelated:.4f})"
 
 
 # ===================================================================
@@ -339,6 +351,23 @@ def test_any_model_name_works_with_single_engine():
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["data"]) == 1
+
+
+@pytest.mark.parametrize("dimensions", [0, -1])
+@pytest.mark.usefixtures("launch_embedding_server")
+def test_non_positive_dimensions_return_400(dimensions):
+    """Non-positive dimensions are rejected instead of producing truncated vectors."""
+    resp = requests.post(
+        f"{EMBEDDING_BASE_URL}/embeddings",
+        json={
+            "input": "hi",
+            "model": EMBEDDING_MODEL_NAME,
+            "dimensions": dimensions,
+        },
+        timeout=5,
+    )
+    assert resp.status_code == 400
+    expect_error(resp.text, "`dimensions` must be greater than or equal to 1.")
 
 
 # ===================================================================

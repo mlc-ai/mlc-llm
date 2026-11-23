@@ -72,6 +72,14 @@ async def request_embedding(request: EmbeddingRequest):
         else:
             inputs = [embedding_engine.tokenizer.decode(ids) for ids in request.input]
 
+    # non-postive integers should be restricted
+    # else dimension truncation creates an empty vector
+    # and negatives silently drop trailing values.
+    if request.dimensions is not None and request.dimensions < 1:
+        raise error_protocol.BadRequestError(
+            "`dimensions` must be greater than or equal to 1."
+        )
+
     # Run embedding inference (async — does not block the event loop)
     try:
         embeddings, total_tokens = await embedding_engine.async_embed(inputs)
@@ -123,7 +131,9 @@ async def request_models() -> ListResponse:
     API reference: https://platform.openai.com/docs/api-reference/models
     """
     server_context: ServerContext = ServerContext.current()
-    return ListResponse(data=[ModelResponse(id=model) for model in server_context.get_model_list()])
+    return ListResponse(
+        data=[ModelResponse(id=model) for model in server_context.get_model_list()]
+    )
 
 
 ################ v1/completions ################
@@ -150,7 +160,11 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         )
     # FIXME: This is a temporary solution to make sure
     # prep_recv, remote_send and start_generation process the same request
-    request_id = request.user if request.user is not None else f"cmpl-{engine_utils.random_uuid()}"
+    request_id = (
+        request.user
+        if request.user is not None
+        else f"cmpl-{engine_utils.random_uuid()}"
+    )
 
     # Streaming response.
     if request.stream:
@@ -162,9 +176,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             request_id,
             request_final_usage_include_extra=request_final_usage_include_extra,
         )
-        first_response = await anext(  # noqa: F821
-            stream_generator
-        )
+        first_response = await anext(stream_generator)  # noqa: F821
 
         async def completion_stream_generator() -> AsyncGenerator[str, None]:
             if isinstance(first_response, StopAsyncIteration):
@@ -183,7 +195,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     request_final_usage = None
     output_texts = [""] * request.n
     finish_reasons: List[Optional[str]] = [None] * request.n  # noqa: UP006
-    logprob_results: List[Optional[CompletionLogProbs]] = [None] * request.n  # noqa: UP006
+    logprob_results: List[Optional[CompletionLogProbs]] = [
+        None
+    ] * request.n  # noqa: UP006
 
     async for response in async_engine._handle_completion(
         request,
@@ -208,7 +222,10 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             continue
         for choice in response.choices:
             output_texts[choice.index] += choice.text
-            if choice.finish_reason is not None and finish_reasons[choice.index] is None:
+            if (
+                choice.finish_reason is not None
+                and finish_reasons[choice.index] is None
+            ):
                 finish_reasons[choice.index] = choice.finish_reason
             if choice.logprobs is not None:
                 if logprob_results[choice.index] is None:
@@ -218,7 +235,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                         choice.logprobs.token_logprobs
                     )
                     logprob_results[choice.index].tokens.extend(choice.logprobs.tokens)
-                    logprob_results[choice.index].top_logprobs.extend(choice.logprobs.top_logprobs)
+                    logprob_results[choice.index].top_logprobs.extend(
+                        choice.logprobs.top_logprobs
+                    )
 
     return engine_base.wrap_completion_response(
         request_id=request_id,
@@ -234,7 +253,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
 
 
 @app.post("/v1/chat/completions")
-async def request_chat_completion(request: ChatCompletionRequest, raw_request: fastapi.Request):
+async def request_chat_completion(
+    request: ChatCompletionRequest, raw_request: fastapi.Request
+):
     """OpenAI-compatible chat completion API.
     API reference: https://platform.openai.com/docs/api-reference/chat
     """
@@ -255,7 +276,9 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
     # FIXME: This is a temporary solution to make sure
     # prep_recv, remote_send and start_generation process the same request
     request_id = (
-        request.user if request.user is not None else f"chatcmpl-{engine_utils.random_uuid()}"
+        request.user
+        if request.user is not None
+        else f"chatcmpl-{engine_utils.random_uuid()}"
     )
 
     # Streaming response.
@@ -268,9 +291,7 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
             request_id,
             request_final_usage_include_extra=request_final_usage_include_extra,
         )
-        first_response = await anext(  # noqa: F821
-            stream_generator
-        )
+        first_response = await anext(stream_generator)  # noqa: F821
 
         async def completion_stream_generator() -> AsyncGenerator[str, None]:
             if isinstance(first_response, StopAsyncIteration):
@@ -288,7 +309,9 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
     # Normal response.
     request_final_usage = None
     output_texts = ["" for _ in range(request.n)]
-    finish_reasons: List[Optional[str]] = [None for _ in range(request.n)]  # noqa: UP006
+    finish_reasons: List[Optional[str]] = [
+        None for _ in range(request.n)
+    ]  # noqa: UP006
     logprob_results: Optional[List[List[LogProbsContent]]] = (  # noqa: UP006
         [[] for _ in range(request.n)] if request.logprobs else None
     )
@@ -317,7 +340,10 @@ async def request_chat_completion(request: ChatCompletionRequest, raw_request: f
         for choice in response.choices:
             assert isinstance(choice.delta.content, str)
             output_texts[choice.index] += choice.delta.content
-            if choice.finish_reason is not None and finish_reasons[choice.index] is None:
+            if (
+                choice.finish_reason is not None
+                and finish_reasons[choice.index] is None
+            ):
                 finish_reasons[choice.index] = choice.finish_reason
             if choice.logprobs is not None:
                 assert logprob_results is not None
