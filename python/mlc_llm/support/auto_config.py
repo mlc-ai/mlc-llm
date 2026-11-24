@@ -68,6 +68,31 @@ def detect_mlc_chat_config(mlc_chat_config: str) -> Path:
     return mlc_chat_config_json_path
 
 
+def detect_model_task_and_config(model: str) -> "tuple[str, Path]":
+    """Detect a model's task and return it with the resolved ``mlc-chat-config.json`` path.
+
+    Returns
+    -------
+    model_task : str
+        The ``model_task`` field of the config, defaulting to ``"chat"`` when absent.
+    mlc_chat_config_json_path : pathlib.Path
+        The path pointing to ``mlc-chat-config.json``.
+    """
+    config_path = detect_mlc_chat_config(model)
+    with open(config_path, encoding="utf-8") as f:
+        cfg = json.load(f)
+    return cfg.get("model_task", "chat"), config_path
+
+
+def detect_model_task(model: str) -> str:
+    """Detect the ``model_task`` field from a model's ``mlc-chat-config.json``.
+
+    Returns ``"chat"`` or ``"embedding"``. Defaults to ``"chat"`` when the field is absent.
+    """
+    model_task, _ = detect_model_task_and_config(model)
+    return model_task
+
+
 def detect_config(config: str) -> Path:
     """Detect and return the path that points to config.json. If `config` is a directory,
     it looks for config.json below it.

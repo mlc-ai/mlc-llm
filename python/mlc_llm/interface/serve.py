@@ -17,6 +17,7 @@ from mlc_llm.serve.entrypoints import (
 )
 from mlc_llm.serve.server import ServerContext
 from mlc_llm.support import logging
+from mlc_llm.support.auto_config import detect_model_task_and_config
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,30 @@ def serve(
     api_key: Optional[str] = None,
 ):
     """Serve the model with the specified configuration."""
+    # An embedding primary model is served in embedding-only mode; all other
+    # models go through the existing chat serve path unchanged.
+    model_task, model_config_path = detect_model_task_and_config(model)
+    if model_task == "embedding":
+        if embedding_model is not None:
+            raise ValueError(
+                "--embedding-model cannot be combined with an embedding primary model. "
+                "Serve the embedding model directly: mlc_llm serve <embedding-model>."
+            )
+        _serve_embedding(
+            model=model,
+            model_path=str(model_config_path.parent),
+            device=device,
+            model_lib=model_lib,
+            host=host,
+            port=port,
+            allow_credentials=allow_credentials,
+            allow_origins=allow_origins,
+            allow_methods=allow_methods,
+            allow_headers=allow_headers,
+            api_key=api_key,
+        )
+        return
+
     # Create engine and start the background loop
     async_engine = engine.AsyncMLCEngine(
         model=model,
@@ -89,6 +114,11 @@ def serve(
     # Set up embedding model if specified
     emb_engine = None
     if embedding_model is not None:
+        logger.warning(
+            "--embedding-model/--embedding-model-lib are deprecated. "
+            "Serve the embedding model directly instead: "
+            "mlc_llm serve <embedding-model> --model-lib <lib>."
+        )
         if embedding_model_lib is None:
             raise ValueError(
                 "--embedding-model-lib is required when --embedding-model is specified."
@@ -127,5 +157,60 @@ def serve(
 
         app.exception_handler(error_protocol.BadRequestError)(
             error_protocol.bad_request_error_handler
+        )
+        uvicorn.run(app, host=host, port=port, log_level="info")
+
+
+def _serve_embedding(  # pylint: disable=too-many-arguments
+    *,
+    model: str,
+    model_path: str,
+    device: str,
+    model_lib: Optional[str],
+    host: str,
+    port: int,
+    allow_credentials: bool,
+    allow_origins: Any,
+    allow_methods: Any,
+    allow_headers: Any,
+    api_key: Optional[str],
+):
+    """Serve an embedding model as the primary (and only) model.
+
+    Exposes only the endpoints an embedding server can answer:
+    GET /v1/models and POST /v1/embeddings. Chat-engine options do not apply
+    in this mode.
+    """
+    if model_lib is None:
+        raise ValueError("--model-lib is required when serving an embedding model.")
+
+    emb_engine = AsyncEmbeddingEngine(
+        model=model_path,
+        model_lib=model_lib,
+        device=device,
+    )
+    logger.info("Embedding model %s loaded successfully.", model)
+
+    with ServerContext() as server_context:
+        server_context.add_embedding_engine(model, emb_engine)
+        server_context.api_key = api_key
+
+        app = fastapi.FastAPI()
+        app.add_middleware(
+            CORSMiddleware,
+            allow_credentials=allow_credentials,
+            allow_origins=allow_origins,
+            allow_methods=allow_methods,
+            allow_headers=allow_headers,
+        )
+        app.include_router(openai_entrypoints.embedding_app)
+        app.exception_handler(error_protocol.BadRequestError)(
+            error_protocol.bad_request_error_handler
+        )
+        logger.info(
+            "Embedding server started at http://%s:%d (endpoints: GET /v1/models, "
+            "POST /v1/embeddings)",
+            host,
+            port,
         )
         uvicorn.run(app, host=host, port=port, log_level="info")
